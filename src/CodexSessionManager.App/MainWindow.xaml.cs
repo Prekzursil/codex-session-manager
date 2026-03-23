@@ -144,10 +144,10 @@ public partial class MainWindow : Window
         CopiesListBox.ItemsSource = selected.PhysicalCopies;
         ReadableTranscriptTextBox.Text = selected.SearchDocument.ReadableTranscript;
         DialogueTranscriptTextBox.Text = selected.SearchDocument.DialogueTranscript;
-        SQLiteStatusTextBlock.Text = GetLiveSqliteStatus();
 
         try
         {
+            SQLiteStatusTextBlock.Text = GetLiveSqliteStatus();
             var parsed = await SessionJsonlParser.ParseAsync(selected.PreferredCopy.FilePath, CancellationToken.None);
             CwdTextBlock.Text = parsed.Cwd ?? "-";
             RawTranscriptTextBox.Text = File.ReadAllText(selected.PreferredCopy.FilePath);
@@ -158,6 +158,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             CwdTextBlock.Text = "-";
+            SQLiteStatusTextBlock.Text = "Live SQLite status unavailable.";
             AuditTranscriptTextBox.Text = string.Empty;
             RawTranscriptTextBox.Text = $"Unable to load raw session content.{Environment.NewLine}{ex.Message}";
         }
@@ -352,12 +353,29 @@ public partial class MainWindow : Window
         };
 
         var details = sqlitePaths
-            .Where(File.Exists)
             .Select(path =>
             {
-                var info = new FileInfo(path);
-                return $"{Path.GetFileName(path)} | {Math.Round(info.Length / 1024.0 / 1024.0, 1)} MB | {info.LastWriteTime}";
+                try
+                {
+                    var info = new FileInfo(path);
+                    if (!info.Exists)
+                    {
+                        return null;
+                    }
+
+                    return $"{path} | {Math.Round(info.Length / 1024.0 / 1024.0, 1)} MB | {info.LastWriteTime}";
+                }
+                catch (IOException)
+                {
+                    return null;
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    return null;
+                }
             })
+            .Where(detail => detail is not null)
+            .Cast<string>()
             .ToArray();
 
         return details.Length == 0

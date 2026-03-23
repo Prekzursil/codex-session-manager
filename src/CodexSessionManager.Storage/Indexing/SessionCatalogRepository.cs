@@ -58,6 +58,8 @@ public sealed class SessionCatalogRepository
             command.CommandText = sql;
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
+
+        await RefreshSearchIndexAsync(connection, cancellationToken);
     }
 
     public async Task UpsertAsync(IndexedLogicalSession session, CancellationToken cancellationToken)
@@ -132,6 +134,11 @@ public sealed class SessionCatalogRepository
 
     public async Task<IReadOnlyList<SessionSearchHit>> SearchAsync(string query, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return [];
+        }
+
         await using var connection = await OpenConnectionAsync(cancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText =
@@ -266,6 +273,24 @@ public sealed class SessionCatalogRepository
             Tags = session.SearchDocument.Tags.Count == 0 ? SplitLines(reader.GetString(1)) : session.SearchDocument.Tags,
             Notes = string.IsNullOrWhiteSpace(session.SearchDocument.Notes) ? reader.GetString(2) : session.SearchDocument.Notes
         };
+    }
+
+    private static async Task RefreshSearchIndexAsync(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        await using (var deleteCommand = connection.CreateCommand())
+        {
+            deleteCommand.CommandText = "DELETE FROM session_search;";
+            await deleteCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await using var insertCommand = connection.CreateCommand();
+        insertCommand.CommandText =
+            """
+            INSERT INTO session_search(session_id, combined_text)
+            SELECT session_id, combined_text
+            FROM sessions;
+            """;
+        await insertCommand.ExecuteNonQueryAsync(cancellationToken);
     }
 
     private static async Task RefreshSearchRowAsync(SqliteConnection connection, string sessionId, CancellationToken cancellationToken)

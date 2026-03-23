@@ -37,9 +37,16 @@ public sealed class MaintenanceExecutor
         foreach (var target in preview.AllowedTargets)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var destinationPath = Path.Combine(effectiveDestinationRoot, Path.GetFileName(target.FilePath));
+            var fileName = Path.GetFileName(target.FilePath);
+            var destinationPath = Path.Combine(effectiveDestinationRoot, fileName);
+            if (File.Exists(destinationPath))
+            {
+                var uniqueName = $"{Path.GetFileNameWithoutExtension(fileName)}-{Guid.NewGuid():N}{Path.GetExtension(fileName)}";
+                destinationPath = Path.Combine(effectiveDestinationRoot, uniqueName);
+            }
+
             Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
-            File.Move(target.FilePath, destinationPath, overwrite: true);
+            File.Move(target.FilePath, destinationPath);
             movedTargets.Add(target with { FilePath = destinationPath });
         }
 
