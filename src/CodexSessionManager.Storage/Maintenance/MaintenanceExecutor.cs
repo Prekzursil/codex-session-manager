@@ -24,16 +24,29 @@ public sealed class MaintenanceExecutor
             throw new InvalidOperationException("Typed confirmation is required.");
         }
 
+        if (!string.Equals(preview.RequiredTypedConfirmation, typedConfirmation, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Typed confirmation does not match the preview.");
+        }
+
         Directory.CreateDirectory(_checkpointRoot);
-        Directory.CreateDirectory(destinationRoot);
+        var effectiveDestinationRoot = GetEffectiveDestinationRoot(preview.Action, destinationRoot);
+        Directory.CreateDirectory(effectiveDestinationRoot);
 
         var movedTargets = new List<SessionPhysicalCopy>();
         foreach (var target in preview.AllowedTargets)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var destinationPath = Path.Combine(destinationRoot, Path.GetFileName(target.FilePath));
+            var fileName = Path.GetFileName(target.FilePath);
+            var destinationPath = Path.Combine(effectiveDestinationRoot, fileName);
+            if (File.Exists(destinationPath))
+            {
+                var uniqueName = $"{Path.GetFileNameWithoutExtension(fileName)}-{Guid.NewGuid():N}{Path.GetExtension(fileName)}";
+                destinationPath = Path.Combine(effectiveDestinationRoot, uniqueName);
+            }
+
             Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
-            File.Move(target.FilePath, destinationPath, overwrite: true);
+            File.Move(target.FilePath, destinationPath);
             movedTargets.Add(target with { FilePath = destinationPath });
         }
 
@@ -59,4 +72,12 @@ public sealed class MaintenanceExecutor
             MovedTargets: movedTargets,
             ManifestPath: manifestPath);
     }
+
+    private string GetEffectiveDestinationRoot(MaintenanceAction action, string destinationRoot) =>
+        action switch
+        {
+            MaintenanceAction.Delete => Path.Combine(_checkpointRoot, "deleted"),
+            MaintenanceAction.Reconcile => Path.Combine(destinationRoot, "reconciled"),
+            _ => destinationRoot
+        };
 }

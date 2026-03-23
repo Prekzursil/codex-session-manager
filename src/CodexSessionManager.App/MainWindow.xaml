@@ -107,7 +107,16 @@
                                  AcceptsReturn="True"
                                  AcceptsTab="True" />
                     </TabItem>
-                    <TabItem Header="Audit / Raw">
+                    <TabItem Header="Audit">
+                        <TextBox Name="AuditTranscriptTextBox"
+                                 Padding="12"
+                                 IsReadOnly="True"
+                                 TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto"
+                                 AcceptsReturn="True"
+                                 AcceptsTab="True" />
+                    </TabItem>
+                    <TabItem Header="Raw">
                         <TextBox Name="RawTranscriptTextBox"
                                  Padding="12"
                                  IsReadOnly="True"
@@ -154,6 +163,13 @@
                                    FontWeight="SemiBold"
                                    Text="CWD" />
                         <TextBlock Name="CwdTextBlock"
+                                   TextWrapping="Wrap"
+                                   Text="-" />
+
+                        <TextBlock Margin="0,12,0,4"
+                                   FontWeight="SemiBold"
+                                   Text="Live SQLite Status" />
+                        <TextBlock Name="SQLiteStatusTextBlock"
                                    TextWrapping="Wrap"
                                    Text="-" />
 

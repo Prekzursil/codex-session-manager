@@ -24,6 +24,9 @@ jobs:
         run: dotnet test CodexSessionManager.sln --configuration Release --no-build
       - name: Publish portable app
         run: dotnet publish src/CodexSessionManager.App/CodexSessionManager.App.csproj -c Release -r win-x64 --self-contained true -o publish/win-x64
+      - name: Prepare artifacts directory
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force -Path artifacts | Out-Null
       - name: Create portable zip
         shell: pwsh
         run: Compress-Archive -Path publish/win-x64/* -DestinationPath artifacts/CodexSessionManager-portable-win-x64.zip -Force

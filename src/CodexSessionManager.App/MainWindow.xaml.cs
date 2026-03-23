@@ -147,15 +147,19 @@ public partial class MainWindow : Window
 
         try
         {
+            SQLiteStatusTextBlock.Text = GetLiveSqliteStatus();
             var parsed = await SessionJsonlParser.ParseAsync(selected.PreferredCopy.FilePath, CancellationToken.None);
             CwdTextBlock.Text = parsed.Cwd ?? "-";
             RawTranscriptTextBox.Text = File.ReadAllText(selected.PreferredCopy.FilePath);
             ReadableTranscriptTextBox.Text = SessionTranscriptFormatter.Format(parsed.Document, TranscriptMode.Readable).RenderedMarkdown;
             DialogueTranscriptTextBox.Text = SessionTranscriptFormatter.Format(parsed.Document, TranscriptMode.Dialogue).RenderedMarkdown;
+            AuditTranscriptTextBox.Text = SessionTranscriptFormatter.Format(parsed.Document, TranscriptMode.Audit).RenderedMarkdown;
         }
         catch (Exception ex)
         {
             CwdTextBlock.Text = "-";
+            SQLiteStatusTextBlock.Text = "Live SQLite status unavailable.";
+            AuditTranscriptTextBox.Text = string.Empty;
             RawTranscriptTextBox.Text = $"Unable to load raw session content.{Environment.NewLine}{ex.Message}";
         }
     }
@@ -337,5 +341,45 @@ public partial class MainWindow : Window
         {
             StatusTextBlock.Text = $"Maintenance failed: {ex.Message}";
         }
+    }
+
+    private static string GetLiveSqliteStatus()
+    {
+        var codexHome = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex");
+        var sqlitePaths = new[]
+        {
+            Path.Combine(codexHome, "state_5.sqlite"),
+            Path.Combine(codexHome, "codex-sqlite", "canonical", "state_5.sqlite")
+        };
+
+        var details = sqlitePaths
+            .Select(path =>
+            {
+                try
+                {
+                    var info = new FileInfo(path);
+                    if (!info.Exists)
+                    {
+                        return null;
+                    }
+
+                    return $"{path} | {Math.Round(info.Length / 1024.0 / 1024.0, 1)} MB | {info.LastWriteTime}";
+                }
+                catch (IOException)
+                {
+                    return null;
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    return null;
+                }
+            })
+            .Where(detail => detail is not null)
+            .Cast<string>()
+            .ToArray();
+
+        return details.Length == 0
+            ? "No live SQLite store detected."
+            : string.Join(Environment.NewLine, details);
     }
 }
