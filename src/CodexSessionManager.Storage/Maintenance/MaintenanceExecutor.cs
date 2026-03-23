@@ -24,14 +24,20 @@ public sealed class MaintenanceExecutor
             throw new InvalidOperationException("Typed confirmation is required.");
         }
 
+        if (!string.Equals(preview.RequiredTypedConfirmation, typedConfirmation, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Typed confirmation does not match the preview.");
+        }
+
         Directory.CreateDirectory(_checkpointRoot);
-        Directory.CreateDirectory(destinationRoot);
+        var effectiveDestinationRoot = GetEffectiveDestinationRoot(preview.Action, destinationRoot);
+        Directory.CreateDirectory(effectiveDestinationRoot);
 
         var movedTargets = new List<SessionPhysicalCopy>();
         foreach (var target in preview.AllowedTargets)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var destinationPath = Path.Combine(destinationRoot, Path.GetFileName(target.FilePath));
+            var destinationPath = Path.Combine(effectiveDestinationRoot, Path.GetFileName(target.FilePath));
             Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
             File.Move(target.FilePath, destinationPath, overwrite: true);
             movedTargets.Add(target with { FilePath = destinationPath });
@@ -59,4 +65,12 @@ public sealed class MaintenanceExecutor
             MovedTargets: movedTargets,
             ManifestPath: manifestPath);
     }
+
+    private string GetEffectiveDestinationRoot(MaintenanceAction action, string destinationRoot) =>
+        action switch
+        {
+            MaintenanceAction.Delete => Path.Combine(_checkpointRoot, "deleted"),
+            MaintenanceAction.Reconcile => Path.Combine(destinationRoot, "reconciled"),
+            _ => destinationRoot
+        };
 }

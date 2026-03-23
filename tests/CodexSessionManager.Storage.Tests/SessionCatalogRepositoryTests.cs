@@ -64,6 +64,45 @@ public sealed class SessionCatalogRepositoryTests
     }
 
     [Fact]
+    public async Task SearchAsync_MatchesPhraseTokens_OutOfOriginalOrder()
+    {
+        var databasePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var repository = new SessionCatalogRepository(databasePath);
+            await repository.InitializeAsync(CancellationToken.None);
+
+            var session = new IndexedLogicalSession(
+                "session-fts",
+                "Renderer work",
+                new SessionPhysicalCopy("session-fts", @"C:\Users\Prekzursil\.codex\sessions\fts.jsonl", SessionStoreKind.Live, DateTimeOffset.UtcNow, 1000, false),
+                [new SessionPhysicalCopy("session-fts", @"C:\Users\Prekzursil\.codex\sessions\fts.jsonl", SessionStoreKind.Live, DateTimeOffset.UtcNow, 1000, false)],
+                new SessionSearchDocument(
+                    "inspect renderer logic",
+                    "inspect renderer logic",
+                    "",
+                    "",
+                    [],
+                    [],
+                    "",
+                    "",
+                    [],
+                    ""));
+
+            await repository.UpsertAsync(session, CancellationToken.None);
+
+            var hits = await repository.SearchAsync("renderer inspect", CancellationToken.None);
+
+            Assert.Contains(hits, hit => hit.SessionId == "session-fts");
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
     public async Task SaveMetadataAsync_PersistsAliasTagsAndNotes_AndMakesThemSearchable()
     {
         var databasePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");

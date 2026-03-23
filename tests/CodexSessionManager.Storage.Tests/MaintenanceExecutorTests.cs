@@ -54,4 +54,47 @@ public sealed class MaintenanceExecutorTests
             Directory.Delete(root, recursive: true);
         }
     }
+
+    [Fact]
+    public async Task ExecuteAsync_DeleteMovesTargetsIntoCheckpointDeletedArea()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var sourceDir = Path.Combine(root, "sessions_backup");
+        var destinationDir = Path.Combine(root, "ignored-destination");
+        var checkpointDir = Path.Combine(root, "checkpoints");
+        Directory.CreateDirectory(sourceDir);
+
+        var filePath = Path.Combine(sourceDir, "session-delete.jsonl");
+        await File.WriteAllTextAsync(filePath, "delete me");
+
+        var planner = new MaintenancePlanner();
+        var executor = new MaintenanceExecutor(checkpointDir);
+        var preview = planner.CreatePreview(
+            new MaintenanceRequest(
+                MaintenanceAction.Delete,
+                [
+                    new SessionPhysicalCopy(
+                        "session-delete",
+                        filePath,
+                        SessionStoreKind.Backup,
+                        DateTimeOffset.UtcNow,
+                        9,
+                        false)
+                ],
+                "DELETE 1 FILE"));
+
+        try
+        {
+            var result = await executor.ExecuteAsync(preview, destinationDir, "DELETE 1 FILE", CancellationToken.None);
+
+            Assert.True(result.Executed);
+            Assert.False(File.Exists(filePath));
+            Assert.Contains(result.MovedTargets, moved => moved.FilePath.Contains(@"\checkpoints\deleted\", StringComparison.OrdinalIgnoreCase));
+            Assert.True(Directory.Exists(Path.Combine(checkpointDir, "deleted")));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
 }

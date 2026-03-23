@@ -144,6 +144,7 @@ public partial class MainWindow : Window
         CopiesListBox.ItemsSource = selected.PhysicalCopies;
         ReadableTranscriptTextBox.Text = selected.SearchDocument.ReadableTranscript;
         DialogueTranscriptTextBox.Text = selected.SearchDocument.DialogueTranscript;
+        SQLiteStatusTextBlock.Text = GetLiveSqliteStatus();
 
         try
         {
@@ -152,10 +153,12 @@ public partial class MainWindow : Window
             RawTranscriptTextBox.Text = File.ReadAllText(selected.PreferredCopy.FilePath);
             ReadableTranscriptTextBox.Text = SessionTranscriptFormatter.Format(parsed.Document, TranscriptMode.Readable).RenderedMarkdown;
             DialogueTranscriptTextBox.Text = SessionTranscriptFormatter.Format(parsed.Document, TranscriptMode.Dialogue).RenderedMarkdown;
+            AuditTranscriptTextBox.Text = SessionTranscriptFormatter.Format(parsed.Document, TranscriptMode.Audit).RenderedMarkdown;
         }
         catch (Exception ex)
         {
             CwdTextBlock.Text = "-";
+            AuditTranscriptTextBox.Text = string.Empty;
             RawTranscriptTextBox.Text = $"Unable to load raw session content.{Environment.NewLine}{ex.Message}";
         }
     }
@@ -337,5 +340,28 @@ public partial class MainWindow : Window
         {
             StatusTextBlock.Text = $"Maintenance failed: {ex.Message}";
         }
+    }
+
+    private static string GetLiveSqliteStatus()
+    {
+        var codexHome = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex");
+        var sqlitePaths = new[]
+        {
+            Path.Combine(codexHome, "state_5.sqlite"),
+            Path.Combine(codexHome, "codex-sqlite", "canonical", "state_5.sqlite")
+        };
+
+        var details = sqlitePaths
+            .Where(File.Exists)
+            .Select(path =>
+            {
+                var info = new FileInfo(path);
+                return $"{Path.GetFileName(path)} | {Math.Round(info.Length / 1024.0 / 1024.0, 1)} MB | {info.LastWriteTime}";
+            })
+            .ToArray();
+
+        return details.Length == 0
+            ? "No live SQLite store detected."
+            : string.Join(Environment.NewLine, details);
     }
 }

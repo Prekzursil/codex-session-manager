@@ -15,8 +15,8 @@ public sealed class SessionCatalogRepository
     public async Task InitializeAsync(CancellationToken cancellationToken)
     {
         await using var connection = await OpenConnectionAsync(cancellationToken);
-        await using var command = connection.CreateCommand();
-        command.CommandText =
+        var commands = new[]
+        {
             """
             CREATE TABLE IF NOT EXISTS sessions (
                 session_id TEXT PRIMARY KEY,
@@ -34,7 +34,8 @@ public sealed class SessionCatalogRepository
                 notes TEXT NOT NULL,
                 combined_text TEXT NOT NULL
             );
-
+            """,
+            """
             CREATE TABLE IF NOT EXISTS session_copies (
                 session_id TEXT NOT NULL,
                 file_path TEXT NOT NULL,
@@ -44,18 +45,29 @@ public sealed class SessionCatalogRepository
                 is_hot INTEGER NOT NULL,
                 PRIMARY KEY(session_id, file_path)
             );
-            """;
-        await command.ExecuteNonQueryAsync(cancellationToken);
+            """,
+            """
+            CREATE VIRTUAL TABLE IF NOT EXISTS session_search
+            USING fts5(session_id UNINDEXED, combined_text);
+            """
+        };
+
+        foreach (var sql in commands)
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = sql;
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
     }
 
     public async Task UpsertAsync(IndexedLogicalSession session, CancellationToken cancellationToken)
     {
         await using var connection = await OpenConnectionAsync(cancellationToken);
-        var effectiveSearchDocument = await MergeExistingMetadataAsync(connection, session, cancellationToken);
+        var searchDocument = await MergeExistingMetadataAsync(connection, session, cancellationToken);
 
-        await using (var sessionCommand = connection.CreateCommand())
+        await using (var command = connection.CreateCommand())
         {
-            sessionCommand.CommandText =
+            command.CommandText =
                 """
                 INSERT INTO sessions(session_id, thread_name, preferred_path, readable_transcript, dialogue_transcript, tool_summary, command_text, file_paths, urls, error_text, alias, tags, notes, combined_text)
                 VALUES ($sessionId, $threadName, $preferredPath, $readableTranscript, $dialogueTranscript, $toolSummary, $commandText, $filePaths, $urls, $errorText, $alias, $tags, $notes, $combinedText)
@@ -74,21 +86,21 @@ public sealed class SessionCatalogRepository
                     notes = excluded.notes,
                     combined_text = excluded.combined_text;
                 """;
-            sessionCommand.Parameters.AddWithValue("$sessionId", session.SessionId);
-            sessionCommand.Parameters.AddWithValue("$threadName", session.ThreadName);
-            sessionCommand.Parameters.AddWithValue("$preferredPath", session.PreferredCopy.FilePath);
-            sessionCommand.Parameters.AddWithValue("$readableTranscript", effectiveSearchDocument.ReadableTranscript);
-            sessionCommand.Parameters.AddWithValue("$dialogueTranscript", effectiveSearchDocument.DialogueTranscript);
-            sessionCommand.Parameters.AddWithValue("$toolSummary", effectiveSearchDocument.ToolSummary);
-            sessionCommand.Parameters.AddWithValue("$commandText", effectiveSearchDocument.CommandText);
-            sessionCommand.Parameters.AddWithValue("$filePaths", string.Join('\n', effectiveSearchDocument.FilePaths));
-            sessionCommand.Parameters.AddWithValue("$urls", string.Join('\n', effectiveSearchDocument.Urls));
-            sessionCommand.Parameters.AddWithValue("$errorText", effectiveSearchDocument.ErrorText);
-            sessionCommand.Parameters.AddWithValue("$alias", effectiveSearchDocument.Alias);
-            sessionCommand.Parameters.AddWithValue("$tags", string.Join('\n', effectiveSearchDocument.Tags));
-            sessionCommand.Parameters.AddWithValue("$notes", effectiveSearchDocument.Notes);
-            sessionCommand.Parameters.AddWithValue("$combinedText", effectiveSearchDocument.CombinedText);
-            await sessionCommand.ExecuteNonQueryAsync(cancellationToken);
+            command.Parameters.AddWithValue("$sessionId", session.SessionId);
+            command.Parameters.AddWithValue("$threadName", session.ThreadName);
+            command.Parameters.AddWithValue("$preferredPath", session.PreferredCopy.FilePath);
+            command.Parameters.AddWithValue("$readableTranscript", searchDocument.ReadableTranscript);
+            command.Parameters.AddWithValue("$dialogueTranscript", searchDocument.DialogueTranscript);
+            command.Parameters.AddWithValue("$toolSummary", searchDocument.ToolSummary);
+            command.Parameters.AddWithValue("$commandText", searchDocument.CommandText);
+            command.Parameters.AddWithValue("$filePaths", string.Join('\n', searchDocument.FilePaths));
+            command.Parameters.AddWithValue("$urls", string.Join('\n', searchDocument.Urls));
+            command.Parameters.AddWithValue("$errorText", searchDocument.ErrorText);
+            command.Parameters.AddWithValue("$alias", searchDocument.Alias);
+            command.Parameters.AddWithValue("$tags", string.Join('\n', searchDocument.Tags));
+            command.Parameters.AddWithValue("$notes", searchDocument.Notes);
+            command.Parameters.AddWithValue("$combinedText", searchDocument.CombinedText);
+            await command.ExecuteNonQueryAsync(cancellationToken);
         }
 
         await using (var deleteCopies = connection.CreateCommand())
@@ -114,6 +126,8 @@ public sealed class SessionCatalogRepository
             copyCommand.Parameters.AddWithValue("$isHot", copy.IsHot ? 1 : 0);
             await copyCommand.ExecuteNonQueryAsync(cancellationToken);
         }
+
+        await RefreshSearchRowAsync(connection, session.SessionId, cancellationToken);
     }
 
     public async Task<IReadOnlyList<SessionSearchHit>> SearchAsync(string query, CancellationToken cancellationToken)
@@ -122,23 +136,19 @@ public sealed class SessionCatalogRepository
         await using var command = connection.CreateCommand();
         command.CommandText =
             """
-            SELECT session_id, thread_name, preferred_path, combined_text
-            FROM sessions
-            WHERE combined_text LIKE $pattern OR thread_name LIKE $pattern
-            ORDER BY thread_name COLLATE NOCASE;
+            SELECT s.session_id, s.thread_name, s.preferred_path, snippet(session_search, 1, '[', ']', '...', 10) AS snippet
+            FROM session_search
+            INNER JOIN sessions s ON s.session_id = session_search.session_id
+            WHERE session_search MATCH $query
+            ORDER BY rank;
             """;
-        command.Parameters.AddWithValue("$pattern", $"%{query}%");
+        command.Parameters.AddWithValue("$query", ToFtsQuery(query));
 
         var results = new List<SessionSearchHit>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            results.Add(new SessionSearchHit(
-                SessionId: reader.GetString(0),
-                ThreadName: reader.GetString(1),
-                PreferredPath: reader.GetString(2),
-                Snippet: reader.GetString(3),
-                Score: 1));
+            results.Add(new SessionSearchHit(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.IsDBNull(3) ? string.Empty : reader.GetString(3), 1));
         }
 
         return results;
@@ -162,6 +172,7 @@ public sealed class SessionCatalogRepository
         command.Parameters.AddWithValue("$tags", string.Join('\n', tags));
         command.Parameters.AddWithValue("$notes", notes);
         await command.ExecuteNonQueryAsync(cancellationToken);
+        await RefreshSearchRowAsync(connection, sessionId, cancellationToken);
     }
 
     public Task UpdateMetadataAsync(string sessionId, string alias, IReadOnlyList<string> tags, string notes, CancellationToken cancellationToken) =>
@@ -191,14 +202,7 @@ public sealed class SessionCatalogRepository
                     copiesBySession[sessionId] = copies;
                 }
 
-                copies.Add(
-                    new SessionPhysicalCopy(
-                        sessionId,
-                        reader.GetString(1),
-                        (SessionStoreKind)reader.GetInt32(2),
-                        DateTimeOffset.Parse(reader.GetString(3)),
-                        reader.GetInt64(4),
-                        reader.GetInt32(5) == 1));
+                copies.Add(new SessionPhysicalCopy(sessionId, reader.GetString(1), (SessionStoreKind)reader.GetInt32(2), DateTimeOffset.Parse(reader.GetString(3)), reader.GetInt64(4), reader.GetInt32(5) == 1));
             }
         }
 
@@ -218,67 +222,73 @@ public sealed class SessionCatalogRepository
                 var sessionId = reader.GetString(0);
                 var threadName = reader.GetString(1);
                 var preferredPath = reader.GetString(2);
-                var copies = copiesBySession.TryGetValue(sessionId, out var existingCopies)
-                    ? existingCopies
-                    : [];
-
+                var copies = copiesBySession.TryGetValue(sessionId, out var existingCopies) ? existingCopies : [];
                 var preferredCopy = copies.FirstOrDefault(copy => string.Equals(copy.FilePath, preferredPath, StringComparison.OrdinalIgnoreCase))
                     ?? new SessionPhysicalCopy(sessionId, preferredPath, SessionStoreKind.Unknown, DateTimeOffset.MinValue, 0, false);
 
                 sessions.Add(
                     new IndexedLogicalSession(
-                        SessionId: sessionId,
-                        ThreadName: threadName,
-                        PreferredCopy: preferredCopy,
-                        PhysicalCopies: copies.Count > 0 ? copies : [preferredCopy],
-                        SearchDocument: new SessionSearchDocument(
-                            ReadableTranscript: reader.GetString(3),
-                            DialogueTranscript: reader.GetString(4),
-                            ToolSummary: reader.GetString(5),
-                            CommandText: reader.GetString(6),
-                            FilePaths: SplitLines(reader.GetString(7)),
-                            Urls: SplitLines(reader.GetString(8)),
-                            ErrorText: reader.GetString(9),
-                            Alias: reader.GetString(10),
-                            Tags: SplitLines(reader.GetString(11)),
-                            Notes: reader.GetString(12))));
+                        sessionId,
+                        threadName,
+                        preferredCopy,
+                        copies.Count > 0 ? copies : [preferredCopy],
+                        new SessionSearchDocument(
+                            reader.GetString(3),
+                            reader.GetString(4),
+                            reader.GetString(5),
+                            reader.GetString(6),
+                            SplitLines(reader.GetString(7)),
+                            SplitLines(reader.GetString(8)),
+                            reader.GetString(9),
+                            reader.GetString(10),
+                            SplitLines(reader.GetString(11)),
+                            reader.GetString(12))));
             }
         }
 
         return sessions;
     }
 
-    private static async Task<SessionSearchDocument> MergeExistingMetadataAsync(
-        SqliteConnection connection,
-        IndexedLogicalSession session,
-        CancellationToken cancellationToken)
+    private static async Task<SessionSearchDocument> MergeExistingMetadataAsync(SqliteConnection connection, IndexedLogicalSession session, CancellationToken cancellationToken)
     {
-        await using var existingCommand = connection.CreateCommand();
-        existingCommand.CommandText = "SELECT alias, tags, notes FROM sessions WHERE session_id = $sessionId;";
-        existingCommand.Parameters.AddWithValue("$sessionId", session.SessionId);
-
-        await using var reader = await existingCommand.ExecuteReaderAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT alias, tags, notes FROM sessions WHERE session_id = $sessionId;";
+        command.Parameters.AddWithValue("$sessionId", session.SessionId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))
         {
             return session.SearchDocument;
         }
 
-        var alias = string.IsNullOrWhiteSpace(session.SearchDocument.Alias)
-            ? reader.GetString(0)
-            : session.SearchDocument.Alias;
-        var tags = session.SearchDocument.Tags.Count == 0
-            ? SplitLines(reader.GetString(1))
-            : session.SearchDocument.Tags;
-        var notes = string.IsNullOrWhiteSpace(session.SearchDocument.Notes)
-            ? reader.GetString(2)
-            : session.SearchDocument.Notes;
-
         return session.SearchDocument with
         {
-            Alias = alias,
-            Tags = tags,
-            Notes = notes
+            Alias = string.IsNullOrWhiteSpace(session.SearchDocument.Alias) ? reader.GetString(0) : session.SearchDocument.Alias,
+            Tags = session.SearchDocument.Tags.Count == 0 ? SplitLines(reader.GetString(1)) : session.SearchDocument.Tags,
+            Notes = string.IsNullOrWhiteSpace(session.SearchDocument.Notes) ? reader.GetString(2) : session.SearchDocument.Notes
         };
+    }
+
+    private static async Task RefreshSearchRowAsync(SqliteConnection connection, string sessionId, CancellationToken cancellationToken)
+    {
+        await using (var deleteCommand = connection.CreateCommand())
+        {
+            deleteCommand.CommandText = "DELETE FROM session_search WHERE session_id = $sessionId;";
+            deleteCommand.Parameters.AddWithValue("$sessionId", sessionId);
+            await deleteCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await using (var insertCommand = connection.CreateCommand())
+        {
+            insertCommand.CommandText =
+                """
+                INSERT INTO session_search(session_id, combined_text)
+                SELECT session_id, combined_text
+                FROM sessions
+                WHERE session_id = $sessionId;
+                """;
+            insertCommand.Parameters.AddWithValue("$sessionId", sessionId);
+            await insertCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
     }
 
     private async Task<SqliteConnection> OpenConnectionAsync(CancellationToken cancellationToken)
@@ -292,5 +302,8 @@ public sealed class SessionCatalogRepository
     private static IReadOnlyList<string> SplitLines(string value) =>
         string.IsNullOrWhiteSpace(value)
             ? []
-            : value.Split(['\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            : value.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    private static string ToFtsQuery(string query) =>
+        string.Join(" AND ", query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(token => $"\"{token.Replace("\"", "\"\"")}\""));
 }
