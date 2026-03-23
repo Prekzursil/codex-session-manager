@@ -89,7 +89,10 @@ public sealed class MaintenanceExecutorTests
 
             Assert.True(result.Executed);
             Assert.False(File.Exists(filePath));
-            Assert.Contains(result.MovedTargets, moved => moved.FilePath.Contains(@"\checkpoints\deleted\", StringComparison.OrdinalIgnoreCase));
+            var expectedDeletedRoot = Path.GetFullPath(Path.Combine(checkpointDir, "deleted") + Path.DirectorySeparatorChar);
+            Assert.Contains(
+                result.MovedTargets,
+                moved => Path.GetFullPath(moved.FilePath).StartsWith(expectedDeletedRoot, StringComparison.OrdinalIgnoreCase));
             Assert.True(Directory.Exists(Path.Combine(checkpointDir, "deleted")));
         }
         finally
