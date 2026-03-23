@@ -1,0 +1,44 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Restore
+        run: dotnet restore CodexSessionManager.sln
+      - name: Build
+        run: dotnet build CodexSessionManager.sln --configuration Release --no-restore
+      - name: Test
+        run: dotnet test CodexSessionManager.sln --configuration Release --no-build
+      - name: Publish portable app
+        run: dotnet publish src/CodexSessionManager.App/CodexSessionManager.App.csproj -c Release -r win-x64 --self-contained true -o publish/win-x64
+      - name: Create portable zip
+        shell: pwsh
+        run: Compress-Archive -Path publish/win-x64/* -DestinationPath artifacts/CodexSessionManager-portable-win-x64.zip -Force
+      - name: Prepare installer bundle
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path installer-bundle | Out-Null
+          Copy-Item scripts/Install-CodexSessionManager.ps1 installer-bundle/
+          Copy-Item scripts/Uninstall-CodexSessionManager.ps1 installer-bundle/
+          Copy-Item publish/win-x64/* installer-bundle/ -Recurse
+          Compress-Archive -Path installer-bundle/* -DestinationPath artifacts/CodexSessionManager-installer-bundle-win-x64.zip -Force
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/CodexSessionManager-portable-win-x64.zip
+            artifacts/CodexSessionManager-installer-bundle-win-x64.zip

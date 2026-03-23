@@ -1,0 +1,7 @@
+* text=auto eol=crlf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.zip binary
+*.db binary
+

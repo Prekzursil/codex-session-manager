@@ -1,0 +1,38 @@
+name: Bug report
+description: Report a defect in Codex Session Manager
+labels: [bug]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: dropdown
+    id: risk
+    attributes:
+      label: Does this affect private session data or maintenance safety?
+      options:
+        - No
+        - Possibly
+        - Yes
+    validations:
+      required: true

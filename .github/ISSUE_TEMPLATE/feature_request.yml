@@ -1,0 +1,20 @@
+name: Feature request
+description: Suggest an improvement for Codex Session Manager
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Any privacy, search, or maintenance safety implications?

@@ -1,0 +1,129 @@
+using System.Text.Json;
+using CodexSessionManager.Core.Sessions;
+using CodexSessionManager.Core.Transcripts;
+using CodexSessionManager.Storage.Indexing;
+using CodexSessionManager.Storage.Parsing;
+
+namespace CodexSessionManager.Storage.Discovery;
+
+public sealed class SessionWorkspaceIndexer
+{
+    private readonly SessionCatalogRepository _repository;
+
+    public SessionWorkspaceIndexer(SessionCatalogRepository repository)
+    {
+        _repository = repository;
+    }
+
+    public async Task<IReadOnlyList<IndexedLogicalSession>> RebuildAsync(IEnumerable<KnownSessionStore> stores, CancellationToken cancellationToken)
+    {
+        var sessions = await LoadSessionsAsync(stores, cancellationToken);
+        foreach (var session in sessions)
+        {
+            await _repository.UpsertAsync(session, cancellationToken);
+        }
+
+        return sessions;
+    }
+
+    internal static async Task<IReadOnlyList<IndexedLogicalSession>> LoadSessionsAsync(IEnumerable<KnownSessionStore> stores, CancellationToken cancellationToken)
+    {
+        var threadNames = new Dictionary<string, string>(StringComparer.Ordinal);
+        var parsedSessions = new Dictionary<string, ParsedSessionFile>(StringComparer.Ordinal);
+        var copies = new List<SessionPhysicalCopy>();
+
+        foreach (var store in stores)
+        {
+            foreach (var kvp in await LoadSessionIndexAsync(store.SessionIndexPath, cancellationToken))
+            {
+                threadNames[kvp.Key] = kvp.Value;
+            }
+
+            if (!Directory.Exists(store.SessionsPath))
+            {
+                continue;
+            }
+
+            foreach (var filePath in Directory.EnumerateFiles(store.SessionsPath, "*.jsonl", SearchOption.AllDirectories))
+            {
+                var parsed = await SessionJsonlParser.ParseAsync(filePath, cancellationToken);
+                parsedSessions[parsed.SessionId] = parsed;
+                var fileInfo = new FileInfo(filePath);
+                copies.Add(
+                    new SessionPhysicalCopy(
+                        parsed.SessionId,
+                        filePath,
+                        store.StoreKind,
+                        fileInfo.LastWriteTimeUtc,
+                        fileInfo.Length,
+                        false));
+            }
+        }
+
+        return SessionDeduplicator.Consolidate(copies)
+            .Select(logical =>
+            {
+                var parsed = parsedSessions[logical.SessionId];
+                var readableTranscript = SessionTranscriptFormatter.Format(parsed.Document, TranscriptMode.Readable).RenderedMarkdown;
+                var dialogueTranscript = SessionTranscriptFormatter.Format(parsed.Document, TranscriptMode.Dialogue).RenderedMarkdown;
+                var toolSummary = string.Join(Environment.NewLine, parsed.TechnicalBreadcrumbs.Commands.Select(command => $"Ran: {command}"));
+                var searchDocument = new SessionSearchDocument(
+                    readableTranscript,
+                    dialogueTranscript,
+                    toolSummary,
+                    string.Join(Environment.NewLine, parsed.TechnicalBreadcrumbs.Commands),
+                    parsed.TechnicalBreadcrumbs.FilePaths,
+                    parsed.TechnicalBreadcrumbs.Urls,
+                    string.Join(Environment.NewLine, parsed.TechnicalBreadcrumbs.ExitCodes.Select(code => $"Exit {code}")),
+                    string.Empty,
+                    [],
+                    string.Empty);
+
+                return new IndexedLogicalSession(
+                    logical.SessionId,
+                    threadNames.TryGetValue(logical.SessionId, out var threadName) ? threadName : logical.SessionId,
+                    logical.PreferredCopy,
+                    logical.PhysicalCopies,
+                    searchDocument);
+            })
+            .OrderBy(session => session.ThreadName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static async Task<Dictionary<string, string>> LoadSessionIndexAsync(string sessionIndexPath, CancellationToken cancellationToken)
+    {
+        var results = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (!File.Exists(sessionIndexPath))
+        {
+            return results;
+        }
+
+        var lines = await File.ReadAllLinesAsync(sessionIndexPath, cancellationToken);
+        foreach (var line in lines.Where(static value => !string.IsNullOrWhiteSpace(value)))
+        {
+            using var document = JsonDocument.Parse(line);
+            var root = document.RootElement;
+            if (!root.TryGetProperty("id", out var idElement) || idElement.ValueKind is not JsonValueKind.String)
+            {
+                continue;
+            }
+
+            var sessionId = idElement.GetString();
+            if (string.IsNullOrWhiteSpace(sessionId))
+            {
+                continue;
+            }
+
+            var threadName = root.TryGetProperty("thread_name", out var threadNameElement) && threadNameElement.ValueKind is JsonValueKind.String
+                ? threadNameElement.GetString()
+                : null;
+
+            if (!string.IsNullOrWhiteSpace(threadName))
+            {
+                results[sessionId] = threadName!;
+            }
+        }
+
+        return results;
+    }
+}

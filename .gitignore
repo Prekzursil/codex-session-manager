@@ -1,0 +1,27 @@
+# Build output
+bin/
+obj/
+TestResults/
+artifacts/
+publish/
+
+# User / IDE
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# OS / temp
+.DS_Store
+Thumbs.db
+NUL
+
+# Local tooling
+.dotnet-cli/
+coverage/
+*.coverage
+*.coveragexml
+
+# App local scratch
+local-run/
