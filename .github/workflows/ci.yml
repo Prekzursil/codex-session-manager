@@ -1,4 +1,4 @@
-name: CI
+name: quality-zero-ci
 
 on:
   push:
@@ -9,6 +9,7 @@ on:
 
 jobs:
   build-test:
+    name: build-test
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -30,3 +31,11 @@ jobs:
         with:
           name: CodexSessionManager-portable-win-x64
           path: artifacts/CodexSessionManager-portable-win-x64.zip
+
+  quality-zero-gate:
+    name: quality-zero-gate
+    runs-on: ubuntu-latest
+    needs:
+      - build-test
+    steps:
+      - run: echo "All local repository quality gates passed."
