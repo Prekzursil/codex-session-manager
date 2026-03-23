@@ -30,7 +30,7 @@ jobs:
       - name: Zip portable artifact
         shell: pwsh
         run: Compress-Archive -Path publish/win-x64/* -DestinationPath artifacts/CodexSessionManager-portable-win-x64.zip -Force
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: CodexSessionManager-portable-win-x64
           path: artifacts/CodexSessionManager-portable-win-x64.zip
