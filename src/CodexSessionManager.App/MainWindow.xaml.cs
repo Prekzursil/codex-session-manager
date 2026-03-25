@@ -22,6 +22,18 @@ public partial class MainWindow : Window
     private SessionWorkspaceIndexer? _workspaceIndexer;
     private MaintenanceExecutor? _maintenanceExecutor;
     private MaintenancePreview? _currentMaintenancePreview;
+    private Func<string>? _localDataRootOverride;
+    private Action? _queueInitialRefreshOverride;
+    private Func<string>? _liveSqliteStatusOverride;
+    private Func<string, CancellationToken, Task<ParsedSessionFile>>? _parseSessionFileAsyncOverride;
+    private Func<string, string>? _readRawFileTextOverride;
+    private Func<NormalizedSessionDocument, TranscriptMode, TranscriptRenderResult>? _renderTranscriptOverride;
+    private Func<ProcessStartInfo, Process?>? _launchProcessOverride;
+    private Action<string>? _setClipboardTextOverride;
+    private Func<SaveFileDialog, bool?>? _showSaveFileDialogOverride;
+    private Action<string, string, Encoding>? _writeTextFileOverride;
+    private Func<MaintenancePreview, string, string, CancellationToken, Task<MaintenanceExecutionResult>>? _executeMaintenancePreviewAsyncOverride;
+    private Func<Action, Task>? _invokeOnUiAsyncOverride;
 
     public MainWindow()
     {
@@ -36,9 +48,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            var localDataRoot = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "CodexSessionManager");
+            var localDataRoot = GetLocalDataRoot();
             Directory.CreateDirectory(localDataRoot);
             DestinationRootTextBox.Text = Path.Combine(localDataRoot, "maintenance", "archive");
 
@@ -49,7 +59,7 @@ public partial class MainWindow : Window
             await _repository.InitializeAsync(CancellationToken.None);
             await LoadSessionsFromCatalogAsync();
 
-            _ = Task.Run(async () => await RefreshAsync(deepScan: false));
+            QueueInitialRefresh();
         }
         catch (Exception ex)
         {
@@ -66,7 +76,7 @@ public partial class MainWindow : Window
 
         var sessions = await _repository.ListSessionsAsync(CancellationToken.None);
 
-        await Dispatcher.InvokeAsync(() =>
+        await InvokeOnUiAsync(() =>
         {
             _sessions.Clear();
             foreach (var session in sessions)
@@ -85,13 +95,13 @@ public partial class MainWindow : Window
             return;
         }
 
-        await Dispatcher.InvokeAsync(() => StatusTextBlock.Text = deepScan ? "Running deep scan…" : "Refreshing known stores…");
+        await InvokeOnUiAsync(() => StatusTextBlock.Text = deepScan ? "Running deep scan…" : "Refreshing known stores…");
 
         var knownStores = BuildKnownStores(deepScan);
         await _workspaceIndexer.RebuildAsync(knownStores, CancellationToken.None);
         await LoadSessionsFromCatalogAsync();
 
-        await Dispatcher.InvokeAsync(() =>
+        await InvokeOnUiAsync(() =>
         {
             StatusTextBlock.Text = $"Indexed {_sessions.Count} deduped sessions at {DateTime.Now:t}.";
         });
@@ -127,7 +137,7 @@ public partial class MainWindow : Window
     private IReadOnlyList<IndexedLogicalSession> GetSelectedSessions() =>
         SessionsListBox.SelectedItems.Cast<IndexedLogicalSession>().ToArray();
 
-    private async void SessionsListBox_OnSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    private async Task HandleSessionSelectionChangedAsync()
     {
         var selected = GetSelectedSession();
         if (selected is null)
@@ -147,24 +157,33 @@ public partial class MainWindow : Window
 
         try
         {
-            SQLiteStatusTextBlock.Text = GetLiveSqliteStatus();
-            var parsed = await SessionJsonlParser.ParseAsync(selected.PreferredCopy.FilePath, CancellationToken.None);
-            CwdTextBlock.Text = parsed.Cwd ?? "-";
-            RawTranscriptTextBox.Text = File.ReadAllText(selected.PreferredCopy.FilePath);
-            ReadableTranscriptTextBox.Text = SessionTranscriptFormatter.Format(parsed.Document, TranscriptMode.Readable).RenderedMarkdown;
-            DialogueTranscriptTextBox.Text = SessionTranscriptFormatter.Format(parsed.Document, TranscriptMode.Dialogue).RenderedMarkdown;
-            AuditTranscriptTextBox.Text = SessionTranscriptFormatter.Format(parsed.Document, TranscriptMode.Audit).RenderedMarkdown;
+            SQLiteStatusTextBlock.Text = GetLiveSqliteStatusText();
+            var parsed = await ParseSessionFileAsync(selected.PreferredCopy.FilePath, CancellationToken.None);
+            await InvokeOnUiAsync(() =>
+            {
+                CwdTextBlock.Text = parsed.Cwd ?? "-";
+                RawTranscriptTextBox.Text = ReadRawFileText(selected.PreferredCopy.FilePath);
+                ReadableTranscriptTextBox.Text = RenderTranscript(parsed.Document, TranscriptMode.Readable).RenderedMarkdown;
+                DialogueTranscriptTextBox.Text = RenderTranscript(parsed.Document, TranscriptMode.Dialogue).RenderedMarkdown;
+                AuditTranscriptTextBox.Text = RenderTranscript(parsed.Document, TranscriptMode.Audit).RenderedMarkdown;
+            });
         }
         catch (Exception ex)
         {
-            CwdTextBlock.Text = "-";
-            SQLiteStatusTextBlock.Text = "Live SQLite status unavailable.";
-            AuditTranscriptTextBox.Text = string.Empty;
-            RawTranscriptTextBox.Text = $"Unable to load raw session content.{Environment.NewLine}{ex.Message}";
+            await InvokeOnUiAsync(() =>
+            {
+                CwdTextBlock.Text = "-";
+                SQLiteStatusTextBlock.Text = "Live SQLite status unavailable.";
+                AuditTranscriptTextBox.Text = string.Empty;
+                RawTranscriptTextBox.Text = $"Unable to load raw session content.{Environment.NewLine}{ex.Message}";
+            });
         }
     }
 
-    private async void SearchTextBox_OnTextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    private async void SessionsListBox_OnSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) =>
+        await HandleSessionSelectionChangedAsync();
+
+    private async Task HandleSearchTextChangedAsync()
     {
         if (_repository is null)
         {
@@ -181,20 +200,26 @@ public partial class MainWindow : Window
         var hitIds = hits.Select(hit => hit.SessionId).ToHashSet(StringComparer.Ordinal);
         var allSessions = await _repository.ListSessionsAsync(CancellationToken.None);
 
-        _sessions.Clear();
-        foreach (var session in allSessions.Where(session => hitIds.Contains(session.SessionId)))
+        await InvokeOnUiAsync(() =>
         {
-            _sessions.Add(session);
-        }
+            _sessions.Clear();
+            foreach (var session in allSessions.Where(session => hitIds.Contains(session.SessionId)))
+            {
+                _sessions.Add(session);
+            }
 
-        StatusTextBlock.Text = $"Search returned {_sessions.Count} sessions.";
+            StatusTextBlock.Text = $"Search returned {_sessions.Count} sessions.";
+        });
     }
+
+    private async void SearchTextBox_OnTextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) =>
+        await HandleSearchTextChangedAsync();
 
     private async void RefreshButton_OnClick(object sender, RoutedEventArgs e) => await RefreshAsync(deepScan: false);
 
     private async void DeepScanButton_OnClick(object sender, RoutedEventArgs e) => await RefreshAsync(deepScan: true);
 
-    private async void SaveMetadataButton_OnClick(object sender, RoutedEventArgs e)
+    private async Task SaveMetadataAsyncCore()
     {
         if (_repository is null)
         {
@@ -213,8 +238,11 @@ public partial class MainWindow : Window
 
         await _repository.UpdateMetadataAsync(selected.SessionId, AliasTextBox.Text, tags, NotesTextBox.Text, CancellationToken.None);
         await LoadSessionsFromCatalogAsync();
-        StatusTextBlock.Text = $"Saved metadata for {selected.SessionId}.";
+        await InvokeOnUiAsync(() => StatusTextBlock.Text = $"Saved metadata for {selected.SessionId}.");
     }
+
+    private async void SaveMetadataButton_OnClick(object sender, RoutedEventArgs e) =>
+        await SaveMetadataAsyncCore();
 
     private void OpenFolderButton_OnClick(object sender, RoutedEventArgs e)
     {
@@ -227,7 +255,7 @@ public partial class MainWindow : Window
         var folder = Path.GetDirectoryName(selected.PreferredCopy.FilePath);
         if (!string.IsNullOrWhiteSpace(folder))
         {
-            Process.Start(new ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = true });
+            LaunchProcess(new ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = true });
         }
     }
 
@@ -239,7 +267,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        Process.Start(new ProcessStartInfo("notepad.exe", $"\"{selected.PreferredCopy.FilePath}\"") { UseShellExecute = true });
+        LaunchProcess(new ProcessStartInfo("notepad.exe", $"\"{selected.PreferredCopy.FilePath}\"") { UseShellExecute = true });
     }
 
     private void CopyPathButton_OnClick(object sender, RoutedEventArgs e)
@@ -250,7 +278,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        Clipboard.SetText(selected.PreferredCopy.FilePath);
+        SetClipboardText(selected.PreferredCopy.FilePath);
         StatusTextBlock.Text = "Copied preferred path to clipboard.";
     }
 
@@ -265,7 +293,7 @@ public partial class MainWindow : Window
         var cwd = !string.IsNullOrWhiteSpace(CwdTextBlock.Text) && CwdTextBlock.Text != "-" ? CwdTextBlock.Text : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         var command = $"codex resume {selected.SessionId} -C \"{cwd}\"";
 
-        Process.Start(new ProcessStartInfo("pwsh.exe", $"-NoExit -Command \"{command}\"") { UseShellExecute = true });
+        LaunchProcess(new ProcessStartInfo("pwsh.exe", $"-NoExit -Command \"{command}\"") { UseShellExecute = true });
         StatusTextBlock.Text = $"Opened Codex resume command for {selected.SessionId}.";
     }
 
@@ -277,18 +305,14 @@ public partial class MainWindow : Window
             return;
         }
 
-        var dialog = new SaveFileDialog
-        {
-            FileName = $"{selected.SessionId}.md",
-            Filter = "Markdown (*.md)|*.md|Text (*.txt)|*.txt|JSON (*.json)|*.json"
-        };
+        var dialog = CreateExportDialog(selected);
 
-        if (dialog.ShowDialog(this) != true)
+        if (ShowSaveFileDialog(dialog) != true)
         {
             return;
         }
 
-        File.WriteAllText(dialog.FileName, ReadableTranscriptTextBox.Text, Encoding.UTF8);
+        WriteTextFile(dialog.FileName, ReadableTranscriptTextBox.Text, Encoding.UTF8);
         StatusTextBlock.Text = $"Exported session to {dialog.FileName}.";
     }
 
@@ -312,9 +336,9 @@ public partial class MainWindow : Window
         TypedConfirmationTextBox.Text = confirmation;
     }
 
-    private async void ExecuteMaintenanceButton_OnClick(object sender, RoutedEventArgs e)
+    private async Task ExecuteMaintenanceAsyncCore()
     {
-        if (_currentMaintenancePreview is null || _maintenanceExecutor is null)
+        if (_currentMaintenancePreview is null)
         {
             return;
         }
@@ -331,17 +355,102 @@ public partial class MainWindow : Window
 
         try
         {
-            var result = await _maintenanceExecutor.ExecuteAsync(_currentMaintenancePreview, destinationRoot, TypedConfirmationTextBox.Text, CancellationToken.None);
-            StatusTextBlock.Text = result.Executed
-                ? $"Executed maintenance. Checkpoint: {result.ManifestPath}"
-                : "Maintenance did not execute.";
+            var result = await ExecuteMaintenancePreviewAsync(_currentMaintenancePreview, destinationRoot, TypedConfirmationTextBox.Text, CancellationToken.None);
+            await InvokeOnUiAsync(() =>
+            {
+                StatusTextBlock.Text = result.Executed
+                    ? $"Executed maintenance. Checkpoint: {result.ManifestPath}"
+                    : "Maintenance did not execute.";
+            });
             await RefreshAsync(deepScan: false);
         }
         catch (Exception ex)
         {
-            StatusTextBlock.Text = $"Maintenance failed: {ex.Message}";
+            await InvokeOnUiAsync(() => StatusTextBlock.Text = $"Maintenance failed: {ex.Message}");
         }
     }
+
+    private async void ExecuteMaintenanceButton_OnClick(object sender, RoutedEventArgs e) =>
+        await ExecuteMaintenanceAsyncCore();
+
+    protected virtual string GetLocalDataRoot() =>
+        _localDataRootOverride?.Invoke()
+        ?? Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "CodexSessionManager");
+
+    protected virtual void QueueInitialRefresh() =>
+        (_queueInitialRefreshOverride is not null
+            ? _queueInitialRefreshOverride
+            : () => _ = Task.Run(async () => await RefreshAsync(deepScan: false)))();
+
+    protected virtual string GetLiveSqliteStatusText() =>
+        _liveSqliteStatusOverride?.Invoke()
+        ?? GetLiveSqliteStatus();
+
+    protected virtual Task<ParsedSessionFile> ParseSessionFileAsync(string filePath, CancellationToken cancellationToken) =>
+        _parseSessionFileAsyncOverride?.Invoke(filePath, cancellationToken)
+        ?? SessionJsonlParser.ParseAsync(filePath, cancellationToken);
+
+    protected virtual string ReadRawFileText(string filePath) =>
+        _readRawFileTextOverride?.Invoke(filePath)
+        ?? File.ReadAllText(filePath);
+
+    protected virtual TranscriptRenderResult RenderTranscript(NormalizedSessionDocument document, TranscriptMode mode) =>
+        _renderTranscriptOverride?.Invoke(document, mode)
+        ?? SessionTranscriptFormatter.Format(document, mode);
+
+    protected virtual Process? LaunchProcess(ProcessStartInfo startInfo) =>
+        _launchProcessOverride?.Invoke(startInfo)
+        ?? Process.Start(startInfo);
+
+    protected virtual void SetClipboardText(string value)
+    {
+        if (_setClipboardTextOverride is not null)
+        {
+            _setClipboardTextOverride(value);
+            return;
+        }
+
+        Clipboard.SetText(value);
+    }
+
+    protected virtual SaveFileDialog CreateExportDialog(IndexedLogicalSession selected) =>
+        new()
+        {
+            FileName = $"{selected.SessionId}.md",
+            Filter = "Markdown (*.md)|*.md|Text (*.txt)|*.txt|JSON (*.json)|*.json"
+        };
+
+    protected virtual bool? ShowSaveFileDialog(SaveFileDialog dialog) =>
+        _showSaveFileDialogOverride?.Invoke(dialog)
+        ?? dialog.ShowDialog(this);
+
+    protected virtual void WriteTextFile(string path, string content, Encoding encoding) =>
+        (_writeTextFileOverride ?? File.WriteAllText)(path, content, encoding);
+
+    protected virtual Task<MaintenanceExecutionResult> ExecuteMaintenancePreviewAsync(
+        MaintenancePreview preview,
+        string destinationRoot,
+        string typedConfirmation,
+        CancellationToken cancellationToken)
+    {
+        if (_executeMaintenancePreviewAsyncOverride is not null)
+        {
+            return _executeMaintenancePreviewAsyncOverride(preview, destinationRoot, typedConfirmation, cancellationToken);
+        }
+
+        if (_maintenanceExecutor is null)
+        {
+            throw new InvalidOperationException("Maintenance executor is unavailable.");
+        }
+
+        return _maintenanceExecutor.ExecuteAsync(preview, destinationRoot, typedConfirmation, cancellationToken);
+    }
+
+    protected virtual Task InvokeOnUiAsync(Action action) =>
+        _invokeOnUiAsyncOverride?.Invoke(action)
+        ?? Dispatcher.InvokeAsync(action).Task;
 
     private static string GetLiveSqliteStatus()
     {
