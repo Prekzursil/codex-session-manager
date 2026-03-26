@@ -142,9 +142,17 @@ public static partial class SessionJsonlParser
 
     private static string? TryGetString(JsonElement element, string propertyName)
     {
-        return element.TryGetProperty(propertyName, out var propertyElement)
-            ? propertyElement.GetString()
-            : null;
+        if (!element.TryGetProperty(propertyName, out var propertyElement))
+        {
+            return null;
+        }
+
+        return propertyElement.ValueKind switch
+        {
+            JsonValueKind.String => propertyElement.GetString(),
+            JsonValueKind.Null => null,
+            _ => null,
+        };
     }
 
     private static SessionActor ResolveActor(string? role)

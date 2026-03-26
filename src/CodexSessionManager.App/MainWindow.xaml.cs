@@ -22,6 +22,7 @@ public partial class MainWindow : Window
     private SessionWorkspaceIndexer? _workspaceIndexer;
     private MaintenanceExecutor? _maintenanceExecutor;
     private MaintenancePreview? _currentMaintenancePreview;
+    private CancellationTokenSource? _searchCts;
 
     internal Func<string> LocalDataRootProvider { get; set; }
     internal Func<string, SessionCatalogRepository> RepositoryFactory { get; set; }
@@ -68,6 +69,7 @@ public partial class MainWindow : Window
         MaintenanceRunner = (preview, destinationRoot, typedConfirmation, cancellationToken) =>
             _maintenanceExecutor!.ExecuteAsync(preview, destinationRoot, typedConfirmation, cancellationToken);
         Loaded += async (_, _) => await InitializeAsync();
+        Closed += (_, _) => DisposeSearchCancellation();
     }
 
     private async Task InitializeAsync()
@@ -210,9 +212,15 @@ public partial class MainWindow : Window
         {
             return;
         }
+        var selectedSessionId = selected.SessionId;
 
         await RunOnUiThreadAsync(() =>
         {
+            if (!string.Equals(GetSelectedSession()?.SessionId, selectedSessionId, StringComparison.Ordinal))
+            {
+                return;
+            }
+
             ThreadNameTextBlock.Text = selected.ThreadName;
             SessionIdTextBlock.Text = selected.SessionId;
             PreferredPathTextBlock.Text = selected.PreferredCopy.FilePath;
@@ -233,8 +241,18 @@ public partial class MainWindow : Window
             var auditTranscript = SessionTranscriptFormatter.Format(parsed.Document, TranscriptMode.Audit).RenderedMarkdown;
             var sqliteStatus = LiveSqliteStatusProvider();
 
+            if (!await IsSessionStillSelectedAsync(selectedSessionId))
+            {
+                return;
+            }
+
             await RunOnUiThreadAsync(() =>
             {
+                if (!string.Equals(GetSelectedSession()?.SessionId, selectedSessionId, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
                 SQLiteStatusTextBlock.Text = sqliteStatus;
                 CwdTextBlock.Text = parsed.Cwd ?? "-";
                 RawTranscriptTextBox.Text = rawContent;
@@ -245,8 +263,18 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
+            if (!await IsSessionStillSelectedAsync(selectedSessionId))
+            {
+                return;
+            }
+
             await RunOnUiThreadAsync(() =>
             {
+                if (!string.Equals(GetSelectedSession()?.SessionId, selectedSessionId, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
                 CwdTextBlock.Text = "-";
                 SQLiteStatusTextBlock.Text = "Live SQLite status unavailable.";
                 AuditTranscriptTextBox.Text = string.Empty;
@@ -265,29 +293,66 @@ public partial class MainWindow : Window
             return;
         }
 
+        var searchToken = BeginSearchToken();
         var query = await RunOnUiThreadValueAsync(() => SearchTextBox.Text);
-        if (string.IsNullOrWhiteSpace(query))
+        try
         {
-            await LoadSessionsFromCatalogAsync();
-            return;
-        }
-
-        var hits = await _repository.SearchAsync(query, CancellationToken.None);
-        var hitIds = hits.Select(hit => hit.SessionId).ToHashSet(StringComparer.Ordinal);
-        var allSessions = await _repository.ListSessionsAsync(CancellationToken.None);
-
-        var visibleSessions = allSessions.Where(session => hitIds.Contains(session.SessionId)).ToArray();
-
-        await RunOnUiThreadAsync(() =>
-        {
-            _sessions.Clear();
-            foreach (var session in visibleSessions)
+            if (string.IsNullOrWhiteSpace(query))
             {
-                _sessions.Add(session);
+                var sessions = await _repository.ListSessionsAsync(searchToken);
+                if (searchToken.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                await RunOnUiThreadAsync(() =>
+                {
+                    if (searchToken.IsCancellationRequested)
+                    {
+                        return;
+                    }
+
+                    _sessions.Clear();
+                    foreach (var session in sessions)
+                    {
+                        _sessions.Add(session);
+                    }
+
+                    StatusTextBlock.Text = $"Loaded {_sessions.Count} sessions from cached index.";
+                });
+                return;
             }
 
-            StatusTextBlock.Text = $"Search returned {_sessions.Count} sessions.";
-        });
+            var hits = await _repository.SearchAsync(query, searchToken);
+            var hitIds = hits.Select(hit => hit.SessionId).ToHashSet(StringComparer.Ordinal);
+            var allSessions = await _repository.ListSessionsAsync(searchToken);
+            var visibleSessions = allSessions.Where(session => hitIds.Contains(session.SessionId)).ToArray();
+
+            if (searchToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            await RunOnUiThreadAsync(() =>
+            {
+                if (searchToken.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                _sessions.Clear();
+                foreach (var session in visibleSessions)
+                {
+                    _sessions.Add(session);
+                }
+
+                StatusTextBlock.Text = $"Search returned {_sessions.Count} sessions.";
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            // A newer search superseded this one.
+        }
     }
 
     private async void SearchTextBox_OnTextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) =>
@@ -399,6 +464,28 @@ public partial class MainWindow : Window
 
         TextFileWriter(exportPath, ReadableTranscriptTextBox.Text);
         StatusTextBlock.Text = $"Exported session to {exportPath}.";
+    }
+
+    private CancellationToken BeginSearchToken()
+    {
+        var replacement = new CancellationTokenSource();
+        var previous = Interlocked.Exchange(ref _searchCts, replacement);
+        previous?.Cancel();
+        previous?.Dispose();
+        return replacement.Token;
+    }
+
+    private async Task<bool> IsSessionStillSelectedAsync(string sessionId)
+    {
+        return await RunOnUiThreadValueAsync(() =>
+            string.Equals(GetSelectedSession()?.SessionId, sessionId, StringComparison.Ordinal));
+    }
+
+    private void DisposeSearchCancellation()
+    {
+        var current = Interlocked.Exchange(ref _searchCts, null);
+        current?.Cancel();
+        current?.Dispose();
     }
 
     private void BuildPreviewButton_OnClick(object sender, RoutedEventArgs e)

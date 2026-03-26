@@ -80,9 +80,13 @@ public static class SessionTranscriptFormatter
             return null;
         }
 
-        return sessionEvent.Kind is NormalizedEventKind.ToolCall
-            ? BuildToolCallDescription(sessionEvent)
-            : $"- `{sessionEvent.ToolName}` output: {Truncate(sessionEvent.Text, 140)}";
+        return sessionEvent.Kind switch
+        {
+            NormalizedEventKind.ToolCall => BuildToolCallDescription(sessionEvent),
+            NormalizedEventKind.ToolOutput => BuildToolOutputDescription(sessionEvent),
+            NormalizedEventKind.Note => $"- Note: {Truncate(sessionEvent.Text, 140)}",
+            _ => null,
+        };
     }
 
     private static string BuildToolCallDescription(NormalizedSessionEvent sessionEvent)
@@ -93,6 +97,12 @@ public static class SessionTranscriptFormatter
         }
 
         return $"- Called `{sessionEvent.ToolName}` with arguments `{Truncate(sessionEvent.RawPayload, 120)}`.";
+    }
+
+    private static string BuildToolOutputDescription(NormalizedSessionEvent sessionEvent)
+    {
+        var toolName = string.IsNullOrWhiteSpace(sessionEvent.ToolName) ? "tool" : sessionEvent.ToolName;
+        return $"- `{toolName}` output: {Truncate(sessionEvent.Text, 140)}";
     }
 
     private static string Truncate(string value, int maxLength) =>

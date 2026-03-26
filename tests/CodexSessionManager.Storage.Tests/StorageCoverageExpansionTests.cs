@@ -172,7 +172,7 @@ public sealed class StorageCoverageExpansionTests
             Assert.Contains(parsed.Document.Events, item => item.Actor is SessionActor.System);
             Assert.Contains(parsed.Document.Events, item => item.Actor is SessionActor.Developer);
             Assert.Contains(parsed.Document.Events, item => item.Actor is SessionActor.Unknown);
-            Assert.DoesNotContain(parsed.TechnicalBreadcrumbs.Commands, static command => !string.IsNullOrWhiteSpace(command));
+            Assert.Empty(parsed.TechnicalBreadcrumbs.Commands);
             Assert.Empty(parsed.TechnicalBreadcrumbs.ExitCodes);
         }
         finally
@@ -205,7 +205,34 @@ public sealed class StorageCoverageExpansionTests
             Assert.Contains(parsed.Document.Events, item => item.Actor == SessionActor.Developer && item.Text == "dev note");
             Assert.Contains(parsed.Document.Events, item => item.Actor == SessionActor.System && item.Text == "system note");
             Assert.Contains(parsed.Document.Events, item => item.Actor == SessionActor.Unknown && item.Text == "unknown role text");
-            Assert.DoesNotContain(parsed.TechnicalBreadcrumbs.Commands, static command => !string.IsNullOrWhiteSpace(command));
+            Assert.Empty(parsed.TechnicalBreadcrumbs.Commands);
+            Assert.Empty(parsed.TechnicalBreadcrumbs.ExitCodes);
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+    }
+
+    [Fact]
+    public async Task ParseAsync_Ignores_non_string_json_properties_when_extracting_strings()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.jsonl");
+        await File.WriteAllLinesAsync(
+            tempFile,
+            [
+                """{"type":"session_meta","payload":{"id":"session-non-string","cwd":{"unexpected":true},"timestamp":"2026-03-26T10:00:00Z"}}""",
+                """{"type":"response_item","payload":{"type":"function_call","name":"exec_command","arguments":{"cmd":"pwsh"}}}""",
+                """{"type":"response_item","payload":{"type":"function_call_output","name":"exec_command","output":7}}"""
+            ]);
+
+        try
+        {
+            var parsed = await SessionJsonlParser.ParseAsync(tempFile, CancellationToken.None);
+
+            Assert.Equal("session-non-string", parsed.SessionId);
+            Assert.Null(parsed.Cwd);
+            Assert.Empty(parsed.TechnicalBreadcrumbs.Commands);
             Assert.Empty(parsed.TechnicalBreadcrumbs.ExitCodes);
         }
         finally

@@ -41,7 +41,13 @@ public sealed class CoreModelCoverageTests
     [Fact]
     public void MaintenanceAndSessionRecords_PreserveConstructorValues()
     {
-        var copy = new SessionPhysicalCopy(sessionId: "session-42", filePath: @"C:\Users\Prekzursil\.codex\sessions\2026\03\26\session-42.jsonl", storeKind: SessionStoreKind.Live, state: new SessionPhysicalCopyState(lastWriteTimeUtc: new DateTimeOffset(2026, 3, 26, 12, 0, 0, TimeSpan.Zero), fileSizeBytes: 4096, isHot: true));
+        var copy = new SessionPhysicalCopy(
+            sessionId: "session-42",
+            filePath: @"C:\Users\Prekzursil\.codex\sessions\2026\03\26\session-42.jsonl",
+            storeKind: SessionStoreKind.Live,
+            lastWriteTimeUtc: new DateTimeOffset(2026, 3, 26, 12, 0, 0, TimeSpan.Zero),
+            fileSizeBytes: 4096,
+            isHot: true);
 
         var logical = new LogicalSession("session-42", "Thread", copy, [copy]);
         var indexed = new IndexedLogicalSession(
@@ -64,36 +70,59 @@ public sealed class CoreModelCoverageTests
         var request = new MaintenanceRequest(MaintenanceAction.Delete, [copy], "DELETE");
 
         Assert.Equal("session-42", copy.SessionId);
-        Assert.Equal(@"C:\Users\Prekzursil\.codex\sessions\2026\03\26\session-42.jsonl", copy.FilePath);
-        Assert.Equal(SessionStoreKind.Live, copy.StoreKind);
-        Assert.Equal(new DateTimeOffset(2026, 3, 26, 12, 0, 0, TimeSpan.Zero), copy.LastWriteTimeUtc);
-        Assert.Equal(4096, copy.FileSizeBytes);
         Assert.True(copy.IsHot);
-        Assert.Equal("session-42", logical.SessionId);
-        Assert.Equal("Thread", logical.ThreadName);
-        Assert.Equal(copy, Assert.Single(logical.PhysicalCopies));
         Assert.Equal(copy, logical.PreferredCopy);
-        Assert.Equal("session-42", indexed.SessionId);
-        Assert.Equal("Thread", indexed.ThreadName);
+        Assert.Equal(logical, logical with { });
         Assert.Equal(copy.FilePath, searchHit.PreferredPath);
-        Assert.Equal("session-42", searchHit.SessionId);
-        Assert.Equal("Thread", searchHit.ThreadName);
         Assert.Equal("snippet", searchHit.Snippet);
         Assert.Equal(0.75, searchHit.Score);
+        Assert.NotEqual(searchHit, searchHit with { Snippet = "updated" });
         Assert.Equal(copy, indexed.PreferredCopy);
-        Assert.Equal(copy, Assert.Single(indexed.PhysicalCopies));
-        Assert.Equal(string.Empty, indexed.SearchDocument.Notes);
+        Assert.Equal(indexed, indexed with { });
         Assert.Equal(MaintenanceAction.Reconcile, preview.Action);
-        Assert.Equal(copy, Assert.Single(preview.AllowedTargets));
-        Assert.Empty(preview.BlockedTargets);
-        Assert.Equal(warning, Assert.Single(preview.Warnings));
-        Assert.True(preview.RequiresCheckpoint);
-        Assert.True(preview.RequiresTypedConfirmation);
-        Assert.Equal("RECONCILE", preview.RequiredTypedConfirmation);
+        Assert.NotEqual(preview, preview with { RequiredTypedConfirmation = "UPDATED" });
+        var (previewAction, allowedTargets, blockedTargets, warnings, requiresCheckpoint, requiresTypedConfirmation, requiredTypedConfirmation) = preview;
+        Assert.Equal(MaintenanceAction.Reconcile, previewAction);
+        Assert.Equal(copy, Assert.Single(allowedTargets));
+        Assert.Empty(blockedTargets);
+        Assert.Equal(warning, Assert.Single(warnings));
+        Assert.True(requiresCheckpoint);
+        Assert.True(requiresTypedConfirmation);
+        Assert.Equal("RECONCILE", requiredTypedConfirmation);
         Assert.Equal(MaintenanceWarningSeverity.Review, warning.Severity);
-        Assert.Equal(MaintenanceAction.Delete, request.Action);
+        Assert.Contains("MaintenanceWarning", warning.ToString());
         Assert.Equal("DELETE", request.TypedConfirmation);
         Assert.Equal(copy, Assert.Single(request.Targets));
+        Assert.Equal(request, request with { });
+        Assert.Contains("SessionPhysicalCopy", copy.ToString());
+
+        var updatedCopy = copy with
+        {
+            SessionId = "session-99",
+            FilePath = @"C:\archive\session-99.jsonl",
+            StoreKind = SessionStoreKind.Backup,
+            LastWriteTimeUtc = copy.LastWriteTimeUtc.AddMinutes(5),
+            FileSizeBytes = 8192,
+            IsHot = false
+        };
+        Assert.Equal("session-99", updatedCopy.SessionId);
+        Assert.Equal(@"C:\archive\session-99.jsonl", updatedCopy.FilePath);
+        Assert.Equal(SessionStoreKind.Backup, updatedCopy.StoreKind);
+        Assert.False(updatedCopy.IsHot);
+
+        var (hitSessionId, hitThreadName, hitPreferredPath, hitSnippet, hitScore) = searchHit;
+        Assert.Equal("session-42", hitSessionId);
+        Assert.Equal("Thread", hitThreadName);
+        Assert.Equal(copy.FilePath, hitPreferredPath);
+        Assert.Equal("snippet", hitSnippet);
+        Assert.Equal(0.75, hitScore);
+
+        var (indexedSessionId, indexedThreadName, indexedPreferredCopy, indexedCopies, indexedSearchDocument) = indexed;
+        Assert.Equal("session-42", indexedSessionId);
+        Assert.Equal("Thread", indexedThreadName);
+        Assert.Equal(copy, indexedPreferredCopy);
+        Assert.Equal(copy, Assert.Single(indexedCopies));
+        Assert.Equal(indexed.SearchDocument, indexedSearchDocument);
     }
 
     [Fact]
@@ -116,14 +145,21 @@ public sealed class CoreModelCoverageTests
             Events: events);
         var renderResult = new TranscriptRenderResult(TranscriptMode.Audit, "# Markdown");
 
-        Assert.Equal("session-meta", document.SessionId);
-        Assert.Equal("Metadata thread", document.ThreadName);
         Assert.Equal(startedAt, document.StartedAtUtc);
         Assert.Equal("parent-1", document.ForkedFromId);
         Assert.Equal(@"C:\Users\Prekzursil\codex-session-manager", document.Cwd);
         Assert.Equal(events, document.Events);
+        Assert.Equal(document, document with { });
+        var (sessionId, threadName, timestamp, forkedFromId, cwd, renderedEvents) = document;
+        Assert.Equal("session-meta", sessionId);
+        Assert.Equal("Metadata thread", threadName);
+        Assert.Equal(startedAt, timestamp);
+        Assert.Equal("parent-1", forkedFromId);
+        Assert.Equal(@"C:\Users\Prekzursil\codex-session-manager", cwd);
+        Assert.Equal(events, renderedEvents);
         Assert.Equal(TranscriptMode.Audit, renderResult.Mode);
         Assert.Equal("# Markdown", renderResult.RenderedMarkdown);
+        Assert.Contains("TranscriptRenderResult", renderResult.ToString());
     }
 
     [Fact]
