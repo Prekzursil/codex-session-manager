@@ -111,6 +111,7 @@ public sealed class SessionCatalogRepository
 
         await using (var deleteCopies = connection.CreateCommand())
         {
+            // nosemgrep: csharp.lang.security.sqli.csharp-sqli.csharp-sqli -- constant SQL text, parameter bound separately via SqliteParameter.
             deleteCopies.CommandText = DeleteSessionCopiesSql;
             deleteCopies.Parameters.AddWithValue(SessionIdParameterName, session.SessionId);
             await deleteCopies.ExecuteNonQueryAsync(cancellationToken);
@@ -277,6 +278,7 @@ public sealed class SessionCatalogRepository
     private static async Task<SessionSearchDocument> MergeExistingMetadataAsync(SqliteConnection connection, IndexedLogicalSession session, CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
+        // nosemgrep: csharp.lang.security.sqli.csharp-sqli.csharp-sqli -- constant SQL text, parameter bound separately via SqliteParameter.
         command.CommandText = SelectSessionMetadataSql;
         command.Parameters.AddWithValue(SessionIdParameterName, session.SessionId);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
