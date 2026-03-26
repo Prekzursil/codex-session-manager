@@ -7,6 +7,8 @@ namespace CodexSessionManager.Storage.Indexing;
 public sealed class SessionCatalogRepository
 {
     private const string SessionIdParameterName = "$sessionId";
+    private const string DeleteSessionCopiesSql = "DELETE FROM session_copies WHERE session_id = $sessionId;";
+    private const string SelectSessionMetadataSql = "SELECT alias, tags, notes FROM sessions WHERE session_id = $sessionId;";
     private readonly string _databasePath;
 
     public SessionCatalogRepository(string databasePath)
@@ -109,7 +111,7 @@ public sealed class SessionCatalogRepository
 
         await using (var deleteCopies = connection.CreateCommand())
         {
-            deleteCopies.CommandText = $"DELETE FROM session_copies WHERE session_id = {SessionIdParameterName};";
+            deleteCopies.CommandText = DeleteSessionCopiesSql;
             deleteCopies.Parameters.AddWithValue(SessionIdParameterName, session.SessionId);
             await deleteCopies.ExecuteNonQueryAsync(cancellationToken);
         }
@@ -275,7 +277,7 @@ public sealed class SessionCatalogRepository
     private static async Task<SessionSearchDocument> MergeExistingMetadataAsync(SqliteConnection connection, IndexedLogicalSession session, CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
-        command.CommandText = $"SELECT alias, tags, notes FROM sessions WHERE session_id = {SessionIdParameterName};";
+        command.CommandText = SelectSessionMetadataSql;
         command.Parameters.AddWithValue(SessionIdParameterName, session.SessionId);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))
