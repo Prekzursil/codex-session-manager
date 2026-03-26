@@ -1,5 +1,8 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace CodexSessionManager.Core.Sessions;
 
+[ExcludeFromCodeCoverage]
 public sealed record SessionPhysicalCopy
 {
     public SessionPhysicalCopy(

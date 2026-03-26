@@ -70,14 +70,34 @@ public sealed class CoreModelCoverageTests
         var request = new MaintenanceRequest(MaintenanceAction.Delete, [copy], "DELETE");
 
         Assert.Equal("session-42", copy.SessionId);
+        Assert.Equal(copy.FilePath, copy.FilePath);
+        Assert.Equal(SessionStoreKind.Live, copy.StoreKind);
+        Assert.Equal(new DateTimeOffset(2026, 3, 26, 12, 0, 0, TimeSpan.Zero), copy.LastWriteTimeUtc);
+        Assert.Equal(4096, copy.FileSizeBytes);
         Assert.True(copy.IsHot);
+        Assert.Equal("session-42", logical.SessionId);
+        Assert.Equal("Thread", logical.ThreadName);
+        Assert.Equal(copy, Assert.Single(logical.PhysicalCopies));
         Assert.Equal(copy, logical.PreferredCopy);
+        Assert.Equal("session-42", indexed.SessionId);
+        Assert.Equal("Thread", indexed.ThreadName);
         Assert.Equal(copy.FilePath, searchHit.PreferredPath);
+        Assert.Equal("session-42", searchHit.SessionId);
+        Assert.Equal("Thread", searchHit.ThreadName);
         Assert.Equal("snippet", searchHit.Snippet);
         Assert.Equal(0.75, searchHit.Score);
         Assert.Equal(copy, indexed.PreferredCopy);
+        Assert.Equal(copy, Assert.Single(indexed.PhysicalCopies));
+        Assert.Equal(string.Empty, indexed.SearchDocument.Notes);
         Assert.Equal(MaintenanceAction.Reconcile, preview.Action);
+        Assert.Equal(copy, Assert.Single(preview.AllowedTargets));
+        Assert.Empty(preview.BlockedTargets);
+        Assert.Equal(warning, Assert.Single(preview.Warnings));
+        Assert.True(preview.RequiresCheckpoint);
+        Assert.True(preview.RequiresTypedConfirmation);
+        Assert.Equal("RECONCILE", preview.RequiredTypedConfirmation);
         Assert.Equal(MaintenanceWarningSeverity.Review, warning.Severity);
+        Assert.Equal(MaintenanceAction.Delete, request.Action);
         Assert.Equal("DELETE", request.TypedConfirmation);
         Assert.Equal(copy, Assert.Single(request.Targets));
     }
@@ -102,6 +122,8 @@ public sealed class CoreModelCoverageTests
             Events: events);
         var renderResult = new TranscriptRenderResult(TranscriptMode.Audit, "# Markdown");
 
+        Assert.Equal("session-meta", document.SessionId);
+        Assert.Equal("Metadata thread", document.ThreadName);
         Assert.Equal(startedAt, document.StartedAtUtc);
         Assert.Equal("parent-1", document.ForkedFromId);
         Assert.Equal(@"C:\Users\Prekzursil\codex-session-manager", document.Cwd);

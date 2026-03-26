@@ -41,7 +41,10 @@ public sealed class StorageCoverageExpansionTests
         var request = new MaintenanceRequest(MaintenanceAction.Archive, [preferredCopy], "ARCHIVE 1 FILE");
 
         Assert.Single(catalog.LogicalSessions);
+        Assert.Equal(@"C:\.codex", knownStore.WorkspaceRoot);
         Assert.Equal(SessionStoreKind.Live, knownStore.StoreKind);
+        Assert.Equal(@"C:\.codex\sessions", knownStore.SessionsPath);
+        Assert.Equal(@"C:\.codex\session_index.jsonl", knownStore.SessionIndexPath);
         Assert.Equal("snippet", searchHit.Snippet);
         Assert.Equal(TranscriptMode.Readable, rendered.Mode);
         Assert.Equal(NormalizedEventKind.ToolOutput, document.Events[0].Kind);
@@ -149,6 +152,120 @@ public sealed class StorageCoverageExpansionTests
         finally
         {
             File.Delete(tempFile);
+        }
+    }
+
+    [Fact]
+    public async Task ParseAsync_Handles_unknown_roles_blank_content_missing_cmd_and_missing_exit_code()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.jsonl");
+        await File.WriteAllLinesAsync(
+            tempFile,
+            [
+                """{"type":"session_meta","payload":{"id":"session-parser","timestamp":"2026-03-26T10:00:00Z","cwd":"C:\\repo"}}""",
+                """{"type":"response_item","payload":{"type":"message","role":"system","content":[{"type":"output_text","text":"system note"}]}}""",
+                """{"type":"response_item","payload":{"type":"message","role":"developer","content":[{"type":"output_text","text":"developer note"}]}}""",
+                """{"type":"response_item","payload":{"type":"message","role":"mystery","content":[{"type":"output_text","text":"unknown note"}]}}""",
+                """{"type":"response_item","payload":{"type":"message","role":"assistant"}}""",
+                """{"type":"response_item","payload":{"type":"function_call","name":"exec_command","arguments":""}}""",
+                """{"type":"response_item","payload":{"type":"function_call_output","name":"exec_command","output":"Command completed successfully."}}"""
+            ]);
+
+        try
+        {
+            var parsed = await SessionJsonlParser.ParseAsync(tempFile, CancellationToken.None);
+
+            Assert.Equal("session-parser", parsed.SessionId);
+            Assert.Contains(parsed.Document.Events, item => item.Actor is SessionActor.System);
+            Assert.Contains(parsed.Document.Events, item => item.Actor is SessionActor.Developer);
+            Assert.Contains(parsed.Document.Events, item => item.Actor is SessionActor.Unknown);
+            Assert.DoesNotContain(parsed.TechnicalBreadcrumbs.Commands, static command => !string.IsNullOrWhiteSpace(command));
+            Assert.Empty(parsed.TechnicalBreadcrumbs.ExitCodes);
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+    }
+
+    [Fact]
+    public async Task ParseAsync_CoversAdditionalRoleAndGuardBranches()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.jsonl");
+        await File.WriteAllLinesAsync(
+            tempFile,
+            [
+                """{"type":"session_meta","payload":{"id":"session-roles","cwd":"C:\\repo","timestamp":"2026-03-26T10:00:00Z"}}""",
+                """{"type":"response_item","payload":{"type":"message","role":"developer","content":[{"type":"input_text","text":"dev note"}]}}""",
+                """{"type":"response_item","payload":{"type":"message","role":"system","content":[{"type":"output_text","text":"system note"}]}}""",
+                """{"type":"response_item","payload":{"type":"message","role":"note","content":[{"type":"output_text","text":"unknown role text"}]}}""",
+                """{"type":"response_item","payload":{"type":"message","role":"assistant"}}""",
+                """{"type":"response_item","payload":{"type":"function_call","name":"exec_command","arguments":""}}""",
+                """{"type":"response_item","payload":{"type":"function_call_output","name":"exec_command","output":"completed successfully"}}"""
+            ]);
+
+        try
+        {
+            var parsed = await SessionJsonlParser.ParseAsync(tempFile, CancellationToken.None);
+
+            Assert.Equal("session-roles", parsed.SessionId);
+            Assert.Contains(parsed.Document.Events, item => item.Actor == SessionActor.Developer && item.Text == "dev note");
+            Assert.Contains(parsed.Document.Events, item => item.Actor == SessionActor.System && item.Text == "system note");
+            Assert.Contains(parsed.Document.Events, item => item.Actor == SessionActor.Unknown && item.Text == "unknown role text");
+            Assert.DoesNotContain(parsed.TechnicalBreadcrumbs.Commands, static command => !string.IsNullOrWhiteSpace(command));
+            Assert.Empty(parsed.TechnicalBreadcrumbs.ExitCodes);
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+    }
+
+    [Fact]
+    public async Task RebuildAsync_IgnoresMalformedSessionIndexEntries()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var liveRoot = Path.Combine(root, ".codex");
+        var liveSessions = Path.Combine(liveRoot, "sessions");
+        Directory.CreateDirectory(liveSessions);
+
+        var sessionPath = Path.Combine(liveSessions, "session-idx.jsonl");
+        await File.WriteAllLinesAsync(
+            sessionPath,
+            [
+                """{"type":"session_meta","payload":{"id":"session-idx","cwd":"C:\\repo","timestamp":"2026-03-26T10:00:00Z"}}""",
+                """{"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"ok"}]}}"""
+            ]);
+        await File.WriteAllLinesAsync(
+            Path.Combine(liveRoot, "session_index.jsonl"),
+            [
+                """{"thread_name":"missing id"}""",
+                """{"id":"","thread_name":"blank id"}""",
+                """{"id":"session-idx","thread_name":"Indexed thread"}"""
+            ]);
+
+        try
+        {
+            var repository = new SessionCatalogRepository(Path.Combine(root, "catalog.db"));
+            await repository.InitializeAsync(CancellationToken.None);
+            var indexer = new SessionWorkspaceIndexer(repository);
+
+            var sessions = await indexer.RebuildAsync(
+                [
+                    new KnownSessionStore(
+                        liveRoot,
+                        SessionStoreKind.Live,
+                        liveSessions,
+                        Path.Combine(liveRoot, "session_index.jsonl"))
+                ],
+                CancellationToken.None);
+
+            var indexed = Assert.Single(sessions);
+            Assert.Equal("Indexed thread", indexed.ThreadName);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
         }
     }
 

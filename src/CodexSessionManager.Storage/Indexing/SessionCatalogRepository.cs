@@ -330,5 +330,17 @@ public sealed class SessionCatalogRepository
             : value.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     private static string ToFtsQuery(string query) =>
-        string.Join(" AND ", query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(token => $"\"{token.Replace("\"", "\"\"")}\""));
+        string.Join(
+            " AND ",
+            query
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(ToFtsToken));
+
+    private static string ToFtsToken(string token)
+    {
+        var escaped = token.Replace("\"", "\"\"");
+        return escaped.All(static ch => char.IsLetterOrDigit(ch) || ch == '_')
+            ? $"{escaped}*"
+            : $"\"{escaped}\"*";
+    }
 }

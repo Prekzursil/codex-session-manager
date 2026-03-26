@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+dotnet_cmd="dotnet"
+if ! command -v "$dotnet_cmd" >/dev/null 2>&1; then
+  if [ -x "/mnt/c/Program Files/dotnet/dotnet.exe" ]; then
+    dotnet_cmd="/mnt/c/Program Files/dotnet/dotnet.exe"
+  elif [ -x "/mnt/c/Users/Prekzursil/.dotnet/dotnet.exe" ]; then
+    dotnet_cmd="/mnt/c/Users/Prekzursil/.dotnet/dotnet.exe"
+  fi
+fi
+
+"$dotnet_cmd" restore CodexSessionManager.sln
+"$dotnet_cmd" build CodexSessionManager.sln --configuration Release --no-restore
+"$dotnet_cmd" test CodexSessionManager.sln --configuration Release --no-build

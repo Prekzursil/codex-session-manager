@@ -1,0 +1,27 @@
+name: Codecov Analytics
+
+permissions:
+  contents: read
+  id-token: write
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  shared-codecov-analytics:
+    permissions:
+      contents: read
+      id-token: write
+    uses: Prekzursil/quality-zero-platform/.github/workflows/reusable-codecov-analytics.yml@main
+    with:
+      repo_slug: ${{ github.repository }}
+      event_name: ${{ github.event_name }}
+      sha: ${{ github.event.pull_request.head.sha || github.sha }}
+      platform_repository: Prekzursil/quality-zero-platform
+      platform_ref: main
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
