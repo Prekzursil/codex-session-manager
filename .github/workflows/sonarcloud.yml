@@ -56,6 +56,15 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $PSNativeCommandUseErrorActionPreference = $true
-          .\.sonar\scanner\dotnet-sonarscanner begin /k:"Prekzursil_codex-session-manager" /o:"prekzursil" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token="$env:SONAR_TOKEN" /d:sonar.qualitygate.wait=true
+          $coverageRoot = Join-Path $PWD 'coverage\sonar'
+          $coreCoverage = Join-Path $coverageRoot 'core\coverage.opencover.xml'
+          $storageCoverage = Join-Path $coverageRoot 'storage\coverage.opencover.xml'
+          $appCoverage = Join-Path $coverageRoot 'app\coverage.opencover.xml'
+          New-Item -ItemType Directory -Force -Path (Split-Path $coreCoverage), (Split-Path $storageCoverage), (Split-Path $appCoverage) | Out-Null
+
+          .\.sonar\scanner\dotnet-sonarscanner begin /k:"Prekzursil_codex-session-manager" /o:"prekzursil" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token="$env:SONAR_TOKEN" /d:sonar.qualitygate.wait=true /d:sonar.cs.opencover.reportsPaths="$coreCoverage,$storageCoverage,$appCoverage"
           dotnet build CodexSessionManager.sln --configuration Release
+          dotnet test .\tests\CodexSessionManager.Core.Tests\CodexSessionManager.Core.Tests.csproj --configuration Release --no-build /p:CollectCoverage=true /p:CoverletOutputFormat=opencover /p:CoverletOutput="$coreCoverage"
+          dotnet test .\tests\CodexSessionManager.Storage.Tests\CodexSessionManager.Storage.Tests.csproj --configuration Release --no-build /p:CollectCoverage=true /p:CoverletOutputFormat=opencover /p:CoverletOutput="$storageCoverage"
+          dotnet test .\tests\CodexSessionManager.App.Tests\CodexSessionManager.App.Tests.csproj --configuration Release --no-build /p:CollectCoverage=true /p:CoverletOutputFormat=opencover /p:CoverletOutput="$appCoverage"
           .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="$env:SONAR_TOKEN"
