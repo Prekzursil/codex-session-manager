@@ -205,17 +205,17 @@ public partial class MainWindow : Window
     private IReadOnlyList<IndexedLogicalSession> GetSelectedSessions() =>
         SessionsListBox.SelectedItems.Cast<IndexedLogicalSession>().ToArray();
 
-    private async void SessionsListBox_OnSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) =>
+    private async void SessionsListBox_OnSelectionChanged(object _, System.Windows.Controls.SelectionChangedEventArgs __) =>
         await LoadSelectedSessionAsync();
 
-    private async void SearchTextBox_OnTextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) =>
+    private async void SearchTextBox_OnTextChanged(object _, System.Windows.Controls.TextChangedEventArgs __) =>
         await SearchSessionsAsync();
 
     [ExcludeFromCodeCoverage]
-    private async void RefreshButton_OnClick(object sender, RoutedEventArgs e) => await RefreshAsync(deepScan: false);
+    private async void RefreshButton_OnClick(object _, RoutedEventArgs __) => await RefreshAsync(deepScan: false);
 
     [ExcludeFromCodeCoverage]
-    private async void DeepScanButton_OnClick(object sender, RoutedEventArgs e) => await RefreshAsync(deepScan: true);
+    private async void DeepScanButton_OnClick(object _, RoutedEventArgs __) => await RefreshAsync(deepScan: true);
 
     private async Task SaveSelectedMetadataAsync()
     {
@@ -245,10 +245,10 @@ public partial class MainWindow : Window
     }
 
     [ExcludeFromCodeCoverage]
-    private async void SaveMetadataButton_OnClick(object sender, RoutedEventArgs e) =>
+    private async void SaveMetadataButton_OnClick(object _, RoutedEventArgs __) =>
         await SaveSelectedMetadataAsync();
 
-    private void OpenFolderButton_OnClick(object sender, RoutedEventArgs e)
+    private void OpenFolderButton_OnClick(object _, RoutedEventArgs __)
     {
         var selected = GetSelectedSession();
         if (selected is null)
@@ -263,7 +263,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OpenRawButton_OnClick(object sender, RoutedEventArgs e)
+    private void OpenRawButton_OnClick(object _, RoutedEventArgs __)
     {
         var selected = GetSelectedSession();
         if (selected is null)
@@ -274,7 +274,7 @@ public partial class MainWindow : Window
         ProcessStarter("notepad.exe", $"\"{selected.PreferredCopy.FilePath}\"");
     }
 
-    private void CopyPathButton_OnClick(object sender, RoutedEventArgs e)
+    private void CopyPathButton_OnClick(object _, RoutedEventArgs __)
     {
         var selected = GetSelectedSession();
         if (selected is null)
@@ -286,7 +286,7 @@ public partial class MainWindow : Window
         StatusTextBlock.Text = "Copied preferred path to clipboard.";
     }
 
-    private void ResumeButton_OnClick(object sender, RoutedEventArgs e)
+    private void ResumeButton_OnClick(object _, RoutedEventArgs __)
     {
         var selected = GetSelectedSession();
         if (selected is null)
@@ -301,7 +301,7 @@ public partial class MainWindow : Window
         StatusTextBlock.Text = $"Opened Codex resume command for {selected.SessionId}.";
     }
 
-    private void ExportButton_OnClick(object sender, RoutedEventArgs e)
+    private void ExportButton_OnClick(object _, RoutedEventArgs __)
     {
         var selected = GetSelectedSession();
         if (selected is null)
@@ -319,7 +319,7 @@ public partial class MainWindow : Window
         StatusTextBlock.Text = $"Exported session to {exportPath}.";
     }
 
-    private void BuildPreviewButton_OnClick(object sender, RoutedEventArgs e)
+    private void BuildPreviewButton_OnClick(object _, RoutedEventArgs __)
     {
         var selectedSessions = GetSelectedSessions();
         if (selectedSessions.Count == 0)
@@ -378,7 +378,7 @@ public partial class MainWindow : Window
     }
 
     [ExcludeFromCodeCoverage]
-    private async void ExecuteMaintenanceButton_OnClick(object sender, RoutedEventArgs e) =>
+    private async void ExecuteMaintenanceButton_OnClick(object _, RoutedEventArgs __) =>
         await ExecuteMaintenanceAsync();
 
     internal static string? DescribeSqlitePath(string path, Func<string, FileInfo>? fileInfoFactory = null)

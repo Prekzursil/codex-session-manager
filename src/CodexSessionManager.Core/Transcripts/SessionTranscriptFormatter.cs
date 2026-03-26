@@ -6,6 +6,8 @@ public static class SessionTranscriptFormatter
 {
     public static TranscriptRenderResult Format(NormalizedSessionDocument session, TranscriptMode mode)
     {
+        ArgumentNullException.ThrowIfNull(session);
+
         var builder = new StringBuilder();
         builder.AppendLine("# Codex Session Transcript");
         builder.AppendLine();
@@ -45,6 +47,8 @@ public static class SessionTranscriptFormatter
 
     private static void AppendMessage(NormalizedSessionEvent sessionEvent, TranscriptMode mode, StringBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         if (ShouldSkipMessage(sessionEvent, mode))
         {
             return;
@@ -105,6 +109,9 @@ public static class SessionTranscriptFormatter
         return $"- `{toolName}` output: {Truncate(sessionEvent.Text, 140)}";
     }
 
-    private static string Truncate(string value, int maxLength) =>
-        value.Length <= maxLength ? value : value[..(maxLength - 3)] + "...";
+    private static string Truncate(string value, int maxLength)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return value.Length <= maxLength ? value : value[..(maxLength - 3)] + "...";
+    }
 }

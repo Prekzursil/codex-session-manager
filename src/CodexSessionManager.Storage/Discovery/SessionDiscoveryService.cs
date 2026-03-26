@@ -7,6 +7,8 @@ public static class SessionDiscoveryService
 {
     public static async Task<DiscoveredSessionCatalog> DiscoverAsync(IEnumerable<SessionStoreRoot> roots, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(roots);
+
         var stores = roots.Select(root =>
         {
             var normalizedRoot = root.RootPath.Replace('/', '\\').TrimEnd('\\');

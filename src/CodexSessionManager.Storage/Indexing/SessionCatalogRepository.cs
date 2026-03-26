@@ -68,6 +68,8 @@ public sealed class SessionCatalogRepository
 
     public async Task UpsertAsync(IndexedLogicalSession session, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(session);
+
         await using var connection = await OpenConnectionAsync(cancellationToken);
         var searchDocument = await MergeExistingMetadataAsync(connection, session, cancellationToken);
 
@@ -139,6 +141,8 @@ public sealed class SessionCatalogRepository
 
     public async Task<IReadOnlyList<SessionSearchHit>> SearchAsync(string query, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(query);
+
         if (string.IsNullOrWhiteSpace(query))
         {
             return [];
@@ -169,6 +173,9 @@ public sealed class SessionCatalogRepository
 
     public async Task SaveMetadataAsync(string sessionId, string alias, IReadOnlyList<string> tags, string notes, CancellationToken cancellationToken)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+        ArgumentNullException.ThrowIfNull(tags);
+
         await using var connection = await OpenConnectionAsync(cancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText =
@@ -275,6 +282,9 @@ public sealed class SessionCatalogRepository
 
     private static async Task<SessionSearchDocument> MergeExistingMetadataAsync(SqliteConnection connection, IndexedLogicalSession session, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(session);
+
         await using var command = connection.CreateCommand();
         // nosemgrep: csharp.lang.security.sqli.csharp-sqli.csharp-sqli -- constant SQL text, parameter bound separately via SqliteParameter.
         command.CommandText = SelectSessionMetadataSql;
@@ -295,6 +305,8 @@ public sealed class SessionCatalogRepository
 
     private static async Task RefreshSearchIndexAsync(SqliteConnection connection, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(connection);
+
         await using (var deleteCommand = connection.CreateCommand())
         {
             deleteCommand.CommandText = "DELETE FROM session_search;";
@@ -313,6 +325,9 @@ public sealed class SessionCatalogRepository
 
     private static async Task RefreshSearchRowAsync(SqliteConnection connection, string sessionId, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+
         await using (var deleteCommand = connection.CreateCommand())
         {
             deleteCommand.CommandText = "DELETE FROM session_search WHERE session_id = $sessionId;";
@@ -343,20 +358,28 @@ public sealed class SessionCatalogRepository
         return connection;
     }
 
-    private static IReadOnlyList<string> SplitLines(string value) =>
-        string.IsNullOrWhiteSpace(value)
+    private static IReadOnlyList<string> SplitLines(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return string.IsNullOrWhiteSpace(value)
             ? []
             : value.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    }
 
-    private static string ToFtsQuery(string query) =>
-        string.Join(
+    private static string ToFtsQuery(string query)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        return string.Join(
             " AND ",
             query
                 .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Select(ToFtsToken));
+    }
 
     private static string ToFtsToken(string token)
     {
+        ArgumentNullException.ThrowIfNull(token);
+
         var escaped = token.Replace("\"", "\"\"");
         return escaped.All(static ch => char.IsLetterOrDigit(ch) || ch == '_')
             ? $"{escaped}*"

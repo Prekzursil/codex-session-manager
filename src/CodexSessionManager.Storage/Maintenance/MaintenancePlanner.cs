@@ -14,6 +14,8 @@ public static class MaintenancePlanner
 
     public static MaintenancePreview CreatePreview(MaintenanceRequest request)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         var blockedTargets = new List<SessionPhysicalCopy>();
         var allowedTargets = new List<SessionPhysicalCopy>();
         var warnings = new List<MaintenanceWarning>();
@@ -43,6 +45,8 @@ public static class MaintenancePlanner
 
     private static bool IsProtected(SessionPhysicalCopy candidate)
     {
+        ArgumentNullException.ThrowIfNull(candidate);
+
         var normalizedPath = candidate.FilePath.Replace('/', '\\');
         return candidate.StoreKind is SessionStoreKind.Live
             || ProtectedPathMarkers.Any(marker => normalizedPath.Contains(marker, StringComparison.OrdinalIgnoreCase));
