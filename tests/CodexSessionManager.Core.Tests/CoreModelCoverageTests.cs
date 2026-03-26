@@ -70,7 +70,7 @@ public sealed class CoreModelCoverageTests
         var request = new MaintenanceRequest(MaintenanceAction.Delete, [copy], "DELETE");
 
         Assert.Equal("session-42", copy.SessionId);
-        Assert.Equal(copy.FilePath, copy.FilePath);
+        Assert.Equal(@"C:\Users\Prekzursil\.codex\sessions\2026\03\26\session-42.jsonl", copy.FilePath);
         Assert.Equal(SessionStoreKind.Live, copy.StoreKind);
         Assert.Equal(new DateTimeOffset(2026, 3, 26, 12, 0, 0, TimeSpan.Zero), copy.LastWriteTimeUtc);
         Assert.Equal(4096, copy.FileSizeBytes);
