@@ -25,3 +25,6 @@ coverage/
 
 # App local scratch
 local-run/
+
+# Local git worktrees
+.worktrees/
