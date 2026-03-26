@@ -45,9 +45,10 @@ public sealed class CoreModelCoverageTests
             sessionId: "session-42",
             filePath: @"C:\Users\Prekzursil\.codex\sessions\2026\03\26\session-42.jsonl",
             storeKind: SessionStoreKind.Live,
-            lastWriteTimeUtc: new DateTimeOffset(2026, 3, 26, 12, 0, 0, TimeSpan.Zero),
-            fileSizeBytes: 4096,
-            isHot: true);
+            state: new SessionPhysicalCopyState(
+                new DateTimeOffset(2026, 3, 26, 12, 0, 0, TimeSpan.Zero),
+                4096,
+                true));
 
         var logical = new LogicalSession("session-42", "Thread", copy, [copy]);
         var indexed = new IndexedLogicalSession(
@@ -194,5 +195,26 @@ public sealed class CoreModelCoverageTests
         Assert.Contains("### Note", audit.RenderedMarkdown);
         Assert.Contains("Called `exec_command`.", audit.RenderedMarkdown);
         Assert.Contains("`exec_command` output:", audit.RenderedMarkdown);
+    }
+
+    [Fact]
+    public void FormatAudit_RendersNotes_AndSkipsUnknownEventKinds()
+    {
+        var session = new NormalizedSessionDocument(
+            SessionId: "session-note",
+            ThreadName: "Note thread",
+            StartedAtUtc: new DateTimeOffset(2026, 3, 26, 15, 0, 0, TimeSpan.Zero),
+            ForkedFromId: null,
+            Cwd: @"C:\Users\Prekzursil",
+            Events:
+            [
+                new NormalizedSessionEvent(NormalizedEventKind.Note, SessionActor.Note, "Remember this"),
+                new NormalizedSessionEvent((NormalizedEventKind)999, SessionActor.Unknown, "Ignored event")
+            ]);
+
+        var audit = SessionTranscriptFormatter.Format(session, TranscriptMode.Audit);
+
+        Assert.Contains("- Note: Remember this", audit.RenderedMarkdown);
+        Assert.DoesNotContain("Ignored event", audit.RenderedMarkdown);
     }
 }

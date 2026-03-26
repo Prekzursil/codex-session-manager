@@ -221,9 +221,10 @@ public sealed class StorageCoverageExpansionTests
         await File.WriteAllLinesAsync(
             tempFile,
             [
-                """{"type":"session_meta","payload":{"id":"session-non-string","cwd":{"unexpected":true},"timestamp":"2026-03-26T10:00:00Z"}}""",
+                """{"type":"session_meta","payload":{"id":"session-non-string","cwd":{"unexpected":true},"forked_from_id":null,"timestamp":"2026-03-26T10:00:00Z"}}""",
                 """{"type":"response_item","payload":{"type":"function_call","name":"exec_command","arguments":{"cmd":"pwsh"}}}""",
-                """{"type":"response_item","payload":{"type":"function_call_output","name":"exec_command","output":7}}"""
+                """{"type":"response_item","payload":{"type":"function_call_output","name":"exec_command","output":7}}""",
+                """{"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":null}]}}"""
             ]);
 
         try

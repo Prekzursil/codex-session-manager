@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
@@ -111,6 +112,9 @@ public sealed class MainWindowCoverageTests
 
     private static readonly FieldInfo MaintenanceExecutorField =
         typeof(MainWindow).GetField("_maintenanceExecutor", BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+    private static readonly FieldInfo SearchCtsField =
+        typeof(MainWindow).GetField("_searchCts", BindingFlags.Instance | BindingFlags.NonPublic)!;
 
     private static readonly string[] SqliteStatusPaths = ["first", "second"];
 
@@ -558,6 +562,49 @@ public sealed class MainWindowCoverageTests
                 searchBox.Text = string.Empty;
                 await InvokePrivateTask(window, SearchSessionsAsyncMethod);
                 Assert.Equal(2, GetNamedField<ListBox>(window, "SessionsListBox").Items.Count);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task SearchSessionsAsync_catches_cancellation_and_window_close_disposes_search_token()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var root = CreateTempDirectory();
+            try
+            {
+                var sessions = Enumerable.Range(0, 200)
+                    .Select(index => BuildIndexedSession($"session-{index}", $"Thread {index}", WriteSessionJsonl(root, $"session-{index}", $"Thread {index}")))
+                    .ToArray();
+                var repository = CreateRepository(root, sessions);
+                var window = new MainWindow();
+                RepositoryField.SetValue(window, repository);
+                await InvokePrivateTask(window, LoadSessionsFromCatalogAsyncMethod);
+
+                GetNamedField<TextBox>(window, "SearchTextBox").Text = "Thread";
+                var searchTask = Task.Run(async () => await InvokePrivateTask(window, SearchSessionsAsyncMethod));
+
+                CancellationTokenSource? searchCts = null;
+                for (var attempt = 0; attempt < 50 && searchCts is null; attempt++)
+                {
+                    searchCts = SearchCtsField.GetValue(window) as CancellationTokenSource;
+                    if (searchCts is null)
+                    {
+                        await Task.Delay(10);
+                    }
+                }
+
+                Assert.NotNull(searchCts);
+                searchCts!.Cancel();
+                await searchTask;
+
+                window.Close();
+                Assert.Null(SearchCtsField.GetValue(window));
             }
             finally
             {
