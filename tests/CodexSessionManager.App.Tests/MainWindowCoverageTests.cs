@@ -112,6 +112,8 @@ public sealed class MainWindowCoverageTests
     private static readonly FieldInfo MaintenanceExecutorField =
         typeof(MainWindow).GetField("_maintenanceExecutor", BindingFlags.Instance | BindingFlags.NonPublic)!;
 
+    private static readonly string[] SqliteStatusPaths = ["first", "second"];
+
     [Fact]
     public void Constructor_initializes_core_bindings()
     {
@@ -148,7 +150,7 @@ public sealed class MainWindowCoverageTests
         var value = (string)GetLiveSqliteStatusWithInputsMethod.Invoke(
             null,
             [
-                new[] { "first", "second" },
+                SqliteStatusPaths,
                 (Func<string, string?>)(path => path == "first" ? "first detail" : "second detail")
             ])!;
 
