@@ -189,7 +189,7 @@ public sealed class MainWindowCoverageTests
             }
             finally
             {
-                Directory.Delete(root, recursive: true);
+                DeleteDirectory(root);
             }
         });
     }
@@ -228,7 +228,7 @@ public sealed class MainWindowCoverageTests
             }
             finally
             {
-                Directory.Delete(root, recursive: true);
+                DeleteDirectory(root);
             }
         });
     }
@@ -271,7 +271,7 @@ public sealed class MainWindowCoverageTests
             }
             finally
             {
-                Directory.Delete(root, recursive: true);
+                DeleteDirectory(root);
             }
         });
     }
@@ -307,7 +307,7 @@ public sealed class MainWindowCoverageTests
             }
             finally
             {
-                Directory.Delete(root, recursive: true);
+                DeleteDirectory(root);
             }
         });
     }
@@ -340,7 +340,7 @@ public sealed class MainWindowCoverageTests
             }
             finally
             {
-                Directory.Delete(root, recursive: true);
+                DeleteDirectory(root);
             }
         });
     }
@@ -372,7 +372,7 @@ public sealed class MainWindowCoverageTests
             }
             finally
             {
-                Directory.Delete(root, recursive: true);
+                DeleteDirectory(root);
             }
         });
     }
@@ -422,7 +422,7 @@ public sealed class MainWindowCoverageTests
             }
             finally
             {
-                Directory.Delete(root, recursive: true);
+                DeleteDirectory(root);
             }
         });
     }
@@ -449,7 +449,7 @@ public sealed class MainWindowCoverageTests
             }
             finally
             {
-                Directory.Delete(root, recursive: true);
+                DeleteDirectory(root);
             }
         });
     }
@@ -485,7 +485,7 @@ public sealed class MainWindowCoverageTests
             }
             finally
             {
-                Directory.Delete(root, recursive: true);
+                DeleteDirectory(root);
             }
         });
     }
@@ -530,7 +530,7 @@ public sealed class MainWindowCoverageTests
             }
             finally
             {
-                Directory.Delete(root, recursive: true);
+                DeleteDirectory(root);
             }
         });
     }
@@ -580,7 +580,7 @@ public sealed class MainWindowCoverageTests
             }
             finally
             {
-                Directory.Delete(root, recursive: true);
+                DeleteDirectory(root);
             }
         });
     }
@@ -616,7 +616,7 @@ public sealed class MainWindowCoverageTests
             }
             finally
             {
-                Directory.Delete(root, recursive: true);
+                DeleteDirectory(root);
             }
         });
     }
@@ -699,7 +699,7 @@ public sealed class MainWindowCoverageTests
             }
             finally
             {
-                Directory.Delete(root, recursive: true);
+                DeleteDirectory(root);
             }
         });
     }
@@ -747,7 +747,7 @@ public sealed class MainWindowCoverageTests
         }
         finally
         {
-            Directory.Delete(root, recursive: true);
+            DeleteDirectory(root);
         }
     }
 
@@ -794,7 +794,7 @@ public sealed class MainWindowCoverageTests
             }
             finally
             {
-                Directory.Delete(root, recursive: true);
+                DeleteDirectory(root);
             }
         });
     }
@@ -828,7 +828,7 @@ public sealed class MainWindowCoverageTests
             }
             finally
             {
-                Directory.Delete(root, recursive: true);
+                DeleteDirectory(root);
             }
         });
     }
@@ -861,7 +861,7 @@ public sealed class MainWindowCoverageTests
             }
             finally
             {
-                Directory.Delete(root, recursive: true);
+                DeleteDirectory(root);
             }
         });
     }
@@ -987,6 +987,30 @@ public sealed class MainWindowCoverageTests
         return path;
     }
 
+    private static void DeleteDirectory(string path)
+    {
+        if (!Directory.Exists(path))
+        {
+            return;
+        }
+
+        for ( = 0;  < 5; ++)
+        {
+            try
+            {
+                Directory.Delete(path, recursive: true);
+                return;
+            }
+            catch (IOException) when ( < 4)
+            {
+                Thread.Sleep(100 * ( + 1));
+            }
+            catch (UnauthorizedAccessException) when ( < 4)
+            {
+                Thread.Sleep(100 * ( + 1));
+            }
+        }
+    }
     private static void SetProvider(MainWindow window, string propertyName, object value) =>
         typeof(MainWindow).GetProperty(propertyName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)!
             .SetValue(window, value);
@@ -1036,6 +1060,7 @@ public sealed class MainWindowCoverageTests
         return completion.Task;
     }
 }
+
 
 
 
