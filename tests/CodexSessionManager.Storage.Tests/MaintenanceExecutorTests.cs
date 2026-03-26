@@ -19,19 +19,12 @@ public sealed class MaintenanceExecutorTests
         var filePath = Path.Combine(sourceDir, "session-1.jsonl");
         await File.WriteAllTextAsync(filePath, "test");
 
-        var planner = new MaintenancePlanner();
         var executor = new MaintenanceExecutor(checkpointDir);
-        var preview = planner.CreatePreview(
+        var preview = MaintenancePlanner.CreatePreview(
             new MaintenanceRequest(
                 MaintenanceAction.Archive,
                 [
-                    new SessionPhysicalCopy(
-                        "session-1",
-                        filePath,
-                        SessionStoreKind.Backup,
-                        DateTimeOffset.UtcNow,
-                        4,
-                        false)
+                    new SessionPhysicalCopy("session-1", filePath, SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 4, false))
                 ],
                 "ARCHIVE 1 FILE"));
 
@@ -67,19 +60,12 @@ public sealed class MaintenanceExecutorTests
         var filePath = Path.Combine(sourceDir, "session-delete.jsonl");
         await File.WriteAllTextAsync(filePath, "delete me");
 
-        var planner = new MaintenancePlanner();
         var executor = new MaintenanceExecutor(checkpointDir);
-        var preview = planner.CreatePreview(
+        var preview = MaintenancePlanner.CreatePreview(
             new MaintenanceRequest(
                 MaintenanceAction.Delete,
                 [
-                    new SessionPhysicalCopy(
-                        "session-delete",
-                        filePath,
-                        SessionStoreKind.Backup,
-                        DateTimeOffset.UtcNow,
-                        9,
-                        false)
+                    new SessionPhysicalCopy("session-delete", filePath, SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 9, false))
                 ],
                 "DELETE 1 FILE"));
 
@@ -117,14 +103,13 @@ public sealed class MaintenanceExecutorTests
         await File.WriteAllTextAsync(fileA, "a");
         await File.WriteAllTextAsync(fileB, "b");
 
-        var planner = new MaintenancePlanner();
         var executor = new MaintenanceExecutor(checkpointDir);
-        var preview = planner.CreatePreview(
+        var preview = MaintenancePlanner.CreatePreview(
             new MaintenanceRequest(
                 MaintenanceAction.Archive,
                 [
-                    new SessionPhysicalCopy("a", fileA, SessionStoreKind.Backup, DateTimeOffset.UtcNow, 1, false),
-                    new SessionPhysicalCopy("b", fileB, SessionStoreKind.Backup, DateTimeOffset.UtcNow, 1, false)
+                    new SessionPhysicalCopy("a", fileA, SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false)),
+                    new SessionPhysicalCopy("b", fileB, SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false))
                 ],
                 "ARCHIVE 2 FILES"));
 

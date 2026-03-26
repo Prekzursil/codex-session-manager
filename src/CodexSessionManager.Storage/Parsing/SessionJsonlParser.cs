@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using CodexSessionManager.Core.Transcripts;
+using System.Globalization;
 
 namespace CodexSessionManager.Storage.Parsing;
 
@@ -12,132 +13,166 @@ public static partial class SessionJsonlParser
     public static async Task<ParsedSessionFile> ParseAsync(string filePath, CancellationToken cancellationToken)
     {
         var lines = await File.ReadAllLinesAsync(filePath, cancellationToken);
-
-        string? sessionId = null;
-        string? forkedFromId = null;
-        string? cwd = null;
-        DateTimeOffset startedAtUtc = DateTimeOffset.MinValue;
-        var events = new List<NormalizedSessionEvent>();
-        var commands = new List<string>();
-        var exitCodes = new List<int>();
-        var filePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var urls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var state = new ParseState();
 
         foreach (var line in lines.Where(static value => !string.IsNullOrWhiteSpace(value)))
         {
             using var document = JsonDocument.Parse(line);
-            var root = document.RootElement;
-            var type = root.GetProperty("type").GetString();
-
-            switch (type)
-            {
-                case "session_meta":
-                    var payload = root.GetProperty("payload");
-                    sessionId ??= payload.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
-                    forkedFromId ??= payload.TryGetProperty("forked_from_id", out var forkedElement) ? forkedElement.GetString() : null;
-                    cwd ??= payload.TryGetProperty("cwd", out var cwdElement) ? cwdElement.GetString() : null;
-                    startedAtUtc = payload.TryGetProperty("timestamp", out var timestampElement)
-                        && DateTimeOffset.TryParse(timestampElement.GetString(), out var parsedStartedAt)
-                        ? parsedStartedAt
-                        : startedAtUtc;
-                    break;
-
-                case "response_item":
-                    var payloadElement = root.GetProperty("payload");
-                    var payloadType = payloadElement.TryGetProperty("type", out var payloadTypeElement)
-                        ? payloadTypeElement.GetString()
-                        : null;
-
-                    if (payloadType is "message")
-                    {
-                        var role = payloadElement.GetProperty("role").GetString();
-                        var actor = role switch
-                        {
-                            "user" => SessionActor.User,
-                            "assistant" => SessionActor.Assistant,
-                            "developer" => SessionActor.Developer,
-                            "system" => SessionActor.System,
-                            _ => SessionActor.Unknown
-                        };
-
-                        if (!payloadElement.TryGetProperty("content", out var contentElement)
-                            || contentElement.ValueKind is not JsonValueKind.Array)
-                        {
-                            continue;
-                        }
-
-                        foreach (var contentItem in contentElement.EnumerateArray())
-                        {
-                            var contentType = contentItem.TryGetProperty("type", out var contentTypeElement)
-                                ? contentTypeElement.GetString()
-                                : null;
-                            if (contentType is "input_text" or "output_text"
-                                && contentItem.TryGetProperty("text", out var textElement)
-                                && !string.IsNullOrWhiteSpace(textElement.GetString()))
-                            {
-                                var text = textElement.GetString()!;
-                                events.Add(NormalizedSessionEvent.CreateMessage(actor, text));
-                                ExtractFilePathsAndUrls(text, filePaths, urls);
-                            }
-                        }
-                    }
-                    else if (payloadType is "function_call")
-                    {
-                        var toolName = payloadElement.TryGetProperty("name", out var nameElement)
-                            ? nameElement.GetString() ?? "unknown_tool"
-                            : "unknown_tool";
-                        var rawArguments = payloadElement.TryGetProperty("arguments", out var argsElement)
-                            ? argsElement.GetString() ?? string.Empty
-                            : string.Empty;
-                        events.Add(NormalizedSessionEvent.CreateToolCall(toolName, rawArguments));
-
-                        var command = TryExtractCommand(rawArguments);
-                        if (!string.IsNullOrWhiteSpace(command))
-                        {
-                            commands.Add(command!);
-                        }
-
-                        ExtractFilePathsAndUrls(rawArguments, filePaths, urls);
-                    }
-                    else if (payloadType is "function_call_output")
-                    {
-                        var outputText = payloadElement.TryGetProperty("output", out var outputElement)
-                            ? outputElement.GetString() ?? string.Empty
-                            : string.Empty;
-                        var toolName = payloadElement.TryGetProperty("name", out var outputNameElement)
-                            ? outputNameElement.GetString() ?? "tool"
-                            : "tool";
-                        events.Add(NormalizedSessionEvent.CreateToolOutput(toolName, outputText));
-
-                        if (TryExtractExitCode(outputText, out var exitCode))
-                        {
-                            exitCodes.Add(exitCode);
-                        }
-
-                        ExtractFilePathsAndUrls(outputText, filePaths, urls);
-                    }
-
-                    break;
-            }
+            ParseLine(document.RootElement, state);
         }
 
-        if (string.IsNullOrWhiteSpace(sessionId))
+        if (string.IsNullOrWhiteSpace(state.SessionId))
         {
             throw new InvalidOperationException($"Session ID was not found in {filePath}.");
         }
 
         return new ParsedSessionFile(
-            SessionId: sessionId,
-            ForkedFromId: forkedFromId,
-            Cwd: cwd,
-            TechnicalBreadcrumbs: new TechnicalBreadcrumbs(commands, exitCodes, filePaths.ToArray(), urls.ToArray()),
+            SessionId: state.SessionId,
+            ForkedFromId: state.ForkedFromId,
+            Cwd: state.Cwd,
+            TechnicalBreadcrumbs: new TechnicalBreadcrumbs(
+                state.Commands,
+                state.ExitCodes,
+                state.FilePaths.ToArray(),
+                state.Urls.ToArray()),
             Document: new NormalizedSessionDocument(
-                sessionId,
+                state.SessionId,
                 ThreadName: null,
-                StartedAtUtc: startedAtUtc == DateTimeOffset.MinValue ? DateTimeOffset.UtcNow : startedAtUtc,
-                ForkedFromId: forkedFromId,
-                Cwd: cwd,
-                Events: events));
+                StartedAtUtc: state.StartedAtUtc == DateTimeOffset.MinValue ? DateTimeOffset.UtcNow : state.StartedAtUtc,
+                ForkedFromId: state.ForkedFromId,
+                Cwd: state.Cwd,
+                Events: state.Events));
+    }
+
+    private static void ParseLine(JsonElement root, ParseState state)
+    {
+        var type = root.GetProperty("type").GetString();
+        switch (type)
+        {
+            case "session_meta":
+                ParseSessionMetadata(root.GetProperty("payload"), state);
+                break;
+            case "response_item":
+                ParseResponseItem(root.GetProperty("payload"), state);
+                break;
+        }
+    }
+
+    private static void ParseSessionMetadata(JsonElement payload, ParseState state)
+    {
+        state.SessionId ??= TryGetString(payload, "id");
+        state.ForkedFromId ??= TryGetString(payload, "forked_from_id");
+        state.Cwd ??= TryGetString(payload, "cwd");
+
+        if (state.StartedAtUtc == DateTimeOffset.MinValue
+            && payload.TryGetProperty("timestamp", out var timestampElement)
+            && DateTimeOffset.TryParse(timestampElement.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsedStartedAt))
+        {
+            state.StartedAtUtc = parsedStartedAt;
+        }
+    }
+
+    private static void ParseResponseItem(JsonElement payload, ParseState state)
+    {
+        var payloadType = TryGetString(payload, "type");
+        switch (payloadType)
+        {
+            case "message":
+                ParseMessage(payload, state);
+                break;
+            case "function_call":
+                ParseFunctionCall(payload, state);
+                break;
+            case "function_call_output":
+                ParseFunctionCallOutput(payload, state);
+                break;
+        }
+    }
+
+    private static void ParseMessage(JsonElement payload, ParseState state)
+    {
+        if (!payload.TryGetProperty("content", out var contentElement)
+            || contentElement.ValueKind is not JsonValueKind.Array)
+        {
+            return;
+        }
+
+        var actor = ResolveActor(TryGetString(payload, "role"));
+        foreach (var contentItem in contentElement.EnumerateArray())
+        {
+            if (!IsTextContentItem(contentItem))
+            {
+                continue;
+            }
+
+            var text = contentItem.GetProperty("text").GetString()!;
+            state.Events.Add(NormalizedSessionEvent.CreateMessage(actor, text));
+            ExtractFilePathsAndUrls(text, state.FilePaths, state.Urls);
+        }
+    }
+
+    private static void ParseFunctionCall(JsonElement payload, ParseState state)
+    {
+        var toolName = TryGetString(payload, "name") ?? "unknown_tool";
+        var rawArguments = TryGetString(payload, "arguments") ?? string.Empty;
+        state.Events.Add(NormalizedSessionEvent.CreateToolCall(toolName, rawArguments));
+
+        var command = TryExtractCommand(rawArguments);
+        if (!string.IsNullOrWhiteSpace(command))
+        {
+            state.Commands.Add(command!);
+        }
+
+        ExtractFilePathsAndUrls(rawArguments, state.FilePaths, state.Urls);
+    }
+
+    private static void ParseFunctionCallOutput(JsonElement payload, ParseState state)
+    {
+        var outputText = TryGetString(payload, "output") ?? string.Empty;
+        var toolName = TryGetString(payload, "name") ?? "tool";
+        state.Events.Add(NormalizedSessionEvent.CreateToolOutput(toolName, outputText));
+
+        if (TryExtractExitCode(outputText, out var exitCode))
+        {
+            state.ExitCodes.Add(exitCode);
+        }
+
+        ExtractFilePathsAndUrls(outputText, state.FilePaths, state.Urls);
+    }
+
+    private static string? TryGetString(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var propertyElement))
+        {
+            return null;
+        }
+
+        return propertyElement.ValueKind switch
+        {
+            JsonValueKind.String => propertyElement.GetString(),
+            JsonValueKind.Null => null,
+            _ => null,
+        };
+    }
+
+    private static SessionActor ResolveActor(string? role)
+    {
+        return role switch
+        {
+            "user" => SessionActor.User,
+            "assistant" => SessionActor.Assistant,
+            "developer" => SessionActor.Developer,
+            "system" => SessionActor.System,
+            _ => SessionActor.Unknown,
+        };
+    }
+
+    private static bool IsTextContentItem(JsonElement contentItem)
+    {
+        var contentType = TryGetString(contentItem, "type");
+        return contentType is "input_text" or "output_text"
+            && contentItem.TryGetProperty("text", out var textElement)
+            && !string.IsNullOrWhiteSpace(textElement.GetString());
     }
 
     private static string? TryExtractCommand(string rawArguments)
@@ -186,4 +221,25 @@ public static partial class SessionJsonlParser
 
     [GeneratedRegex(@"[A-Za-z]:\\[^\s`""']+", RegexOptions.Compiled)]
     private static partial Regex FilePathRegexFactory();
+
+    private sealed class ParseState
+    {
+        public string? SessionId { get; set; }
+
+        public string? ForkedFromId { get; set; }
+
+        public string? Cwd { get; set; }
+
+        public DateTimeOffset StartedAtUtc { get; set; } = DateTimeOffset.MinValue;
+
+        public List<NormalizedSessionEvent> Events { get; } = [];
+
+        public List<string> Commands { get; } = [];
+
+        public List<int> ExitCodes { get; } = [];
+
+        public HashSet<string> FilePaths { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public HashSet<string> Urls { get; } = new(StringComparer.OrdinalIgnoreCase);
+    }
 }

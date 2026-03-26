@@ -16,39 +16,16 @@ public static class SessionTranscriptFormatter
 
         foreach (var sessionEvent in session.Events)
         {
-            switch (sessionEvent.Kind)
+            if (sessionEvent.Kind is NormalizedEventKind.Message)
             {
-                case NormalizedEventKind.Message:
-                    if (mode is TranscriptMode.Readable or TranscriptMode.Dialogue
-                        && sessionEvent.Actor is SessionActor.Developer or SessionActor.System)
-                    {
-                        continue;
-                    }
+                AppendMessage(sessionEvent, mode, builder);
+                continue;
+            }
 
-                    builder.AppendLine(sessionEvent.Actor switch
-                    {
-                        SessionActor.User => "### User",
-                        SessionActor.Assistant => "### Assistant",
-                        SessionActor.Developer => "### Developer",
-                        SessionActor.System => "### System",
-                        _ => "### Note"
-                    });
-                    builder.AppendLine(sessionEvent.Text);
-                    builder.AppendLine();
-                    break;
-
-                case NormalizedEventKind.ToolCall when mode is not TranscriptMode.Dialogue:
-                    toolActivity.Add($"- Called `{sessionEvent.ToolName}`.");
-                    if (!string.IsNullOrWhiteSpace(sessionEvent.RawPayload))
-                    {
-                        toolActivity.Add($"- Arguments: `{Truncate(sessionEvent.RawPayload, 120)}`");
-                    }
-
-                    break;
-
-                case NormalizedEventKind.ToolOutput when mode is not TranscriptMode.Dialogue:
-                    toolActivity.Add($"- `{sessionEvent.ToolName}` output: {Truncate(sessionEvent.Text, 140)}");
-                    break;
+            var activityLine = DescribeToolActivity(sessionEvent, mode);
+            if (!string.IsNullOrWhiteSpace(activityLine))
+            {
+                toolActivity.Add(activityLine);
             }
         }
 
@@ -64,6 +41,68 @@ public static class SessionTranscriptFormatter
         }
 
         return new TranscriptRenderResult(mode, builder.ToString().Trim());
+    }
+
+    private static void AppendMessage(NormalizedSessionEvent sessionEvent, TranscriptMode mode, StringBuilder builder)
+    {
+        if (ShouldSkipMessage(sessionEvent, mode))
+        {
+            return;
+        }
+
+        builder.AppendLine(ToMessageHeading(sessionEvent.Actor));
+        builder.AppendLine(sessionEvent.Text);
+        builder.AppendLine();
+    }
+
+    private static bool ShouldSkipMessage(NormalizedSessionEvent sessionEvent, TranscriptMode mode)
+    {
+        return mode is TranscriptMode.Readable or TranscriptMode.Dialogue
+            && sessionEvent.Actor is SessionActor.Developer or SessionActor.System;
+    }
+
+    private static string ToMessageHeading(SessionActor actor)
+    {
+        return actor switch
+        {
+            SessionActor.User => "### User",
+            SessionActor.Assistant => "### Assistant",
+            SessionActor.Developer => "### Developer",
+            SessionActor.System => "### System",
+            _ => "### Note",
+        };
+    }
+
+    private static string? DescribeToolActivity(NormalizedSessionEvent sessionEvent, TranscriptMode mode)
+    {
+        if (mode is TranscriptMode.Dialogue)
+        {
+            return null;
+        }
+
+        return sessionEvent.Kind switch
+        {
+            NormalizedEventKind.ToolCall => BuildToolCallDescription(sessionEvent),
+            NormalizedEventKind.ToolOutput => BuildToolOutputDescription(sessionEvent),
+            NormalizedEventKind.Note => $"- Note: {Truncate(sessionEvent.Text, 140)}",
+            _ => null,
+        };
+    }
+
+    private static string BuildToolCallDescription(NormalizedSessionEvent sessionEvent)
+    {
+        if (string.IsNullOrWhiteSpace(sessionEvent.RawPayload))
+        {
+            return $"- Called `{sessionEvent.ToolName}`.";
+        }
+
+        return $"- Called `{sessionEvent.ToolName}` with arguments `{Truncate(sessionEvent.RawPayload, 120)}`.";
+    }
+
+    private static string BuildToolOutputDescription(NormalizedSessionEvent sessionEvent)
+    {
+        var toolName = string.IsNullOrWhiteSpace(sessionEvent.ToolName) ? "tool" : sessionEvent.ToolName;
+        return $"- `{toolName}` output: {Truncate(sessionEvent.Text, 140)}";
     }
 
     private static string Truncate(string value, int maxLength) =>

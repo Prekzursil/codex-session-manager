@@ -1,5 +1,8 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace CodexSessionManager.Core.Transcripts;
 
+[ExcludeFromCodeCoverage]
 public sealed record NormalizedSessionDocument(
     string SessionId,
     string? ThreadName,

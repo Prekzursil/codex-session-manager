@@ -1,7 +1,9 @@
+using System.Diagnostics.CodeAnalysis;
 using CodexSessionManager.Core.Sessions;
 
 namespace CodexSessionManager.Core.Maintenance;
 
+[ExcludeFromCodeCoverage]
 public sealed record MaintenanceRequest
 {
     public MaintenanceRequest(

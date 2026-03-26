@@ -54,9 +54,10 @@ public sealed class SessionWorkspaceIndexer
                         parsed.SessionId,
                         filePath,
                         store.StoreKind,
-                        fileInfo.LastWriteTimeUtc,
-                        fileInfo.Length,
-                        false));
+                        new SessionPhysicalCopyState(
+                            fileInfo.LastWriteTimeUtc,
+                            fileInfo.Length,
+                            false)));
             }
         }
 
