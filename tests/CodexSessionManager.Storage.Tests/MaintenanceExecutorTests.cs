@@ -25,13 +25,7 @@ public sealed class MaintenanceExecutorTests
             new MaintenanceRequest(
                 MaintenanceAction.Archive,
                 [
-                    new SessionPhysicalCopy(
-                        "session-1",
-                        filePath,
-                        SessionStoreKind.Backup,
-                        DateTimeOffset.UtcNow,
-                        4,
-                        false)
+                    new SessionPhysicalCopy("session-1", filePath, SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 4, false))
                 ],
                 "ARCHIVE 1 FILE"));
 
@@ -73,13 +67,7 @@ public sealed class MaintenanceExecutorTests
             new MaintenanceRequest(
                 MaintenanceAction.Delete,
                 [
-                    new SessionPhysicalCopy(
-                        "session-delete",
-                        filePath,
-                        SessionStoreKind.Backup,
-                        DateTimeOffset.UtcNow,
-                        9,
-                        false)
+                    new SessionPhysicalCopy("session-delete", filePath, SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 9, false))
                 ],
                 "DELETE 1 FILE"));
 
@@ -123,8 +111,8 @@ public sealed class MaintenanceExecutorTests
             new MaintenanceRequest(
                 MaintenanceAction.Archive,
                 [
-                    new SessionPhysicalCopy("a", fileA, SessionStoreKind.Backup, DateTimeOffset.UtcNow, 1, false),
-                    new SessionPhysicalCopy("b", fileB, SessionStoreKind.Backup, DateTimeOffset.UtcNow, 1, false)
+                    new SessionPhysicalCopy("a", fileA, SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false)),
+                    new SessionPhysicalCopy("b", fileB, SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false))
                 ],
                 "ARCHIVE 2 FILES"));
 

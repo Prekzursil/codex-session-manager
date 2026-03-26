@@ -41,13 +41,7 @@ public sealed class CoreModelCoverageTests
     [Fact]
     public void MaintenanceAndSessionRecords_PreserveConstructorValues()
     {
-        var copy = new SessionPhysicalCopy(
-            sessionId: "session-42",
-            filePath: @"C:\Users\Prekzursil\.codex\sessions\2026\03\26\session-42.jsonl",
-            storeKind: SessionStoreKind.Live,
-            lastWriteTimeUtc: new DateTimeOffset(2026, 3, 26, 12, 0, 0, TimeSpan.Zero),
-            fileSizeBytes: 4096,
-            isHot: true);
+        var copy = new SessionPhysicalCopy(sessionId: "session-42", filePath: @"C:\Users\Prekzursil\.codex\sessions\2026\03\26\session-42.jsonl", storeKind: SessionStoreKind.Live, state: new SessionPhysicalCopyState(lastWriteTimeUtc: new DateTimeOffset(2026, 3, 26, 12, 0, 0, TimeSpan.Zero), fileSizeBytes: 4096, isHot: true));
 
         var logical = new LogicalSession("session-42", "Thread", copy, [copy]);
         var indexed = new IndexedLogicalSession(

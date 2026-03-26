@@ -1072,8 +1072,8 @@ public sealed class MainWindowCoverageTests
         new(
             sessionId,
             threadName,
-            new SessionPhysicalCopy(sessionId, filePath, SessionStoreKind.Live, DateTimeOffset.UtcNow, 1024, false),
-            [new SessionPhysicalCopy(sessionId, filePath, SessionStoreKind.Live, DateTimeOffset.UtcNow, 1024, false)],
+            new SessionPhysicalCopy(sessionId, filePath, SessionStoreKind.Live, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1024, false)),
+            [new SessionPhysicalCopy(sessionId, filePath, SessionStoreKind.Live, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1024, false))],
             new SessionSearchDocument(
                 $"Readable transcript for {threadName}",
                 $"Dialogue transcript for {threadName}",

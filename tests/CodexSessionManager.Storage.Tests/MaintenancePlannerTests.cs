@@ -10,21 +10,9 @@ public sealed class MaintenancePlannerTests
     public void CreateDeletePreview_RejectsProtectedPaths_AndRequiresTypedConfirmationAndCheckpoint()
     {
         var planner = new MaintenancePlanner();
-        var protectedCopy = new SessionPhysicalCopy(
-            "session-1",
-            @"C:\Users\Prekzursil\.codex\sessions\2026\03\23\session-1.jsonl",
-            SessionStoreKind.Live,
-            new DateTimeOffset(2026, 3, 23, 10, 0, 0, TimeSpan.Zero),
-            1000,
-            false);
+        var protectedCopy = new SessionPhysicalCopy("session-1", @"C:\Users\Prekzursil\.codex\sessions\2026\03\23\session-1.jsonl", SessionStoreKind.Live, new SessionPhysicalCopyState(new DateTimeOffset(2026, 3, 23, 10, 0, 0, TimeSpan.Zero), 1000, false));
 
-        var backupCopy = new SessionPhysicalCopy(
-            "session-1",
-            @"C:\Users\Prekzursil\.codex\sessions_backup\2026\03\23\session-1.jsonl",
-            SessionStoreKind.Backup,
-            new DateTimeOffset(2026, 3, 23, 9, 0, 0, TimeSpan.Zero),
-            1000,
-            false);
+        var backupCopy = new SessionPhysicalCopy("session-1", @"C:\Users\Prekzursil\.codex\sessions_backup\2026\03\23\session-1.jsonl", SessionStoreKind.Backup, new SessionPhysicalCopyState(new DateTimeOffset(2026, 3, 23, 9, 0, 0, TimeSpan.Zero), 1000, false));
 
         var request = new MaintenanceRequest(
             MaintenanceAction.Delete,

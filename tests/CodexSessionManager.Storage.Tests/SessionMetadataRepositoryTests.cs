@@ -18,21 +18,9 @@ public sealed class SessionMetadataRepositoryTests
             var session = new IndexedLogicalSession(
                 "session-1",
                 "Renderer work",
-                new SessionPhysicalCopy(
-                    "session-1",
-                    @"C:\Users\Prekzursil\.codex\sessions\2026\03\23\session-1.jsonl",
-                    SessionStoreKind.Live,
-                    new DateTimeOffset(2026, 3, 23, 10, 0, 0, TimeSpan.Zero),
-                    1000,
-                    false),
+                new SessionPhysicalCopy("session-1", @"C:\Users\Prekzursil\.codex\sessions\2026\03\23\session-1.jsonl", SessionStoreKind.Live, new SessionPhysicalCopyState(new DateTimeOffset(2026, 3, 23, 10, 0, 0, TimeSpan.Zero), 1000, false)),
                 [
-                    new SessionPhysicalCopy(
-                        "session-1",
-                        @"C:\Users\Prekzursil\.codex\sessions\2026\03\23\session-1.jsonl",
-                        SessionStoreKind.Live,
-                        new DateTimeOffset(2026, 3, 23, 10, 0, 0, TimeSpan.Zero),
-                        1000,
-                        false)
+                    new SessionPhysicalCopy("session-1", @"C:\Users\Prekzursil\.codex\sessions\2026\03\23\session-1.jsonl", SessionStoreKind.Live, new SessionPhysicalCopyState(new DateTimeOffset(2026, 3, 23, 10, 0, 0, TimeSpan.Zero), 1000, false))
                 ],
                 new SessionSearchDocument("renderer transcript", "renderer transcript", "tool summary", "rg renderer", [], [], "", "", [], ""));
 

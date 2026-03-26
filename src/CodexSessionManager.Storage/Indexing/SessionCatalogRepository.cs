@@ -209,7 +209,14 @@ public sealed class SessionCatalogRepository
                     copiesBySession[sessionId] = copies;
                 }
 
-                copies.Add(new SessionPhysicalCopy(sessionId, reader.GetString(1), (SessionStoreKind)reader.GetInt32(2), DateTimeOffset.Parse(reader.GetString(3)), reader.GetInt64(4), reader.GetInt32(5) == 1));
+                copies.Add(new SessionPhysicalCopy(
+                    sessionId,
+                    reader.GetString(1),
+                    (SessionStoreKind)reader.GetInt32(2),
+                    new SessionPhysicalCopyState(
+                        DateTimeOffset.Parse(reader.GetString(3)),
+                        reader.GetInt64(4),
+                        reader.GetInt32(5) == 1)));
             }
         }
 
@@ -231,7 +238,11 @@ public sealed class SessionCatalogRepository
                 var preferredPath = reader.GetString(2);
                 var copies = copiesBySession.TryGetValue(sessionId, out var existingCopies) ? existingCopies : [];
                 var preferredCopy = copies.FirstOrDefault(copy => string.Equals(copy.FilePath, preferredPath, StringComparison.OrdinalIgnoreCase))
-                    ?? new SessionPhysicalCopy(sessionId, preferredPath, SessionStoreKind.Unknown, DateTimeOffset.MinValue, 0, false);
+                    ?? new SessionPhysicalCopy(
+                        sessionId,
+                        preferredPath,
+                        SessionStoreKind.Unknown,
+                        new SessionPhysicalCopyState(DateTimeOffset.MinValue, 0, false));
 
                 sessions.Add(
                     new IndexedLogicalSession(

@@ -14,13 +14,7 @@ public sealed class StorageCoverageExpansionTests
     [Fact]
     public void DiscoveryAndCoreRecords_PreserveAssignedValues()
     {
-        var preferredCopy = new SessionPhysicalCopy(
-            "session-1",
-            @"C:\sessions\session-1.jsonl",
-            SessionStoreKind.Live,
-            DateTimeOffset.UtcNow,
-            128,
-            false);
+        var preferredCopy = new SessionPhysicalCopy("session-1", @"C:\sessions\session-1.jsonl", SessionStoreKind.Live, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 128, false));
         var logical = new LogicalSession("session-1", "Thread", preferredCopy, [preferredCopy]);
         var catalog = new SessionDiscoveryCatalog([logical]);
         var knownStore = new KnownSessionStore(
@@ -281,13 +275,7 @@ public sealed class StorageCoverageExpansionTests
         var preview = new MaintenancePlanner().CreatePreview(
             new MaintenanceRequest(
                 MaintenanceAction.Archive,
-                [new SessionPhysicalCopy(
-                    "session-3",
-                    sessionPath,
-                    SessionStoreKind.Backup,
-                    DateTimeOffset.UtcNow,
-                    7,
-                    false)],
+                [new SessionPhysicalCopy("session-3", sessionPath, SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 7, false))],
                 "ARCHIVE 1 FILE"));
         var executor = new MaintenanceExecutor(Path.Combine(root, "checkpoints"));
 
@@ -317,13 +305,7 @@ public sealed class StorageCoverageExpansionTests
         var preview = new MaintenancePlanner().CreatePreview(
             new MaintenanceRequest(
                 MaintenanceAction.Reconcile,
-                [new SessionPhysicalCopy(
-                    "session-4",
-                    sessionPath,
-                    SessionStoreKind.Backup,
-                    DateTimeOffset.UtcNow,
-                    7,
-                    false)],
+                [new SessionPhysicalCopy("session-4", sessionPath, SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 7, false))],
                 "RECONCILE 1 FILE"));
         var executor = new MaintenanceExecutor(checkpointDir);
 

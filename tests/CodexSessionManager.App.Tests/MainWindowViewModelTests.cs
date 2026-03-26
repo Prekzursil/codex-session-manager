@@ -100,22 +100,10 @@ public sealed class MainWindowViewModelTests
         new(
             SessionId: sessionId,
             ThreadName: threadName,
-            PreferredCopy: new SessionPhysicalCopy(
-                sessionId,
-                $@"C:\Users\Prekzursil\.codex\sessions\{sessionId}.jsonl",
-                SessionStoreKind.Live,
-                DateTimeOffset.UtcNow,
-                1024,
-                false),
+            PreferredCopy: new SessionPhysicalCopy(sessionId, $@"C:\Users\Prekzursil\.codex\sessions\{sessionId}.jsonl", SessionStoreKind.Live, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1024, false)),
             PhysicalCopies:
             [
-                new SessionPhysicalCopy(
-                    sessionId,
-                    $@"C:\Users\Prekzursil\.codex\sessions\{sessionId}.jsonl",
-                    SessionStoreKind.Live,
-                    DateTimeOffset.UtcNow,
-                    1024,
-                    false)
+                new SessionPhysicalCopy(sessionId, $@"C:\Users\Prekzursil\.codex\sessions\{sessionId}.jsonl", SessionStoreKind.Live, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1024, false))
             ],
             SearchDocument: new SessionSearchDocument(
                 ReadableTranscript: transcript,
