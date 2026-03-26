@@ -130,13 +130,13 @@ public sealed class MainWindowViewModelTests
             _searchHits = searchHits;
         }
 
-        public Task<IReadOnlyList<IndexedLogicalSession>> GetSessionsAsync(CancellationToken cancellationToken = default) =>
+        public Task<IReadOnlyList<IndexedLogicalSession>> GetSessionsAsync(CancellationToken cancellationToken) =>
             Task.FromResult(_sessions);
 
-        public Task<IReadOnlyList<SessionSearchHit>> SearchAsync(string query, CancellationToken cancellationToken = default) =>
+        public Task<IReadOnlyList<SessionSearchHit>> SearchAsync(string query, CancellationToken cancellationToken) =>
             Task.FromResult(_searchHits ?? []);
 
-        public Task RefreshIndexAsync(CancellationToken cancellationToken = default) =>
+        public Task RefreshIndexAsync(CancellationToken cancellationToken) =>
             Task.CompletedTask;
     }
 }

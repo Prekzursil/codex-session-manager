@@ -5,11 +5,11 @@ namespace CodexSessionManager.App.ViewModels;
 
 public interface ISessionBrowserService
 {
-    Task<IReadOnlyList<IndexedLogicalSession>> GetSessionsAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<IndexedLogicalSession>> GetSessionsAsync(CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<SessionSearchHit>> SearchAsync(string query, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<SessionSearchHit>> SearchAsync(string query, CancellationToken cancellationToken);
 
-    Task RefreshIndexAsync(CancellationToken cancellationToken = default);
+    Task RefreshIndexAsync(CancellationToken cancellationToken);
 }
 
 public sealed class MainWindowViewModel
@@ -30,7 +30,9 @@ public sealed class MainWindowViewModel
 
     public string StatusText { get; private set; } = "Idle";
 
-    public async Task RefreshAsync(CancellationToken cancellationToken = default)
+    public Task RefreshAsync() => RefreshAsync(CancellationToken.None);
+
+    public async Task RefreshAsync(CancellationToken cancellationToken)
     {
         await _service.RefreshIndexAsync(cancellationToken);
         var sessions = await _service.GetSessionsAsync(cancellationToken);
@@ -40,7 +42,9 @@ public sealed class MainWindowViewModel
         StatusText = "Ready";
     }
 
-    public async Task ApplySearchAsync(string query, CancellationToken cancellationToken = default)
+    public Task ApplySearchAsync(string query) => ApplySearchAsync(query ?? string.Empty, CancellationToken.None);
+
+    public async Task ApplySearchAsync(string query, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(query))
         {

@@ -5,7 +5,7 @@ param(
 $ErrorActionPreference = "Stop"
 if (Test-Path $InstallRoot) {
     Remove-Item -Path $InstallRoot -Recurse -Force
-    Write-Host "Removed $InstallRoot"
+    Write-Output "Removed $InstallRoot"
 } else {
-    Write-Host "Nothing to remove at $InstallRoot"
+    Write-Output "Nothing to remove at $InstallRoot"
 }

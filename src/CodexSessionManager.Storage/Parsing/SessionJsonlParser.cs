@@ -55,6 +55,8 @@ public static partial class SessionJsonlParser
             case "response_item":
                 ParseResponseItem(root.GetProperty("payload"), state);
                 break;
+            default:
+                return;
         }
     }
 
@@ -86,6 +88,8 @@ public static partial class SessionJsonlParser
             case "function_call_output":
                 ParseFunctionCallOutput(payload, state);
                 break;
+            default:
+                return;
         }
     }
 
