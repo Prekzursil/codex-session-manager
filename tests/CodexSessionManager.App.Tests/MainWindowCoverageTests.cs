@@ -24,7 +24,23 @@ public sealed class MainWindowCoverageTests
         typeof(MainWindow).GetMethod("BuildKnownStores", BindingFlags.NonPublic | BindingFlags.Static)!;
 
     private static readonly MethodInfo GetLiveSqliteStatusMethod =
-        typeof(MainWindow).GetMethod("GetLiveSqliteStatus", BindingFlags.NonPublic | BindingFlags.Static)!;
+        typeof(MainWindow).GetMethods(BindingFlags.NonPublic | BindingFlags.Static)
+            .Single(method => method.Name == "GetLiveSqliteStatus" && method.GetParameters().Length == 0);
+
+    private static readonly MethodInfo GetLiveSqliteStatusWithInputsMethod =
+        typeof(MainWindow).GetMethods(BindingFlags.NonPublic | BindingFlags.Static)
+            .Single(method =>
+            {
+                if (method.Name != "GetLiveSqliteStatus")
+                {
+                    return false;
+                }
+
+                var parameters = method.GetParameters();
+                return parameters.Length == 2
+                    && parameters[0].ParameterType == typeof(IEnumerable<string>)
+                    && parameters[1].ParameterType == typeof(Func<string, string?>);
+            });
 
     private static readonly MethodInfo DescribeSqlitePathMethod =
         typeof(MainWindow).GetMethod("DescribeSqlitePath", BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Public)!;
@@ -116,6 +132,19 @@ public sealed class MainWindowCoverageTests
     {
         var value = (string)GetLiveSqliteStatusMethod.Invoke(null, [])!;
         Assert.False(string.IsNullOrWhiteSpace(value));
+    }
+
+    [Fact]
+    public void GetLiveSqliteStatus_returns_joined_details_for_detected_paths()
+    {
+        var value = (string)GetLiveSqliteStatusWithInputsMethod.Invoke(
+            null,
+            [
+                new[] { "first", "second" },
+                (Func<string, string?>)(path => path == "first" ? "first detail" : "second detail")
+            ])!;
+
+        Assert.Equal($"first detail{Environment.NewLine}second detail", value);
     }
 
     [Fact]
@@ -277,6 +306,53 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
+    public async Task RefreshAsync_with_deep_scan_uses_deep_scan_status_and_indexes_sessions()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var root = CreateTempDirectory();
+            try
+            {
+                var sessionFile = WriteSessionJsonl(root, "session-refresh-deep", "Refresh Thread Deep");
+                var repository = CreateRepository(root);
+                var indexer = new SessionWorkspaceIndexer(repository);
+                var window = new MainWindow();
+                var stores =
+                    new[]
+                    {
+                        new KnownSessionStore(
+                            root,
+                            SessionStoreKind.Live,
+                            Path.GetDirectoryName(sessionFile)!,
+                            Path.Combine(root, "sessions.index.jsonl"))
+                    };
+
+                File.WriteAllText(
+                    Path.Combine(root, "sessions.index.jsonl"),
+                    """{"id":"session-refresh-deep","thread_name":"Refresh Thread Deep"}""" + Environment.NewLine,
+                    Encoding.UTF8);
+
+                RepositoryField.SetValue(window, repository);
+                WorkspaceIndexerField.SetValue(window, indexer);
+                SetProvider(window, "KnownStoresProvider", (Func<bool, IReadOnlyList<KnownSessionStore>>)(deepScan =>
+                {
+                    Assert.True(deepScan);
+                    return stores;
+                }));
+
+                await InvokePrivateTask(window, RefreshAsyncMethod, true);
+
+                Assert.Single(GetNamedField<ListBox>(window, "SessionsListBox").Items);
+                Assert.Contains("Indexed 1 deduped sessions", GetNamedField<TextBlock>(window, "StatusTextBlock").Text, StringComparison.Ordinal);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        });
+    }
+
+    [Fact]
     public async Task LoadSelectedSessionAsync_success_updates_details_and_transcripts()
     {
         await RunInStaAsync(async () =>
@@ -304,6 +380,37 @@ public sealed class MainWindowCoverageTests
                 Assert.Equal("sqlite ok", GetNamedField<TextBlock>(window, "SQLiteStatusTextBlock").Text);
                 Assert.Contains("# Codex Session Transcript", GetNamedField<TextBox>(window, "ReadableTranscriptTextBox").Text, StringComparison.Ordinal);
                 Assert.Contains("raw-session-content", GetNamedField<TextBox>(window, "RawTranscriptTextBox").Text, StringComparison.Ordinal);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task LoadSelectedSessionAsync_uses_dash_when_parsed_cwd_is_missing()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var root = CreateTempDirectory();
+            try
+            {
+                var sessionFile = WriteSessionJsonl(root, "session-select-nullcwd", "Selected Thread");
+                var window = new MainWindow();
+                var parsed = BuildParsedFile("session-select-nullcwd", null);
+                var session = BuildIndexedSession("session-select-nullcwd", "Selected Thread", sessionFile);
+
+                AddSession(window, session);
+                var loadedSession = ((ObservableCollection<IndexedLogicalSession>)SessionsField.GetValue(window)!).Single();
+                SelectSingleSession(window, loadedSession);
+                SetProvider(window, "LiveSqliteStatusProvider", (() => "sqlite ok"));
+                SetProvider(window, "SessionParser", ((Func<string, CancellationToken, Task<ParsedSessionFile>>)((_, _) => Task.FromResult(parsed))));
+                SetProvider(window, "FileTextReader", ((Func<string, string>)(_ => "raw-session-content")));
+
+                await InvokePrivateTask(window, LoadSelectedSessionAsyncMethod);
+
+                Assert.Equal("-", GetNamedField<TextBlock>(window, "CwdTextBlock").Text);
             }
             finally
             {
@@ -923,7 +1030,7 @@ public sealed class MainWindowCoverageTests
                 [],
                 string.Empty));
 
-    private static ParsedSessionFile BuildParsedFile(string sessionId, string cwd) =>
+    private static ParsedSessionFile BuildParsedFile(string sessionId, string? cwd) =>
         new(
             sessionId,
             null,
@@ -994,20 +1101,20 @@ public sealed class MainWindowCoverageTests
             return;
         }
 
-        for ( = 0;  < 5; ++)
+        for (var attempt = 0; attempt < 5; attempt++)
         {
             try
             {
                 Directory.Delete(path, recursive: true);
                 return;
             }
-            catch (IOException) when ( < 4)
+            catch (IOException) when (attempt < 4)
             {
-                Thread.Sleep(100 * ( + 1));
+                Thread.Sleep(100 * (attempt + 1));
             }
-            catch (UnauthorizedAccessException) when ( < 4)
+            catch (UnauthorizedAccessException) when (attempt < 4)
             {
-                Thread.Sleep(100 * ( + 1));
+                Thread.Sleep(100 * (attempt + 1));
             }
         }
     }

@@ -477,14 +477,19 @@ public partial class MainWindow : Window
     private static string GetLiveSqliteStatus()
     {
         var codexHome = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex");
-        var sqlitePaths = new[]
-        {
-            Path.Combine(codexHome, "state_5.sqlite"),
-            Path.Combine(codexHome, "codex-sqlite", "canonical", "state_5.sqlite")
-        };
+        return GetLiveSqliteStatus(
+            new[]
+            {
+                Path.Combine(codexHome, "state_5.sqlite"),
+                Path.Combine(codexHome, "codex-sqlite", "canonical", "state_5.sqlite")
+            },
+            path => DescribeSqlitePath(path, fileInfoFactory: null));
+    }
 
+    private static string GetLiveSqliteStatus(IEnumerable<string> sqlitePaths, Func<string, string?> describeSqlitePath)
+    {
         var details = sqlitePaths
-            .Select(path => DescribeSqlitePath(path, fileInfoFactory: null))
+            .Select(describeSqlitePath)
             .Where(detail => detail is not null)
             .Cast<string>()
             .ToArray();
