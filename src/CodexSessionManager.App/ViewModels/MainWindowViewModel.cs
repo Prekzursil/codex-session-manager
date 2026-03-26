@@ -42,7 +42,7 @@ public sealed class MainWindowViewModel
         StatusText = "Ready";
     }
 
-    public Task ApplySearchAsync(string query) => ApplySearchAsync(query ?? string.Empty, CancellationToken.None);
+    public Task ApplySearchAsync(string query) => ApplySearchAsync(query, CancellationToken.None);
 
     public async Task ApplySearchAsync(string query, CancellationToken cancellationToken)
     {

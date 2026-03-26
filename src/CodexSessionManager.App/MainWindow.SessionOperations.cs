@@ -52,15 +52,12 @@ public partial class MainWindow
             {
                 await RunOnUiThreadAsync(() =>
                 {
-                    if (string.Equals(GetSelectedSession()?.SessionId, selectedSessionId, StringComparison.Ordinal))
-                    {
-                        SQLiteStatusTextBlock.Text = sqliteStatus;
-                        CwdTextBlock.Text = parsed.Cwd ?? "-";
-                        RawTranscriptTextBox.Text = rawContent;
-                        ReadableTranscriptTextBox.Text = readableTranscript;
-                        DialogueTranscriptTextBox.Text = dialogueTranscript;
-                        AuditTranscriptTextBox.Text = auditTranscript;
-                    }
+                    SQLiteStatusTextBlock.Text = sqliteStatus;
+                    CwdTextBlock.Text = parsed.Cwd ?? "-";
+                    RawTranscriptTextBox.Text = rawContent;
+                    ReadableTranscriptTextBox.Text = readableTranscript;
+                    DialogueTranscriptTextBox.Text = dialogueTranscript;
+                    AuditTranscriptTextBox.Text = auditTranscript;
                 });
             }
         }
@@ -70,13 +67,10 @@ public partial class MainWindow
             {
                 await RunOnUiThreadAsync(() =>
                 {
-                    if (string.Equals(GetSelectedSession()?.SessionId, selectedSessionId, StringComparison.Ordinal))
-                    {
-                        CwdTextBlock.Text = "-";
-                        SQLiteStatusTextBlock.Text = "Live SQLite status unavailable.";
-                        AuditTranscriptTextBox.Text = string.Empty;
-                        RawTranscriptTextBox.Text = $"Unable to load raw session content.{Environment.NewLine}{ex.Message}";
-                    }
+                    CwdTextBlock.Text = "-";
+                    SQLiteStatusTextBlock.Text = "Live SQLite status unavailable.";
+                    AuditTranscriptTextBox.Text = string.Empty;
+                    RawTranscriptTextBox.Text = $"Unable to load raw session content.{Environment.NewLine}{ex.Message}";
                 });
             }
         }

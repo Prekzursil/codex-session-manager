@@ -69,6 +69,12 @@ public sealed class MainWindowCoverageTests
     private static readonly MethodInfo LoadSelectedSessionAsyncMethod =
         typeof(MainWindow).GetMethod("LoadSelectedSessionAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
 
+    private static readonly MethodInfo PopulateSelectedSessionHeaderAsyncMethod =
+        typeof(MainWindow).GetMethod("PopulateSelectedSessionHeaderAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+    private static readonly MethodInfo LoadSelectedSessionBodyAsyncMethod =
+        typeof(MainWindow).GetMethod("LoadSelectedSessionBodyAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
+
     private static readonly MethodInfo SearchSessionsAsyncMethod =
         typeof(MainWindow).GetMethod("SearchSessionsAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
 
@@ -132,6 +138,33 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
+    public void InitializeComponent_rehydrates_named_controls()
+    {
+        RunInSta(() =>
+        {
+            var window = new MainWindow();
+
+            window.InitializeComponent();
+
+            Assert.Equal("Codex Session Manager", window.Title);
+        });
+    }
+
+    [Fact]
+    public void InitializeComponent_can_be_called_twice_without_reloading_content()
+    {
+        RunInSta(() =>
+        {
+            var window = new MainWindow();
+
+            window.InitializeComponent();
+
+            Assert.NotNull(GetNamedField<Button>(window, "RefreshButton"));
+            Assert.NotNull(GetNamedField<ListBox>(window, "SessionsListBox"));
+        });
+    }
+
+    [Fact]
     public void BuildKnownStores_returns_distinct_entries_for_deep_scan()
     {
         var shallow = InvokeBuildKnownStores(false);
@@ -159,6 +192,32 @@ public sealed class MainWindowCoverageTests
             ])!;
 
         Assert.Equal($"first detail{Environment.NewLine}second detail", value);
+    }
+
+    [Fact]
+    public void GetLiveSqliteStatus_returns_default_message_when_no_details_are_available()
+    {
+        var value = (string)GetLiveSqliteStatusWithInputsMethod.Invoke(
+            null,
+            [
+                SqliteStatusPaths,
+                (Func<string, string?>)(_ => null)
+            ])!;
+
+        Assert.Equal("No live SQLite store detected.", value);
+    }
+
+    [Fact]
+    public void GetLiveSqliteStatus_returns_default_message_when_no_paths_are_detected()
+    {
+        var value = (string)GetLiveSqliteStatusWithInputsMethod.Invoke(
+            null,
+            [
+                SqliteStatusPaths,
+                (Func<string, string?>)(_ => null)
+            ])!;
+
+        Assert.Equal("No live SQLite store detected.", value);
     }
 
     [Fact]
@@ -530,6 +589,33 @@ public sealed class MainWindowCoverageTests
                 Assert.Equal("-", GetNamedField<TextBlock>(window, "CwdTextBlock").Text);
                 Assert.Equal("Live SQLite status unavailable.", GetNamedField<TextBlock>(window, "SQLiteStatusTextBlock").Text);
                 Assert.Contains("parse failed", GetNamedField<TextBox>(window, "RawTranscriptTextBox").Text, StringComparison.Ordinal);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task PopulateSelectedSessionHeaderAsync_skips_updates_when_selection_changes()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var root = CreateTempDirectory();
+            try
+            {
+                var sessionFile = WriteSessionJsonl(root, "session-header-stale", "Header Stale");
+                var session = BuildIndexedSession("session-header-stale", "Header Stale", sessionFile);
+                var window = new MainWindow();
+                var initialThreadName = GetNamedField<TextBlock>(window, "ThreadNameTextBlock").Text;
+
+                AddSession(window, session);
+                GetNamedField<ListBox>(window, "SessionsListBox").SelectedItem = null;
+
+                await InvokePrivateTask(window, PopulateSelectedSessionHeaderAsyncMethod, session, session.SessionId);
+
+                Assert.Equal(initialThreadName, GetNamedField<TextBlock>(window, "ThreadNameTextBlock").Text);
             }
             finally
             {

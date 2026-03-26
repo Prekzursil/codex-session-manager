@@ -78,6 +78,73 @@ public sealed class StorageCoverageExpansionTests
     }
 
     [Fact]
+    public async Task DiscoverAsync_Normalizes_sessions_backup_roots()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var backupRoot = Path.Combine(root, "sessions_backup");
+        var sessionDir = Path.Combine(backupRoot, "2026", "03", "26");
+        Directory.CreateDirectory(sessionDir);
+
+        var sessionPath = Path.Combine(sessionDir, "session-backup.jsonl");
+        await File.WriteAllLinesAsync(
+            sessionPath,
+            [
+                """{"timestamp":"2026-03-26T10:00:00Z","type":"session_meta","payload":{"id":"session-backup","timestamp":"2026-03-26T10:00:00Z","cwd":"C:\\repo"}}""",
+                """{"timestamp":"2026-03-26T10:00:01Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"backup session"}]}}"""
+            ]);
+
+        try
+        {
+            var catalog = await SessionDiscoveryService.DiscoverAsync(
+                [new SessionStoreRoot(backupRoot.Replace('\\', '/'), SessionStoreKind.Backup)],
+                CancellationToken.None);
+
+            var logical = Assert.Single(catalog.LogicalSessions);
+            Assert.Equal("session-backup", logical.SessionId);
+            Assert.Equal(SessionStoreKind.Backup, logical.PreferredCopy.StoreKind);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task DiscoverAsync_Normalizes_relative_sessions_backup_roots()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var previousCurrentDirectory = Environment.CurrentDirectory;
+        Directory.CreateDirectory(root);
+        Environment.CurrentDirectory = root;
+        const string backupRoot = "sessions_backup";
+        var sessionDir = Path.Combine(root, backupRoot, "2026", "03", "26");
+        Directory.CreateDirectory(sessionDir);
+
+        await File.WriteAllLinesAsync(
+            Path.Combine(sessionDir, "session-relative-backup.jsonl"),
+            [
+                """{"timestamp":"2026-03-26T10:00:00Z","type":"session_meta","payload":{"id":"session-relative-backup","timestamp":"2026-03-26T10:00:00Z","cwd":"C:\\repo"}}""",
+                """{"timestamp":"2026-03-26T10:00:01Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"relative backup session"}]}}"""
+            ]);
+
+        try
+        {
+            var catalog = await SessionDiscoveryService.DiscoverAsync(
+                [new SessionStoreRoot(backupRoot, SessionStoreKind.Backup)],
+                CancellationToken.None);
+
+            var logical = Assert.Single(catalog.LogicalSessions);
+            Assert.Equal("session-relative-backup", logical.SessionId);
+            Assert.Equal(SessionStoreKind.Backup, logical.PreferredCopy.StoreKind);
+        }
+        finally
+        {
+            Environment.CurrentDirectory = previousCurrentDirectory;
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task RebuildAsync_SkipsMissingSessionDirectories_AndBuildsSearchDocument()
     {
         var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
@@ -215,6 +282,34 @@ public sealed class StorageCoverageExpansionTests
     }
 
     [Fact]
+    public async Task ParseAsync_Ignores_unknown_types_and_missing_tool_metadata()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.jsonl");
+        await File.WriteAllLinesAsync(
+            tempFile,
+            [
+                """{"type":"session_meta","payload":{"id":"session-extra","cwd":"C:\\repo","timestamp":"2026-03-26T10:00:00Z"}}""",
+                """{"type":"unknown","payload":{"ignored":true}}""",
+                """{"type":"response_item","payload":{"type":"unknown_payload","role":"assistant"}}""",
+                """{"type":"response_item","payload":{"type":"function_call","arguments":"{}"}}""",
+                """{"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"image","text":"ignored"}]}}"""
+            ]);
+
+        try
+        {
+            var parsed = await SessionJsonlParser.ParseAsync(tempFile, CancellationToken.None);
+
+            Assert.Equal("session-extra", parsed.SessionId);
+            Assert.Empty(parsed.TechnicalBreadcrumbs.Commands);
+            Assert.Contains(parsed.Document.Events, item => item.Kind == NormalizedEventKind.ToolCall && item.ToolName == "unknown_tool");
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+    }
+
+    [Fact]
     public async Task ParseAsync_Ignores_non_string_json_properties_when_extracting_strings()
     {
         var tempFile = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.jsonl");
@@ -262,6 +357,7 @@ public sealed class StorageCoverageExpansionTests
             [
                 """{"thread_name":"missing id"}""",
                 """{"id":"","thread_name":"blank id"}""",
+                """{"id":"session-idx-non-string","thread_name":17}""",
                 """{"id":"session-idx","thread_name":"Indexed thread"}"""
             ]);
 
@@ -287,6 +383,106 @@ public sealed class StorageCoverageExpansionTests
         finally
         {
             Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task DiscoverAsync_UsesSessionsBackupRoot_AndFallsBackWhenThreadNameIsNotString()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var backupRoot = Path.Combine(root, "sessions_backup");
+        Directory.CreateDirectory(backupRoot);
+
+        var sessionPath = Path.Combine(backupRoot, "session-backup.jsonl");
+        await File.WriteAllLinesAsync(
+            sessionPath,
+            [
+                """{"type":"session_meta","payload":{"id":"session-backup","cwd":"C:\\repo","timestamp":"2026-03-26T10:00:00Z"}}""",
+                """{"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"backup ok"}]}}"""
+            ]);
+        await File.WriteAllLinesAsync(
+            Path.Combine(root, "session_index.jsonl"),
+            [
+                """{"id":"session-backup","thread_name":7}"""
+            ]);
+
+        try
+        {
+            var catalog = await SessionDiscoveryService.DiscoverAsync(
+                [
+                    new SessionStoreRoot(backupRoot, SessionStoreKind.Backup)
+                ],
+                CancellationToken.None);
+
+            var indexed = Assert.Single(catalog.LogicalSessions);
+            Assert.Equal("session-backup", indexed.SessionId);
+            Assert.Equal("session-backup", indexed.ThreadName);
+            Assert.Equal(SessionStoreKind.Backup, indexed.PreferredCopy.StoreKind);
+            Assert.Equal(sessionPath, indexed.PreferredCopy.FilePath);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ParseAsync_HandlesMissingToolNames_AndNonTextPayloadBranches()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.jsonl");
+        await File.WriteAllLinesAsync(
+            tempFile,
+            [
+                """{"type":"session_meta","payload":{"id":"session-mixed","timestamp":"2026-03-26T10:00:00Z"}}""",
+                """{"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"input_text","text":"see https://example.com and C:\\repo\\file.txt"},{"type":"output_text","text":"   "},{"type":"image","text":"ignored"}]}}""",
+                """{"type":"response_item","payload":{"type":"function_call","arguments":"{}"}}""",
+                """{"type":"response_item","payload":{"type":"function_call_output","output":null}}"""
+            ]);
+
+        try
+        {
+            var parsed = await SessionJsonlParser.ParseAsync(tempFile, CancellationToken.None);
+
+            Assert.Equal("session-mixed", parsed.SessionId);
+            Assert.Contains(parsed.Document.Events, item => item.Kind == NormalizedEventKind.ToolCall && item.ToolName == "unknown_tool");
+            Assert.Contains(parsed.Document.Events, item => item.Kind == NormalizedEventKind.ToolOutput && item.ToolName == "tool");
+            Assert.Empty(parsed.TechnicalBreadcrumbs.Commands);
+            Assert.Empty(parsed.TechnicalBreadcrumbs.ExitCodes);
+            Assert.Contains(@"C:\repo\file.txt", parsed.TechnicalBreadcrumbs.FilePaths);
+            Assert.Contains("https://example.com", parsed.TechnicalBreadcrumbs.Urls);
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+    }
+
+    [Fact]
+    public async Task ParseAsync_Ignores_blank_text_invalid_timestamp_and_missing_cmd_property()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.jsonl");
+        await File.WriteAllLinesAsync(
+            tempFile,
+            [
+                """{"type":"session_meta","payload":{"id":"session-blank-text","cwd":"C:\\repo","timestamp":"not-a-timestamp"}}""",
+                """{"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"   "},{"type":"output_text","text":"kept text"}]}}""",
+                """{"type":"response_item","payload":{"type":"function_call","name":"exec_command","arguments":"{\"other\":\"value\"}"}}""",
+                """{"type":"response_item","payload":{"type":"function_call_output","name":"exec_command","output":"Process exited with code "}}"""
+            ]);
+
+        try
+        {
+            var parsed = await SessionJsonlParser.ParseAsync(tempFile, CancellationToken.None);
+
+            Assert.Equal("session-blank-text", parsed.SessionId);
+            Assert.Contains(parsed.Document.Events, item => item.Kind == NormalizedEventKind.Message && item.Text == "kept text");
+            Assert.Contains(parsed.Document.Events, item => item.Kind == NormalizedEventKind.ToolCall && item.ToolName == "exec_command");
+            Assert.Empty(parsed.TechnicalBreadcrumbs.Commands);
+            Assert.Empty(parsed.TechnicalBreadcrumbs.ExitCodes);
+        }
+        finally
+        {
+            File.Delete(tempFile);
         }
     }
 
