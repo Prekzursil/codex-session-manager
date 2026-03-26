@@ -71,10 +71,10 @@ Some GitHub protections still need to be enabled in the GitHub UI after the repo
 
 Useful docs:
 
-- Branch protection: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches
-- Secret scanning / push protection: https://docs.github.com/en/code-security/secret-scanning/enabling-secret-scanning-features
-- Dependabot: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuring-dependabot-version-updates
-- CodeQL setup: https://docs.github.com/en/code-security/code-scanning/enabling-code-scanning/configuring-default-setup-for-code-scanning
+- Branch protection: <https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches>
+- Secret scanning / push protection: <https://docs.github.com/en/code-security/secret-scanning/enabling-secret-scanning-features>
+- Dependabot: <https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuring-dependabot-version-updates>
+- CodeQL setup: <https://docs.github.com/en/code-security/code-scanning/enabling-code-scanning/configuring-default-setup-for-code-scanning>
 
 ## Fixture policy
 

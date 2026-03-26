@@ -148,7 +148,7 @@ public sealed class SessionCatalogRepository
         await using var command = connection.CreateCommand();
         command.CommandText =
             """
-            SELECT s.session_id, s.thread_name, s.preferred_path, snippet(session_search, 1, '[', ']', '...', 10) AS snippet
+            SELECT s.session_id, s.thread_name, s.preferred_path, coalesce(snippet(session_search, 1, '[', ']', '...', 10), '') AS snippet
             FROM session_search
             INNER JOIN sessions s ON s.session_id = session_search.session_id
             WHERE session_search MATCH $query
@@ -160,9 +160,7 @@ public sealed class SessionCatalogRepository
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            var snippet = await reader.IsDBNullAsync(3, cancellationToken)
-                ? string.Empty
-                : reader.GetString(3);
+            var snippet = reader.GetString(3);
             results.Add(new SessionSearchHit(reader.GetString(0), reader.GetString(1), reader.GetString(2), snippet, 1));
         }
 
@@ -338,7 +336,8 @@ public sealed class SessionCatalogRepository
 
     private async Task<SqliteConnection> OpenConnectionAsync(CancellationToken cancellationToken)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(_databasePath) ?? ".");
+        var directoryPath = Path.GetDirectoryName(_databasePath);
+        Directory.CreateDirectory(string.IsNullOrWhiteSpace(directoryPath) ? "." : directoryPath);
         var connection = new SqliteConnection($"Data Source={_databasePath};Pooling=False");
         await connection.OpenAsync(cancellationToken);
         return connection;

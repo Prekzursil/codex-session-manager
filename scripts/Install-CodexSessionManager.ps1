@@ -15,4 +15,4 @@ if (-not (Test-Path $publishRoot)) {
 New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null
 Copy-Item -Recurse -Force -Path (Join-Path $publishRoot '*') -Destination $InstallRoot
 
-Write-Host "Installed Codex Session Manager to $InstallRoot"
+Write-Output "Installed Codex Session Manager to $InstallRoot"

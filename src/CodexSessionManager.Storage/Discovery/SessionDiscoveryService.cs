@@ -10,11 +10,13 @@ public static class SessionDiscoveryService
         var stores = roots.Select(root =>
         {
             var normalizedRoot = root.RootPath.Replace('/', '\\').TrimEnd('\\');
+            var backupWorkspaceRoot = Path.GetDirectoryName(normalizedRoot);
+            var normalizedBackupWorkspaceRoot = string.IsNullOrWhiteSpace(backupWorkspaceRoot) ? normalizedRoot : backupWorkspaceRoot;
             return root.StoreKind switch
             {
                 SessionStoreKind.Live => new KnownSessionStore(normalizedRoot, root.StoreKind, Path.Combine(normalizedRoot, "sessions"), Path.Combine(normalizedRoot, "session_index.jsonl")),
                 SessionStoreKind.Backup when normalizedRoot.EndsWith(@"\sessions_backup", StringComparison.OrdinalIgnoreCase)
-                    => new KnownSessionStore(Path.GetDirectoryName(normalizedRoot) ?? normalizedRoot, root.StoreKind, normalizedRoot, Path.Combine(Path.GetDirectoryName(normalizedRoot) ?? normalizedRoot, "session_index.jsonl")),
+                    => new KnownSessionStore(normalizedBackupWorkspaceRoot, root.StoreKind, normalizedRoot, Path.Combine(normalizedBackupWorkspaceRoot, "session_index.jsonl")),
                 _ => new KnownSessionStore(normalizedRoot, root.StoreKind, normalizedRoot, Path.Combine(normalizedRoot, "session_index.jsonl"))
             };
         });

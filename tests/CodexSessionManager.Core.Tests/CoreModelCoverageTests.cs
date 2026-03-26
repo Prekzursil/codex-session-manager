@@ -217,4 +217,44 @@ public sealed class CoreModelCoverageTests
         Assert.Contains("- Note: Remember this", audit.RenderedMarkdown);
         Assert.DoesNotContain("Ignored event", audit.RenderedMarkdown);
     }
+
+    [Fact]
+    public void FormatAudit_UsesFallbackToolName_AndTruncatesLongToolOutput()
+    {
+        var session = new NormalizedSessionDocument(
+            SessionId: "session-tool-output",
+            ThreadName: "Tool output",
+            StartedAtUtc: new DateTimeOffset(2026, 3, 26, 16, 0, 0, TimeSpan.Zero),
+            ForkedFromId: null,
+            Cwd: @"C:\Users\Prekzursil",
+            Events:
+            [
+                NormalizedSessionEvent.CreateToolOutput(string.Empty, new string('x', 200))
+            ]);
+
+        var audit = SessionTranscriptFormatter.Format(session, TranscriptMode.Audit);
+
+        Assert.Contains("`tool` output:", audit.RenderedMarkdown);
+        Assert.Contains("...", audit.RenderedMarkdown);
+    }
+
+    [Fact]
+    public void FormatAudit_UsesProvidedToolName_AndKeepsShortOutput()
+    {
+        var session = new NormalizedSessionDocument(
+            SessionId: "session-tool-output-short",
+            ThreadName: "Tool output short",
+            StartedAtUtc: new DateTimeOffset(2026, 3, 26, 16, 5, 0, TimeSpan.Zero),
+            ForkedFromId: null,
+            Cwd: @"C:\Users\Prekzursil",
+            Events:
+            [
+                NormalizedSessionEvent.CreateToolOutput("exec_command", "short output")
+            ]);
+
+        var audit = SessionTranscriptFormatter.Format(session, TranscriptMode.Audit);
+
+        Assert.Contains("`exec_command` output: short output", audit.RenderedMarkdown);
+        Assert.DoesNotContain("...", audit.RenderedMarkdown);
+    }
 }
