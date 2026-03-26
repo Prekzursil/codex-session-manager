@@ -1,0 +1,47 @@
+config_version = "0"
+
+exclude_patterns = [
+  "*_min.*",
+  "*-min.*",
+  "*.min.*",
+  "**/*.d.ts",
+  "**/.yarn/**",
+  "**/bower_components/**",
+  "**/build/**",
+  "**/cache/**",
+  "**/config/**",
+  "**/db/**",
+  "**/deps/**",
+  "**/dist/**",
+  "**/extern/**",
+  "**/external/**",
+  "**/generated/**",
+  "**/Godeps/**",
+  "**/gradlew/**",
+  "**/mvnw/**",
+  "**/node_modules/**",
+  "**/protos/**",
+  "**/seed/**",
+  "**/target/**",
+  "**/testdata/**",
+  "**/vendor/**",
+  "**/assets/**",
+]
+
+test_patterns = [
+  "**/test/**",
+  "**/spec/**",
+  "**/*.test.*",
+  "**/*.spec.*",
+  "**/*_test.*",
+  "**/*_spec.*",
+  "**/test_*.*",
+  "**/spec_*.*",
+]
+
+[smells]
+mode = "comment"
+
+[[source]]
+name = "default"
+default = true

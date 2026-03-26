@@ -33,8 +33,7 @@ public sealed class SessionDiscoveryServiceTests
 
         try
         {
-            var discovery = new SessionDiscoveryService();
-            var catalog = await discovery.DiscoverAsync(new[]
+            var catalog = await SessionDiscoveryService.DiscoverAsync(new[]
             {
                 new SessionStoreRoot(Path.Combine(root, ".codex"), SessionStoreKind.Live),
                 new SessionStoreRoot(Path.Combine(root, ".codex", "sessions_backup"), SessionStoreKind.Backup)

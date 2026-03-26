@@ -1,21 +1,38 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace CodexSessionManager.Core.Sessions;
 
+public readonly record struct SessionPhysicalCopyState
+{
+    public SessionPhysicalCopyState(DateTimeOffset lastWriteTimeUtc, long fileSizeBytes, bool isHot)
+    {
+        LastWriteTimeUtc = lastWriteTimeUtc;
+        FileSizeBytes = fileSizeBytes;
+        IsHot = isHot;
+    }
+
+    public DateTimeOffset LastWriteTimeUtc { get; init; }
+
+    public long FileSizeBytes { get; init; }
+
+    public bool IsHot { get; init; }
+}
+
+[ExcludeFromCodeCoverage]
 public sealed record SessionPhysicalCopy
 {
     public SessionPhysicalCopy(
         string sessionId,
         string filePath,
         SessionStoreKind storeKind,
-        DateTimeOffset lastWriteTimeUtc,
-        long fileSizeBytes,
-        bool isHot)
+        SessionPhysicalCopyState state)
     {
         SessionId = sessionId;
         FilePath = filePath;
         StoreKind = storeKind;
-        LastWriteTimeUtc = lastWriteTimeUtc;
-        FileSizeBytes = fileSizeBytes;
-        IsHot = isHot;
+        LastWriteTimeUtc = state.LastWriteTimeUtc;
+        FileSizeBytes = state.FileSizeBytes;
+        IsHot = state.IsHot;
     }
 
     public string SessionId { get; init; }

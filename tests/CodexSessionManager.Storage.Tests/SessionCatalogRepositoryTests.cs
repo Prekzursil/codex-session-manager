@@ -15,27 +15,10 @@ public sealed class SessionCatalogRepositoryTests
             var repository = new SessionCatalogRepository(databasePath);
             await repository.InitializeAsync(CancellationToken.None);
 
-            var session = new IndexedLogicalSession(
-                SessionId: "session-1",
-                ThreadName: "Renderer work",
-                PreferredCopy: new SessionPhysicalCopy(
-                    "session-1",
-                    @"C:\Users\Prekzursil\.codex\sessions\2026\03\23\session-1.jsonl",
-                    SessionStoreKind.Live,
-                    new DateTimeOffset(2026, 3, 23, 10, 0, 0, TimeSpan.Zero),
-                    1000,
-                    false),
-                PhysicalCopies:
-                [
-                    new SessionPhysicalCopy(
-                        "session-1",
-                        @"C:\Users\Prekzursil\.codex\sessions\2026\03\23\session-1.jsonl",
-                        SessionStoreKind.Live,
-                        new DateTimeOffset(2026, 3, 23, 10, 0, 0, TimeSpan.Zero),
-                        1000,
-                        false)
-                ],
-                SearchDocument: new SessionSearchDocument(
+            var session = CreateIndexedSession(
+                "session-1",
+                "Renderer work",
+                new SessionSearchDocument(
                     ReadableTranscript: "User asked to inspect renderer logic",
                     DialogueTranscript: "inspect renderer logic",
                     ToolSummary: "Ran exec_command: rg -n session renderer",
@@ -45,7 +28,8 @@ public sealed class SessionCatalogRepositoryTests
                     ErrorText: "",
                     Alias: "Important renderer session",
                     Tags: ["renderer", "search"],
-                    Notes: "Keeps the parser behavior"));
+                    Notes: "Keeps the parser behavior"),
+                new DateTimeOffset(2026, 3, 23, 10, 0, 0, TimeSpan.Zero));
 
             await repository.UpsertAsync(session, CancellationToken.None);
 
@@ -80,11 +64,9 @@ public sealed class SessionCatalogRepositoryTests
             var repository = new SessionCatalogRepository(databasePath);
             await repository.InitializeAsync(CancellationToken.None);
 
-            var session = new IndexedLogicalSession(
+            var session = CreateIndexedSession(
                 "session-fts",
                 "Renderer work",
-                new SessionPhysicalCopy("session-fts", @"C:\Users\Prekzursil\.codex\sessions\fts.jsonl", SessionStoreKind.Live, DateTimeOffset.UtcNow, 1000, false),
-                [new SessionPhysicalCopy("session-fts", @"C:\Users\Prekzursil\.codex\sessions\fts.jsonl", SessionStoreKind.Live, DateTimeOffset.UtcNow, 1000, false)],
                 new SessionSearchDocument(
                     "inspect renderer logic",
                     "inspect renderer logic",
@@ -208,26 +190,11 @@ public sealed class SessionCatalogRepositoryTests
             var repository = new SessionCatalogRepository(databasePath);
             await repository.InitializeAsync(CancellationToken.None);
 
-            var session = new IndexedLogicalSession(
+            var session = CreateIndexedSession(
                 "session-2",
                 "Maintenance work",
-                new SessionPhysicalCopy(
-                    "session-2",
-                    @"C:\Users\Prekzursil\.codex\sessions\2026\03\23\session-2.jsonl",
-                    SessionStoreKind.Live,
-                    new DateTimeOffset(2026, 3, 23, 10, 0, 0, TimeSpan.Zero),
-                    1000,
-                    false),
-                [
-                    new SessionPhysicalCopy(
-                        "session-2",
-                        @"C:\Users\Prekzursil\.codex\sessions\2026\03\23\session-2.jsonl",
-                        SessionStoreKind.Live,
-                        new DateTimeOffset(2026, 3, 23, 10, 0, 0, TimeSpan.Zero),
-                        1000,
-                        false)
-                ],
-                new SessionSearchDocument("transcript", "dialogue", "", "", [], [], "", "", [], ""));
+                new SessionSearchDocument("transcript", "dialogue", "", "", [], [], "", "", [], ""),
+                new DateTimeOffset(2026, 3, 23, 10, 0, 0, TimeSpan.Zero));
 
             await repository.UpsertAsync(session, CancellationToken.None);
             await repository.SaveMetadataAsync("session-2", "Archive candidate", ["cleanup", "backup"], "Needs review", CancellationToken.None);
@@ -255,12 +222,11 @@ public sealed class SessionCatalogRepositoryTests
             var repository = new SessionCatalogRepository(databasePath);
             await repository.InitializeAsync(CancellationToken.None);
 
-            var initial = new IndexedLogicalSession(
+            var initial = CreateIndexedSession(
                 "session-3",
                 "Initial",
-                new SessionPhysicalCopy("session-3", @"C:\Users\Prekzursil\.codex\sessions\s3.jsonl", SessionStoreKind.Live, DateTimeOffset.UtcNow, 100, false),
-                [new SessionPhysicalCopy("session-3", @"C:\Users\Prekzursil\.codex\sessions\s3.jsonl", SessionStoreKind.Live, DateTimeOffset.UtcNow, 100, false)],
-                new SessionSearchDocument("first transcript", "first transcript", "", "", [], [], "", "", [], ""));
+                new SessionSearchDocument("first transcript", "first transcript", "", "", [], [], "", "", [], ""),
+                fileSizeBytes: 100);
 
             await repository.UpsertAsync(initial, CancellationToken.None);
             await repository.SaveMetadataAsync("session-3", "Saved alias", ["pinned"], "saved note", CancellationToken.None);
@@ -283,5 +249,39 @@ public sealed class SessionCatalogRepositoryTests
         {
             File.Delete(databasePath);
         }
+    }
+
+    private static IndexedLogicalSession CreateIndexedSession(
+        string sessionId,
+        string threadName,
+        SessionSearchDocument searchDocument,
+        DateTimeOffset? lastWriteTimeUtc = null,
+        long fileSizeBytes = 1000)
+    {
+        var preferredCopy = CreateLiveCopy(
+            sessionId,
+            $@"C:\Users\Prekzursil\.codex\sessions\{sessionId}.jsonl",
+            lastWriteTimeUtc ?? DateTimeOffset.UtcNow,
+            fileSizeBytes);
+
+        return new IndexedLogicalSession(
+            sessionId,
+            threadName,
+            preferredCopy,
+            [preferredCopy],
+            searchDocument);
+    }
+
+    private static SessionPhysicalCopy CreateLiveCopy(
+        string sessionId,
+        string filePath,
+        DateTimeOffset lastWriteTimeUtc,
+        long fileSizeBytes)
+    {
+        return new SessionPhysicalCopy(
+            sessionId,
+            filePath,
+            SessionStoreKind.Live,
+            new SessionPhysicalCopyState(lastWriteTimeUtc, fileSizeBytes, false));
     }
 }
