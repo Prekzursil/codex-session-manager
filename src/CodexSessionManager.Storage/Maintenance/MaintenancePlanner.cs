@@ -12,7 +12,7 @@ public sealed class MaintenancePlanner
         @"\.codex\codex-sqlite\"
     ];
 
-    public MaintenancePreview CreatePreview(MaintenanceRequest request)
+    public static MaintenancePreview CreatePreview(MaintenanceRequest request)
     {
         var blockedTargets = new List<SessionPhysicalCopy>();
         var allowedTargets = new List<SessionPhysicalCopy>();

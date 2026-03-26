@@ -18,7 +18,6 @@ namespace CodexSessionManager.App;
 public partial class MainWindow : Window
 {
     private readonly ObservableCollection<IndexedLogicalSession> _sessions = [];
-    private readonly MaintenancePlanner _maintenancePlanner = new();
     private SessionCatalogRepository? _repository;
     private SessionWorkspaceIndexer? _workspaceIndexer;
     private MaintenanceExecutor? _maintenanceExecutor;
@@ -416,7 +415,7 @@ public partial class MainWindow : Window
             : MaintenanceAction.Archive;
         var confirmation = $"{action.ToString().ToUpperInvariant()} {targets.Length} FILE{(targets.Length == 1 ? string.Empty : "S")}";
 
-        _currentMaintenancePreview = _maintenancePlanner.CreatePreview(new MaintenanceRequest(action, targets, confirmation));
+        _currentMaintenancePreview = MaintenancePlanner.CreatePreview(new MaintenanceRequest(action, targets, confirmation));
         MaintenanceSummaryTextBlock.Text = $"Allowed: {_currentMaintenancePreview.AllowedTargets.Count} | Blocked: {_currentMaintenancePreview.BlockedTargets.Count} | Confirm with: {confirmation}";
         MaintenanceWarningsTextBox.Text = string.Join(Environment.NewLine, _currentMaintenancePreview.Warnings.Select(w => $"[{w.Severity}] {w.Message}"));
         TypedConfirmationTextBox.Text = confirmation;

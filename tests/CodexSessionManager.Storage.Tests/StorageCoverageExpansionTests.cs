@@ -63,8 +63,7 @@ public sealed class StorageCoverageExpansionTests
 
         try
         {
-            var service = new SessionDiscoveryService();
-            var catalog = await service.DiscoverAsync(
+            var catalog = await SessionDiscoveryService.DiscoverAsync(
                 [new SessionStoreRoot(customStore.Replace('\\', '/'), SessionStoreKind.Backup)],
                 CancellationToken.None);
 
@@ -272,7 +271,7 @@ public sealed class StorageCoverageExpansionTests
         var sessionPath = Path.Combine(sourceDir, "session-3.jsonl");
         await File.WriteAllTextAsync(sessionPath, "payload");
 
-        var preview = new MaintenancePlanner().CreatePreview(
+        var preview = MaintenancePlanner.CreatePreview(
             new MaintenanceRequest(
                 MaintenanceAction.Archive,
                 [new SessionPhysicalCopy("session-3", sessionPath, SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 7, false))],
@@ -302,7 +301,7 @@ public sealed class StorageCoverageExpansionTests
         var sessionPath = Path.Combine(sourceDir, "session-4.jsonl");
         await File.WriteAllTextAsync(sessionPath, "payload");
 
-        var preview = new MaintenancePlanner().CreatePreview(
+        var preview = MaintenancePlanner.CreatePreview(
             new MaintenanceRequest(
                 MaintenanceAction.Reconcile,
                 [new SessionPhysicalCopy("session-4", sessionPath, SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 7, false))],

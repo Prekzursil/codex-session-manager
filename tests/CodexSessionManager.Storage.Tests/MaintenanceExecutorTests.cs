@@ -19,9 +19,8 @@ public sealed class MaintenanceExecutorTests
         var filePath = Path.Combine(sourceDir, "session-1.jsonl");
         await File.WriteAllTextAsync(filePath, "test");
 
-        var planner = new MaintenancePlanner();
         var executor = new MaintenanceExecutor(checkpointDir);
-        var preview = planner.CreatePreview(
+        var preview = MaintenancePlanner.CreatePreview(
             new MaintenanceRequest(
                 MaintenanceAction.Archive,
                 [
@@ -61,9 +60,8 @@ public sealed class MaintenanceExecutorTests
         var filePath = Path.Combine(sourceDir, "session-delete.jsonl");
         await File.WriteAllTextAsync(filePath, "delete me");
 
-        var planner = new MaintenancePlanner();
         var executor = new MaintenanceExecutor(checkpointDir);
-        var preview = planner.CreatePreview(
+        var preview = MaintenancePlanner.CreatePreview(
             new MaintenanceRequest(
                 MaintenanceAction.Delete,
                 [
@@ -105,9 +103,8 @@ public sealed class MaintenanceExecutorTests
         await File.WriteAllTextAsync(fileA, "a");
         await File.WriteAllTextAsync(fileB, "b");
 
-        var planner = new MaintenancePlanner();
         var executor = new MaintenanceExecutor(checkpointDir);
-        var preview = planner.CreatePreview(
+        var preview = MaintenancePlanner.CreatePreview(
             new MaintenanceRequest(
                 MaintenanceAction.Archive,
                 [

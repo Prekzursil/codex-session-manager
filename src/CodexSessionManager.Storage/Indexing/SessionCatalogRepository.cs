@@ -1,10 +1,12 @@
 using CodexSessionManager.Core.Sessions;
 using Microsoft.Data.Sqlite;
+using System.Globalization;
 
 namespace CodexSessionManager.Storage.Indexing;
 
 public sealed class SessionCatalogRepository
 {
+    private const string SessionIdParameterName = "$sessionId";
     private readonly string _databasePath;
 
     public SessionCatalogRepository(string databasePath)
@@ -88,7 +90,7 @@ public sealed class SessionCatalogRepository
                     notes = excluded.notes,
                     combined_text = excluded.combined_text;
                 """;
-            command.Parameters.AddWithValue("$sessionId", session.SessionId);
+            command.Parameters.AddWithValue(SessionIdParameterName, session.SessionId);
             command.Parameters.AddWithValue("$threadName", session.ThreadName);
             command.Parameters.AddWithValue("$preferredPath", session.PreferredCopy.FilePath);
             command.Parameters.AddWithValue("$readableTranscript", searchDocument.ReadableTranscript);
@@ -107,8 +109,8 @@ public sealed class SessionCatalogRepository
 
         await using (var deleteCopies = connection.CreateCommand())
         {
-            deleteCopies.CommandText = "DELETE FROM session_copies WHERE session_id = $sessionId;";
-            deleteCopies.Parameters.AddWithValue("$sessionId", session.SessionId);
+            deleteCopies.CommandText = $"DELETE FROM session_copies WHERE session_id = {SessionIdParameterName};";
+            deleteCopies.Parameters.AddWithValue(SessionIdParameterName, session.SessionId);
             await deleteCopies.ExecuteNonQueryAsync(cancellationToken);
         }
 
@@ -120,7 +122,7 @@ public sealed class SessionCatalogRepository
                 INSERT INTO session_copies(session_id, file_path, store_kind, last_write_utc, file_size_bytes, is_hot)
                 VALUES ($sessionId, $filePath, $storeKind, $lastWriteUtc, $fileSizeBytes, $isHot);
                 """;
-            copyCommand.Parameters.AddWithValue("$sessionId", copy.SessionId);
+            copyCommand.Parameters.AddWithValue(SessionIdParameterName, copy.SessionId);
             copyCommand.Parameters.AddWithValue("$filePath", copy.FilePath);
             copyCommand.Parameters.AddWithValue("$storeKind", (int)copy.StoreKind);
             copyCommand.Parameters.AddWithValue("$lastWriteUtc", copy.LastWriteTimeUtc.UtcDateTime.ToString("O"));
@@ -155,7 +157,10 @@ public sealed class SessionCatalogRepository
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            results.Add(new SessionSearchHit(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.IsDBNull(3) ? string.Empty : reader.GetString(3), 1));
+            var snippet = await reader.IsDBNullAsync(3, cancellationToken)
+                ? string.Empty
+                : reader.GetString(3);
+            results.Add(new SessionSearchHit(reader.GetString(0), reader.GetString(1), reader.GetString(2), snippet, 1));
         }
 
         return results;
@@ -174,7 +179,7 @@ public sealed class SessionCatalogRepository
                 combined_text = trim(readable_transcript || char(10) || dialogue_transcript || char(10) || tool_summary || char(10) || command_text || char(10) || file_paths || char(10) || urls || char(10) || error_text || char(10) || $alias || char(10) || $tags || char(10) || $notes)
             WHERE session_id = $sessionId;
             """;
-        command.Parameters.AddWithValue("$sessionId", sessionId);
+        command.Parameters.AddWithValue(SessionIdParameterName, sessionId);
         command.Parameters.AddWithValue("$alias", alias);
         command.Parameters.AddWithValue("$tags", string.Join('\n', tags));
         command.Parameters.AddWithValue("$notes", notes);
@@ -214,7 +219,7 @@ public sealed class SessionCatalogRepository
                     reader.GetString(1),
                     (SessionStoreKind)reader.GetInt32(2),
                     new SessionPhysicalCopyState(
-                        DateTimeOffset.Parse(reader.GetString(3)),
+                        DateTimeOffset.Parse(reader.GetString(3), CultureInfo.InvariantCulture),
                         reader.GetInt64(4),
                         reader.GetInt32(5) == 1)));
             }
@@ -270,8 +275,8 @@ public sealed class SessionCatalogRepository
     private static async Task<SessionSearchDocument> MergeExistingMetadataAsync(SqliteConnection connection, IndexedLogicalSession session, CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT alias, tags, notes FROM sessions WHERE session_id = $sessionId;";
-        command.Parameters.AddWithValue("$sessionId", session.SessionId);
+        command.CommandText = $"SELECT alias, tags, notes FROM sessions WHERE session_id = {SessionIdParameterName};";
+        command.Parameters.AddWithValue(SessionIdParameterName, session.SessionId);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))
         {
@@ -309,7 +314,7 @@ public sealed class SessionCatalogRepository
         await using (var deleteCommand = connection.CreateCommand())
         {
             deleteCommand.CommandText = "DELETE FROM session_search WHERE session_id = $sessionId;";
-            deleteCommand.Parameters.AddWithValue("$sessionId", sessionId);
+            deleteCommand.Parameters.AddWithValue(SessionIdParameterName, sessionId);
             await deleteCommand.ExecuteNonQueryAsync(cancellationToken);
         }
 
@@ -322,7 +327,7 @@ public sealed class SessionCatalogRepository
                 FROM sessions
                 WHERE session_id = $sessionId;
                 """;
-            insertCommand.Parameters.AddWithValue("$sessionId", sessionId);
+            insertCommand.Parameters.AddWithValue(SessionIdParameterName, sessionId);
             await insertCommand.ExecuteNonQueryAsync(cancellationToken);
         }
     }

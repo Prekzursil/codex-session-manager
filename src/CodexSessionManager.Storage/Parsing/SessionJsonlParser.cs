@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using CodexSessionManager.Core.Transcripts;
+using System.Globalization;
 
 namespace CodexSessionManager.Storage.Parsing;
 
@@ -65,7 +66,7 @@ public static partial class SessionJsonlParser
 
         if (state.StartedAtUtc == DateTimeOffset.MinValue
             && payload.TryGetProperty("timestamp", out var timestampElement)
-            && DateTimeOffset.TryParse(timestampElement.GetString(), out var parsedStartedAt))
+            && DateTimeOffset.TryParse(timestampElement.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsedStartedAt))
         {
             state.StartedAtUtc = parsedStartedAt;
         }
