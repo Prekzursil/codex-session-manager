@@ -54,7 +54,7 @@ public partial class MainWindow : Window
         RepositoryFactory = databasePath => new SessionCatalogRepository(databasePath);
         WorkspaceIndexerFactory = repository => new SessionWorkspaceIndexer(repository);
         MaintenanceExecutorFactory = checkpointRoot => new MaintenanceExecutor(checkpointRoot);
-        ScheduleRefreshAction = () => _ = Task.Run(async () => await RefreshAsync(deepScan: false));
+        ScheduleRefreshAction = () => _ = RunBackgroundRefreshAsync();
         KnownStoresProvider = deepScan => BuildKnownStores(deepScan);
         LiveSqliteStatusProvider = GetLiveSqliteStatus;
         SessionParser = (filePath, cancellationToken) => SessionJsonlParser.ParseAsync(filePath, cancellationToken);
@@ -91,6 +91,18 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             await RunOnUiThreadAsync(() => StatusTextBlock.Text = $"Startup failed: {ex.Message}");
+        }
+    }
+
+    private async Task RunBackgroundRefreshAsync()
+    {
+        try
+        {
+            await RefreshAsync(deepScan: false);
+        }
+        catch (Exception ex)
+        {
+            await RunOnUiThreadAsync(() => StatusTextBlock.Text = $"Background refresh failed: {ex.Message}");
         }
     }
 

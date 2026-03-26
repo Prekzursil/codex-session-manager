@@ -2,11 +2,42 @@
 set -euo pipefail
 
 dotnet_cmd="dotnet"
+resolve_unix_path() {
+  if command -v wslpath >/dev/null 2>&1; then
+    wslpath -u "$1"
+  else
+    printf '%s' "$1"
+  fi
+}
+
 if ! command -v "$dotnet_cmd" >/dev/null 2>&1; then
-  if [ -x "/mnt/c/Program Files/dotnet/dotnet.exe" ]; then
+  if [ -n "${DOTNET_ROOT:-}" ]; then
+    dotnet_root_unix="$(resolve_unix_path "$DOTNET_ROOT")"
+    if [ -x "$dotnet_root_unix/dotnet" ]; then
+      dotnet_cmd="$dotnet_root_unix/dotnet"
+    elif [ -x "$dotnet_root_unix/dotnet.exe" ]; then
+      dotnet_cmd="$dotnet_root_unix/dotnet.exe"
+    fi
+  fi
+
+  if [ "$dotnet_cmd" = "dotnet" ] && [ -n "${DOTNET_HOME:-}" ]; then
+    dotnet_home_unix="$(resolve_unix_path "$DOTNET_HOME")"
+    if [ -x "$dotnet_home_unix/dotnet" ]; then
+      dotnet_cmd="$dotnet_home_unix/dotnet"
+    elif [ -x "$dotnet_home_unix/dotnet.exe" ]; then
+      dotnet_cmd="$dotnet_home_unix/dotnet.exe"
+    fi
+  fi
+
+  if [ "$dotnet_cmd" = "dotnet" ] && [ -n "${USERPROFILE:-}" ]; then
+    userprofile_unix="$(resolve_unix_path "$USERPROFILE")"
+    if [ -x "$userprofile_unix/.dotnet/dotnet.exe" ]; then
+      dotnet_cmd="$userprofile_unix/.dotnet/dotnet.exe"
+    fi
+  fi
+
+  if [ "$dotnet_cmd" = "dotnet" ] && [ -x "/mnt/c/Program Files/dotnet/dotnet.exe" ]; then
     dotnet_cmd="/mnt/c/Program Files/dotnet/dotnet.exe"
-  elif [ -x "/mnt/c/Users/Prekzursil/.dotnet/dotnet.exe" ]; then
-    dotnet_cmd="/mnt/c/Users/Prekzursil/.dotnet/dotnet.exe"
   fi
 fi
 

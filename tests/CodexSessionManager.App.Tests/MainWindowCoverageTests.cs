@@ -54,6 +54,9 @@ public sealed class MainWindowCoverageTests
     private static readonly MethodInfo RefreshAsyncMethod =
         typeof(MainWindow).GetMethod("RefreshAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
 
+    private static readonly MethodInfo RunBackgroundRefreshAsyncMethod =
+        typeof(MainWindow).GetMethod("RunBackgroundRefreshAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
+
     private static readonly MethodInfo RunOnUiThreadAsyncMethod =
         typeof(MainWindow).GetMethod("RunOnUiThreadAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
 
@@ -344,6 +347,59 @@ public sealed class MainWindowCoverageTests
 
                 Assert.Single(GetNamedField<ListBox>(window, "SessionsListBox").Items);
                 Assert.Contains("Indexed 1 deduped sessions", GetNamedField<TextBlock>(window, "StatusTextBlock").Text, StringComparison.Ordinal);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task RunBackgroundRefreshAsync_sets_status_when_refresh_throws()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var root = CreateTempDirectory();
+            try
+            {
+                var repository = CreateRepository(root);
+                var window = new MainWindow();
+                RepositoryField.SetValue(window, repository);
+                WorkspaceIndexerField.SetValue(window, new SessionWorkspaceIndexer(repository));
+                SetProvider(
+                    window,
+                    "KnownStoresProvider",
+                    (Func<bool, IReadOnlyList<KnownSessionStore>>)(_ => throw new InvalidOperationException("refresh boom")));
+
+                await InvokePrivateTask(window, RunBackgroundRefreshAsyncMethod);
+
+                Assert.Contains("Background refresh failed: refresh boom", GetNamedField<TextBlock>(window, "StatusTextBlock").Text, StringComparison.Ordinal);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task RunBackgroundRefreshAsync_completes_successfully_when_refresh_succeeds()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var root = CreateTempDirectory();
+            try
+            {
+                var repository = CreateRepository(root);
+                var window = new MainWindow();
+                RepositoryField.SetValue(window, repository);
+                WorkspaceIndexerField.SetValue(window, new SessionWorkspaceIndexer(repository));
+                SetProvider(window, "KnownStoresProvider", (Func<bool, IReadOnlyList<KnownSessionStore>>)(_ => Array.Empty<KnownSessionStore>()));
+
+                await InvokePrivateTask(window, RunBackgroundRefreshAsyncMethod);
+
+                Assert.Contains("Indexed 0 deduped sessions", GetNamedField<TextBlock>(window, "StatusTextBlock").Text, StringComparison.Ordinal);
             }
             finally
             {
