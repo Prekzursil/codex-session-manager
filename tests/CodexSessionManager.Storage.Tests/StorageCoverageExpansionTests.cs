@@ -50,16 +50,10 @@ public sealed class StorageCoverageExpansionTests
     {
         var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         var customStore = Path.Combine(root, "custom-store");
-        var sessionDir = Path.Combine(customStore, "2026", "03", "26");
-        Directory.CreateDirectory(sessionDir);
-
-        var sessionPath = Path.Combine(sessionDir, "session-1.jsonl");
-        await File.WriteAllLinesAsync(
-            sessionPath,
-            [
-                """{"timestamp":"2026-03-26T10:00:00Z","type":"session_meta","payload":{"id":"session-1","timestamp":"2026-03-26T10:00:00Z","cwd":"C:\\repo"}}""",
-                """{"timestamp":"2026-03-26T10:00:01Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"see https://example.com and C:\\repo\\file.txt"}]}}"""
-            ]);
+        await WriteAssistantSessionAsync(
+            Path.Combine(customStore, "2026", "03", "26"),
+            "session-1",
+            "see https://example.com and C:\\repo\\file.txt");
 
         try
         {
@@ -82,16 +76,10 @@ public sealed class StorageCoverageExpansionTests
     {
         var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         var backupRoot = Path.Combine(root, "sessions_backup");
-        var sessionDir = Path.Combine(backupRoot, "2026", "03", "26");
-        Directory.CreateDirectory(sessionDir);
-
-        var sessionPath = Path.Combine(sessionDir, "session-backup.jsonl");
-        await File.WriteAllLinesAsync(
-            sessionPath,
-            [
-                """{"timestamp":"2026-03-26T10:00:00Z","type":"session_meta","payload":{"id":"session-backup","timestamp":"2026-03-26T10:00:00Z","cwd":"C:\\repo"}}""",
-                """{"timestamp":"2026-03-26T10:00:01Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"backup session"}]}}"""
-            ]);
+        await WriteAssistantSessionAsync(
+            Path.Combine(backupRoot, "2026", "03", "26"),
+            "session-backup",
+            "backup session");
 
         try
         {
@@ -117,15 +105,11 @@ public sealed class StorageCoverageExpansionTests
         Directory.CreateDirectory(root);
         Environment.CurrentDirectory = root;
         const string backupRoot = "sessions_backup";
-        var sessionDir = Path.Combine(root, backupRoot, "2026", "03", "26");
-        Directory.CreateDirectory(sessionDir);
-
-        await File.WriteAllLinesAsync(
-            Path.Combine(sessionDir, "session-relative-backup.jsonl"),
-            [
-                """{"timestamp":"2026-03-26T10:00:00Z","type":"session_meta","payload":{"id":"session-relative-backup","timestamp":"2026-03-26T10:00:00Z","cwd":"C:\\repo"}}""",
-                """{"timestamp":"2026-03-26T10:00:01Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"relative backup session"}]}}"""
-            ]);
+        await WriteAssistantSessionAsync(
+            Path.Combine(root, backupRoot, "2026", "03", "26"),
+            "session-relative-backup",
+            "relative backup session",
+            "session-relative-backup.jsonl");
 
         try
         {
@@ -550,5 +534,16 @@ public sealed class StorageCoverageExpansionTests
         {
             Directory.Delete(root, recursive: true);
         }
+    }
+
+    private static async Task WriteAssistantSessionAsync(string sessionDirectory, string sessionId, string assistantText, string? fileName = null)
+    {
+        Directory.CreateDirectory(sessionDirectory);
+        await File.WriteAllLinesAsync(
+            Path.Combine(sessionDirectory, fileName ?? $"{sessionId}.jsonl"),
+            [
+                $"{{\"timestamp\":\"2026-03-26T10:00:00Z\",\"type\":\"session_meta\",\"payload\":{{\"id\":\"{sessionId}\",\"timestamp\":\"2026-03-26T10:00:00Z\",\"cwd\":\"C:\\\\repo\"}}}}",
+                $"{{\"timestamp\":\"2026-03-26T10:00:01Z\",\"type\":\"response_item\",\"payload\":{{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{{\"type\":\"output_text\",\"text\":\"{assistantText}\"}}]}}}}"
+            ]);
     }
 }
