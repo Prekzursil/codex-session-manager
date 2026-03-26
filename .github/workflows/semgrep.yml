@@ -6,11 +6,12 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   scan:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     container:
       image: semgrep/semgrep:latest
     steps:

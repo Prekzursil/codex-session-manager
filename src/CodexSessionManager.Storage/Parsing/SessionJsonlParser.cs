@@ -12,6 +12,8 @@ public static partial class SessionJsonlParser
 
     public static async Task<ParsedSessionFile> ParseAsync(string filePath, CancellationToken cancellationToken)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+
         var lines = await File.ReadAllLinesAsync(filePath, cancellationToken);
         var state = new ParseState();
 
@@ -46,6 +48,8 @@ public static partial class SessionJsonlParser
 
     private static void ParseLine(JsonElement root, ParseState state)
     {
+        ArgumentNullException.ThrowIfNull(state);
+
         var type = root.GetProperty("type").GetString();
         switch (type)
         {
@@ -62,6 +66,8 @@ public static partial class SessionJsonlParser
 
     private static void ParseSessionMetadata(JsonElement payload, ParseState state)
     {
+        ArgumentNullException.ThrowIfNull(state);
+
         state.SessionId ??= TryGetString(payload, "id");
         state.ForkedFromId ??= TryGetString(payload, "forked_from_id");
         state.Cwd ??= TryGetString(payload, "cwd");
@@ -76,6 +82,8 @@ public static partial class SessionJsonlParser
 
     private static void ParseResponseItem(JsonElement payload, ParseState state)
     {
+        ArgumentNullException.ThrowIfNull(state);
+
         var payloadType = TryGetString(payload, "type");
         switch (payloadType)
         {
@@ -95,6 +103,8 @@ public static partial class SessionJsonlParser
 
     private static void ParseMessage(JsonElement payload, ParseState state)
     {
+        ArgumentNullException.ThrowIfNull(state);
+
         if (!payload.TryGetProperty("content", out var contentElement)
             || contentElement.ValueKind is not JsonValueKind.Array)
         {
@@ -117,6 +127,8 @@ public static partial class SessionJsonlParser
 
     private static void ParseFunctionCall(JsonElement payload, ParseState state)
     {
+        ArgumentNullException.ThrowIfNull(state);
+
         var toolName = TryGetString(payload, "name") ?? "unknown_tool";
         var rawArguments = TryGetString(payload, "arguments") ?? string.Empty;
         state.Events.Add(NormalizedSessionEvent.CreateToolCall(toolName, rawArguments));
@@ -132,6 +144,8 @@ public static partial class SessionJsonlParser
 
     private static void ParseFunctionCallOutput(JsonElement payload, ParseState state)
     {
+        ArgumentNullException.ThrowIfNull(state);
+
         var outputText = TryGetString(payload, "output") ?? string.Empty;
         var toolName = TryGetString(payload, "name") ?? "tool";
         state.Events.Add(NormalizedSessionEvent.CreateToolOutput(toolName, outputText));
@@ -146,6 +160,8 @@ public static partial class SessionJsonlParser
 
     private static string? TryGetString(JsonElement element, string propertyName)
     {
+        ArgumentNullException.ThrowIfNull(propertyName);
+
         if (!element.TryGetProperty(propertyName, out var propertyElement))
         {
             return null;
@@ -181,6 +197,8 @@ public static partial class SessionJsonlParser
 
     private static string? TryExtractCommand(string rawArguments)
     {
+        ArgumentNullException.ThrowIfNull(rawArguments);
+
         if (string.IsNullOrWhiteSpace(rawArguments))
         {
             return null;
@@ -194,6 +212,9 @@ public static partial class SessionJsonlParser
 
     private static void ExtractFilePathsAndUrls(string value, ISet<string> filePaths, ISet<string> urls)
     {
+        ArgumentNullException.ThrowIfNull(filePaths);
+        ArgumentNullException.ThrowIfNull(urls);
+
         foreach (Match match in UrlRegex.Matches(value))
         {
             urls.Add(match.Value);
@@ -207,7 +228,13 @@ public static partial class SessionJsonlParser
 
     private static bool TryExtractExitCode(string text, out int exitCode)
     {
+        ArgumentNullException.ThrowIfNull(text);
+
         exitCode = 0;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
         const string marker = "Process exited with code ";
         var index = text.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
         if (index < 0)
