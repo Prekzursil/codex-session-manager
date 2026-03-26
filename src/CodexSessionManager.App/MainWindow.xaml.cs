@@ -23,22 +23,22 @@ public partial class MainWindow : Window
     private MaintenanceExecutor? _maintenanceExecutor;
     private MaintenancePreview? _currentMaintenancePreview;
 
-    internal Func<string> LocalDataRootProvider { get; set; } = null!;
-    internal Func<string, SessionCatalogRepository> RepositoryFactory { get; set; } = null!;
-    internal Func<SessionCatalogRepository, SessionWorkspaceIndexer> WorkspaceIndexerFactory { get; set; } = null!;
-    internal Func<string, MaintenanceExecutor> MaintenanceExecutorFactory { get; set; } = null!;
-    internal Action ScheduleRefreshAction { get; set; } = null!;
-    internal Func<bool, IReadOnlyList<KnownSessionStore>> KnownStoresProvider { get; set; } = null!;
-    internal Func<string> LiveSqliteStatusProvider { get; set; } = null!;
-    internal Func<string, CancellationToken, Task<ParsedSessionFile>> SessionParser { get; set; } = null!;
-    internal Func<string, string> FileTextReader { get; set; } = null!;
-    internal Action<string, string> ProcessStarter { get; set; } = null!;
-    internal Action<string> ClipboardSetter { get; set; } = null!;
-    internal Func<SaveFileDialog> SaveFileDialogFactory { get; set; } = null!;
-    internal Func<SaveFileDialog, Window, bool?> SaveFileDialogPresenter { get; set; } = null!;
-    internal Func<string, string?> ExportPathSelector { get; set; } = null!;
-    internal Action<string, string> TextFileWriter { get; set; } = null!;
-    internal Func<MaintenancePreview, string, string, CancellationToken, Task<MaintenanceExecutionResult>> MaintenanceRunner { get; set; } = null!;
+    internal Func<string> LocalDataRootProvider { get; set; }
+    internal Func<string, SessionCatalogRepository> RepositoryFactory { get; set; }
+    internal Func<SessionCatalogRepository, SessionWorkspaceIndexer> WorkspaceIndexerFactory { get; set; }
+    internal Func<string, MaintenanceExecutor> MaintenanceExecutorFactory { get; set; }
+    internal Action ScheduleRefreshAction { get; set; }
+    internal Func<bool, IReadOnlyList<KnownSessionStore>> KnownStoresProvider { get; set; }
+    internal Func<string> LiveSqliteStatusProvider { get; set; }
+    internal Func<string, CancellationToken, Task<ParsedSessionFile>> SessionParser { get; set; }
+    internal Func<string, string> FileTextReader { get; set; }
+    internal Action<string, string> ProcessStarter { get; set; }
+    internal Action<string> ClipboardSetter { get; set; }
+    internal Func<SaveFileDialog> SaveFileDialogFactory { get; set; }
+    internal Func<SaveFileDialog, Window, bool?> SaveFileDialogPresenter { get; set; }
+    internal Func<string, string?> ExportPathSelector { get; set; }
+    internal Action<string, string> TextFileWriter { get; set; }
+    internal Func<MaintenancePreview, string, string, CancellationToken, Task<MaintenanceExecutionResult>> MaintenanceRunner { get; set; }
 
     public MainWindow()
     {
@@ -156,6 +156,16 @@ public partial class MainWindow : Window
         return Dispatcher.InvokeAsync(action).Task;
     }
 
+    private Task<T> RunOnUiThreadValueAsync<T>(Func<T> func)
+    {
+        if (Dispatcher.CheckAccess())
+        {
+            return Task.FromResult(func());
+        }
+
+        return Dispatcher.InvokeAsync(func).Task;
+    }
+
     private string? SelectExportPath(string defaultFileName)
     {
         var dialog = SaveFileDialogFactory();
@@ -177,12 +187,11 @@ public partial class MainWindow : Window
         var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         foreach (var directory in Directory.EnumerateDirectories(userProfile, ".codex*", SearchOption.TopDirectoryOnly))
         {
-            foreach (var store in KnownStoreLocator.GetKnownStores(directory))
+            foreach (var store in KnownStoreLocator.GetKnownStores(directory)
+                         .Where(store => stores.All(existing =>
+                             !string.Equals(existing.SessionsPath, store.SessionsPath, StringComparison.OrdinalIgnoreCase))))
             {
-                if (stores.All(existing => !string.Equals(existing.SessionsPath, store.SessionsPath, StringComparison.OrdinalIgnoreCase)))
-                {
-                    stores.Add(store);
-                }
+                stores.Add(store);
             }
         }
 
@@ -196,8 +205,7 @@ public partial class MainWindow : Window
 
     private async Task LoadSelectedSessionAsync()
     {
-        IndexedLogicalSession? selected = null;
-        await RunOnUiThreadAsync(() => selected = GetSelectedSession());
+        var selected = await RunOnUiThreadValueAsync(GetSelectedSession);
         if (selected is null)
         {
             return;
@@ -257,9 +265,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        string? query = null;
-        await RunOnUiThreadAsync(() => query = SearchTextBox.Text);
-
+        var query = await RunOnUiThreadValueAsync(() => SearchTextBox.Text);
         if (string.IsNullOrWhiteSpace(query))
         {
             await LoadSessionsFromCatalogAsync();
@@ -300,28 +306,22 @@ public partial class MainWindow : Window
             return;
         }
 
-        IndexedLogicalSession? selected = null;
-        string alias = string.Empty;
-        string tagsText = string.Empty;
-        string notes = string.Empty;
-        await RunOnUiThreadAsync(() =>
-        {
-            selected = GetSelectedSession();
-            alias = AliasTextBox.Text;
-            tagsText = TagsTextBox.Text;
-            notes = NotesTextBox.Text;
-        });
-
+        var metadata = await RunOnUiThreadValueAsync(() => (
+            Selected: GetSelectedSession(),
+            Alias: AliasTextBox.Text,
+            TagsText: TagsTextBox.Text,
+            Notes: NotesTextBox.Text));
+        var selected = metadata.Selected;
         if (selected is null)
         {
             return;
         }
 
-        var tags = tagsText
+        var tags = metadata.TagsText
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .ToArray();
 
-        await _repository.UpdateMetadataAsync(selected.SessionId, alias, tags, notes, CancellationToken.None);
+        await _repository.UpdateMetadataAsync(selected.SessionId, metadata.Alias, tags, metadata.Notes, CancellationToken.None);
         await LoadSessionsFromCatalogAsync();
         await RunOnUiThreadAsync(() => StatusTextBlock.Text = $"Saved metadata for {selected.SessionId}.");
     }

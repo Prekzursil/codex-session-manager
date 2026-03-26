@@ -60,6 +60,11 @@ public sealed class MainWindowCoverageTests
     private static readonly MethodInfo RunOnUiThreadAsyncMethod =
         typeof(MainWindow).GetMethod("RunOnUiThreadAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
 
+    private static readonly MethodInfo RunOnUiThreadValueAsyncMethod =
+        typeof(MainWindow).GetMethods(BindingFlags.NonPublic | BindingFlags.Instance)
+            .Single(method => method.Name == "RunOnUiThreadValueAsync" && method.IsGenericMethodDefinition)
+            .MakeGenericMethod(typeof(string));
+
     private static readonly MethodInfo LoadSelectedSessionAsyncMethod =
         typeof(MainWindow).GetMethod("LoadSelectedSessionAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
 
@@ -191,6 +196,25 @@ public sealed class MainWindowCoverageTests
             });
 
             Assert.Equal("Updated from background", GetNamedField<TextBlock>(window, "StatusTextBlock").Text);
+            window.Close();
+        });
+    }
+
+    [Fact]
+    public async Task RunOnUiThreadValueAsync_returns_value_when_called_off_dispatcher_thread()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var window = new MainWindow();
+            string? value = null;
+
+            await Task.Run(async () =>
+            {
+                var task = (Task<string>)RunOnUiThreadValueAsyncMethod.Invoke(window, [(Func<string>)(() => "Value from background")])!;
+                value = await task;
+            });
+
+            Assert.Equal("Value from background", value);
             window.Close();
         });
     }

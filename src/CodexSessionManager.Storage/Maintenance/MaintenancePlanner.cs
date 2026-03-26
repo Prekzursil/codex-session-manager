@@ -3,7 +3,7 @@ using CodexSessionManager.Core.Sessions;
 
 namespace CodexSessionManager.Storage.Maintenance;
 
-public sealed class MaintenancePlanner
+public static class MaintenancePlanner
 {
     private static readonly string[] ProtectedPathMarkers =
     [

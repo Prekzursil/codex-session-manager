@@ -3,7 +3,7 @@ using CodexSessionManager.Core.Transcripts;
 
 namespace CodexSessionManager.Storage.Discovery;
 
-public sealed class SessionDiscoveryService
+public static class SessionDiscoveryService
 {
     public static async Task<DiscoveredSessionCatalog> DiscoverAsync(IEnumerable<SessionStoreRoot> roots, CancellationToken cancellationToken)
     {
