@@ -56,6 +56,6 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $PSNativeCommandUseErrorActionPreference = $true
-          .\.sonar\scanner\dotnet-sonarscanner begin /k:"Prekzursil_codex-session-manager" /o:"Prekzursil" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token="$env:SONAR_TOKEN" /d:sonar.qualitygate.wait=true
+          .\.sonar\scanner\dotnet-sonarscanner begin /k:"Prekzursil_codex-session-manager" /o:"prekzursil" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token="$env:SONAR_TOKEN" /d:sonar.qualitygate.wait=true
           dotnet build CodexSessionManager.sln --configuration Release
           .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="$env:SONAR_TOKEN"
