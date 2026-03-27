@@ -14,7 +14,7 @@
     <TargetFramework>net8.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <CLSCompliant>false</CLSCompliant>
+    <CLSCompliant>true</CLSCompliant>
     <UseWPF>true</UseWPF>
   </PropertyGroup>
 
