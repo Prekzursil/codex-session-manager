@@ -34,15 +34,15 @@ public sealed class MainWindowViewModel
 
     public async Task RefreshAsync(CancellationToken cancellationToken)
     {
-        await _service.RefreshIndexAsync(cancellationToken); // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
-        var sessions = await _service.GetSessionsAsync(cancellationToken); // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+        await _service.RefreshIndexAsync(cancellationToken);
+        var sessions = await _service.GetSessionsAsync(cancellationToken);
         _allSessions.Clear();
         _allSessions.AddRange(sessions);
         ReplaceSessions(_allSessions);
         StatusText = "Ready";
     }
 
-    public Task ApplySearchAsync(string query) => ApplySearchAsync(query, CancellationToken.None); // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+    public Task ApplySearchAsync(string query) => ApplySearchAsync(query, CancellationToken.None);
 
     public async Task ApplySearchAsync(string query, CancellationToken cancellationToken)
     {

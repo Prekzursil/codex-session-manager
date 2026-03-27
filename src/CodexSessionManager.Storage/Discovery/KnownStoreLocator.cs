@@ -6,7 +6,7 @@ public static class KnownStoreLocator
 {
     public static IReadOnlyList<KnownSessionStore> GetKnownStores(string codexHome)
     {
-        return // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+        return
         [
             new KnownSessionStore(
                 codexHome,
