@@ -505,4 +505,3 @@ public sealed class SessionCatalogRepository
         return reader ?? throw new InvalidOperationException(errorMessage);
     }
 }
-

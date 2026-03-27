@@ -216,4 +216,3 @@ public sealed class StorageGuardClauseTests
         await Assert.ThrowsAsync<TException>(action);
     }
 }
-
