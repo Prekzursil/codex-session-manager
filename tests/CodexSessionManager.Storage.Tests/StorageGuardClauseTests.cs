@@ -93,7 +93,7 @@ public sealed class StorageGuardClauseTests
             "Thread",
             new SessionPhysicalCopy("session-1", @"C:\tmp\session-1.jsonl", SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false)),
             [],
-            new SessionSearchDocument(string.Empty, string.Empty, string.Empty, string.Empty, [], [], string.Empty, string.Empty, [], string.Empty));
+            new SessionSearchDocument());
 
         AssertInner<ArgumentNullException>(() => ParseLineMethod.Invoke(null, [emptyElement, null!]));
         AssertInner<ArgumentNullException>(() => ParseSessionMetadataMethod.Invoke(null, [emptyElement, null!]));

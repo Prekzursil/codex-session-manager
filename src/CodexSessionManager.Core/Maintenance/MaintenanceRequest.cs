@@ -7,13 +7,13 @@ namespace CodexSessionManager.Core.Maintenance;
 public sealed record MaintenanceRequest
 {
     public MaintenanceRequest(
-        MaintenanceAction action,
-        IReadOnlyList<SessionPhysicalCopy> targets,
+        MaintenanceAction Action,
+        IReadOnlyList<SessionPhysicalCopy> Targets,
         string typedConfirmation)
     {
-        Action = action;
-        Targets = targets;
-        TypedConfirmation = typedConfirmation;
+        this.Action = Action;
+        this.Targets = Targets ?? throw new ArgumentNullException(nameof(Targets));
+        TypedConfirmation = typedConfirmation ?? throw new ArgumentNullException(nameof(typedConfirmation));
     }
 
     public MaintenanceAction Action { get; init; }

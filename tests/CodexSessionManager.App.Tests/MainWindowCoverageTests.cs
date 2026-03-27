@@ -1233,17 +1233,19 @@ public sealed class MainWindowCoverageTests
             threadName,
             new SessionPhysicalCopy(sessionId, filePath, SessionStoreKind.Live, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1024, false)),
             [new SessionPhysicalCopy(sessionId, filePath, SessionStoreKind.Live, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1024, false))],
-            new SessionSearchDocument(
-                $"Readable transcript for {threadName}",
-                $"Dialogue transcript for {threadName}",
-                $"Tool summary for {threadName}",
-                "codex resume",
-                [filePath],
-                ["https://example.com"],
-                string.Empty,
-                string.Empty,
-                [],
-                string.Empty));
+            new SessionSearchDocument
+            {
+                ReadableTranscript = $"Readable transcript for {threadName}",
+                DialogueTranscript = $"Dialogue transcript for {threadName}",
+                ToolSummary = $"Tool summary for {threadName}",
+                CommandText = "codex resume",
+                FilePaths = [filePath],
+                Urls = ["https://example.com"],
+                ErrorText = string.Empty,
+                Alias = string.Empty,
+                Tags = [],
+                Notes = string.Empty
+            });
 
     private static ParsedSessionFile BuildParsedFile(string sessionId, string? cwd) =>
         new(
