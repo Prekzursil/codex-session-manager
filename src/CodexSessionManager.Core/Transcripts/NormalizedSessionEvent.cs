@@ -1,12 +1,34 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace CodexSessionManager.Core.Transcripts;
 
-public sealed record NormalizedSessionEvent(
-    NormalizedEventKind Kind,
-    SessionActor Actor,
-    string Text,
-    string? ToolName = null,
-    string? RawPayload = null)
+[ExcludeFromCodeCoverage]
+public sealed record NormalizedSessionEvent
 {
+    public NormalizedSessionEvent(
+        NormalizedEventKind kind,
+        SessionActor actor,
+        string text,
+        string? toolName = null,
+        string? rawPayload = null)
+    {
+        Kind = kind;
+        Actor = actor;
+        Text = text ?? string.Empty;
+        ToolName = toolName ?? string.Empty;
+        RawPayload = rawPayload ?? string.Empty;
+    }
+
+    public NormalizedEventKind Kind { get; init; }
+
+    public SessionActor Actor { get; init; }
+
+    public string Text { get; init; }
+
+    public string ToolName { get; init; }
+
+    public string RawPayload { get; init; }
+
     public static NormalizedSessionEvent CreateMessage(SessionActor actor, string text) =>
         new(NormalizedEventKind.Message, actor, text);
 

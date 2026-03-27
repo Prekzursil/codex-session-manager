@@ -27,8 +27,8 @@ public sealed record SessionPhysicalCopy
         SessionStoreKind storeKind,
         SessionPhysicalCopyState state)
     {
-        SessionId = sessionId;
-        FilePath = filePath;
+        SessionId = sessionId ?? throw new ArgumentNullException(nameof(sessionId));
+        FilePath = filePath ?? throw new ArgumentNullException(nameof(filePath));
         StoreKind = storeKind;
         LastWriteTimeUtc = state.LastWriteTimeUtc;
         FileSizeBytes = state.FileSizeBytes;
