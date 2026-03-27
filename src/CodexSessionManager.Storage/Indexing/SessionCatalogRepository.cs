@@ -123,7 +123,12 @@ public sealed class SessionCatalogRepository
 
     public SessionCatalogRepository(string databasePath)
     {
-        _databasePath = databasePath;
+        if (string.IsNullOrWhiteSpace(databasePath))
+        {
+            throw new ArgumentException("Value cannot be null or whitespace.", nameof(databasePath));
+        }
+
+        _databasePath = Path.GetFullPath(databasePath);
     }
 
     public async Task InitializeAsync(CancellationToken cancellationToken)
@@ -389,8 +394,7 @@ public sealed class SessionCatalogRepository
 
     private async Task<SqliteConnection> OpenConnectionAsync(CancellationToken cancellationToken)
     {
-        var directoryPath = Path.GetDirectoryName(_databasePath);
-        Directory.CreateDirectory(string.IsNullOrWhiteSpace(directoryPath) ? "." : directoryPath);
+        Directory.CreateDirectory(Path.GetDirectoryName(_databasePath)!);
         var connection = new SqliteConnection($"Data Source={_databasePath};Pooling=False");
         await connection.OpenAsync(cancellationToken);
         return connection;

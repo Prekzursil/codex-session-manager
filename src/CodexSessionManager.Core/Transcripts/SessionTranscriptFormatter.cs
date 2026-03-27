@@ -6,10 +6,7 @@ public static class SessionTranscriptFormatter
 {
     public static TranscriptRenderResult Format(NormalizedSessionDocument session, TranscriptMode mode)
     {
-        if (session is null)
-        {
-            throw new ArgumentNullException(nameof(session));
-        }
+        ArgumentNullException.ThrowIfNull(session);
 
         var builder = new StringBuilder();
         builder.AppendLine("# Codex Session Transcript");
@@ -19,7 +16,7 @@ public static class SessionTranscriptFormatter
 
         var toolActivity = new List<string>();
 
-        var events = GetEvents(session);
+        var events = session.Events ?? [];
         foreach (var sessionEvent in events)
         {
             if (sessionEvent.Kind is NormalizedEventKind.Message)
@@ -51,10 +48,8 @@ public static class SessionTranscriptFormatter
 
     private static void AppendMessage(NormalizedSessionEvent sessionEvent, TranscriptMode mode, StringBuilder builder)
     {
-        if (builder is null)
-        {
-            throw new ArgumentNullException(nameof(builder));
-        }
+        ArgumentNullException.ThrowIfNull(sessionEvent);
+        ArgumentNullException.ThrowIfNull(builder);
 
         if (ShouldSkipMessage(sessionEvent, mode))
         {
@@ -68,6 +63,7 @@ public static class SessionTranscriptFormatter
 
     private static bool ShouldSkipMessage(NormalizedSessionEvent sessionEvent, TranscriptMode mode)
     {
+        ArgumentNullException.ThrowIfNull(sessionEvent);
         return mode is TranscriptMode.Readable or TranscriptMode.Dialogue
             && sessionEvent.Actor is SessionActor.Developer or SessionActor.System;
     }
@@ -86,6 +82,7 @@ public static class SessionTranscriptFormatter
 
     private static string? DescribeToolActivity(NormalizedSessionEvent sessionEvent, TranscriptMode mode)
     {
+        ArgumentNullException.ThrowIfNull(sessionEvent);
         if (mode is TranscriptMode.Dialogue)
         {
             return null;
@@ -102,6 +99,7 @@ public static class SessionTranscriptFormatter
 
     private static string BuildToolCallDescription(NormalizedSessionEvent sessionEvent)
     {
+        ArgumentNullException.ThrowIfNull(sessionEvent);
         var toolName = GetToolName(sessionEvent);
         var rawPayload = GetRawPayload(sessionEvent);
         if (string.IsNullOrWhiteSpace(rawPayload))
@@ -114,29 +112,24 @@ public static class SessionTranscriptFormatter
 
     private static string BuildToolOutputDescription(NormalizedSessionEvent sessionEvent)
     {
+        ArgumentNullException.ThrowIfNull(sessionEvent);
         return $"- `{GetToolName(sessionEvent)}` output: {Truncate(GetEventText(sessionEvent), 140)}";
     }
 
     private static string Truncate(string value, int maxLength)
     {
-        if (value is null)
-        {
-            throw new ArgumentNullException(nameof(value));
-        }
+        ArgumentNullException.ThrowIfNull(value);
 
         return value.Length <= maxLength ? value : value[..(maxLength - 3)] + "...";
     }
 
-    private static IReadOnlyList<NormalizedSessionEvent> GetEvents(NormalizedSessionDocument session) =>
-        session.Events ?? [];
-
     private static string GetEventText(NormalizedSessionEvent sessionEvent) =>
-        sessionEvent.Text ?? string.Empty;
+        (sessionEvent ?? throw new ArgumentNullException(nameof(sessionEvent))).Text ?? string.Empty;
 
     private static string GetToolName(NormalizedSessionEvent sessionEvent) =>
-        string.IsNullOrWhiteSpace(sessionEvent.ToolName) ? "tool" : sessionEvent.ToolName;
+        string.IsNullOrWhiteSpace((sessionEvent ?? throw new ArgumentNullException(nameof(sessionEvent))).ToolName) ? "tool" : sessionEvent.ToolName;
 
     private static string GetRawPayload(NormalizedSessionEvent sessionEvent) =>
-        sessionEvent.RawPayload ?? string.Empty;
+        (sessionEvent ?? throw new ArgumentNullException(nameof(sessionEvent))).RawPayload ?? string.Empty;
 }
 

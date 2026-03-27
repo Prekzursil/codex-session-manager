@@ -19,45 +19,17 @@ public sealed class MaintenanceExecutor
         string typedConfirmation,
         CancellationToken cancellationToken)
     {
-        var action = preview.Action;
-        var requiredTypedConfirmation = preview.RequiredTypedConfirmation;
-        var allowedTargets = preview.AllowedTargets;
-
-        if (!preview.RequiresTypedConfirmation || string.IsNullOrWhiteSpace(typedConfirmation))
-        {
-            throw new InvalidOperationException("Typed confirmation is required.");
-        }
-
-        if (!string.Equals(requiredTypedConfirmation, typedConfirmation, StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException("Typed confirmation does not match the preview.");
-        }
+        var executionPlan = CreateExecutionPlan(preview, destinationRoot, typedConfirmation);
 
         Directory.CreateDirectory(_checkpointRoot);
-        var effectiveDestinationRoot = GetEffectiveDestinationRoot(action, destinationRoot);
-        Directory.CreateDirectory(effectiveDestinationRoot);
+        Directory.CreateDirectory(executionPlan.EffectiveDestinationRoot);
 
-        var movedTargets = new List<SessionPhysicalCopy>();
-        foreach (var target in allowedTargets)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var fileName = Path.GetFileName(target.FilePath);
-            var destinationPath = Path.Combine(effectiveDestinationRoot, fileName);
-            if (File.Exists(destinationPath))
-            {
-                var uniqueName = $"{Path.GetFileNameWithoutExtension(fileName)}-{Guid.NewGuid():N}{Path.GetExtension(fileName)}";
-                destinationPath = Path.Combine(effectiveDestinationRoot, uniqueName);
-            }
+        var movedTargets = MoveTargets(executionPlan.AllowedTargets, executionPlan.EffectiveDestinationRoot, cancellationToken);
 
-            Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
-            File.Move(target.FilePath, destinationPath);
-            movedTargets.Add(target with { FilePath = destinationPath });
-        }
-
-        var manifestPath = Path.Combine(_checkpointRoot, $"{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}-{action}.json");
+        var manifestPath = Path.Combine(_checkpointRoot, $"{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}-{executionPlan.Action}.json");
         var payload = new
         {
-            action = action.ToString(),
+            action = executionPlan.Action.ToString(),
             executedAtUtc = DateTimeOffset.UtcNow,
             targets = movedTargets.Select(target => new
             {
@@ -77,6 +49,61 @@ public sealed class MaintenanceExecutor
             ManifestPath: manifestPath);
     }
 
+    private ExecutionPlan CreateExecutionPlan(MaintenancePreview preview, string destinationRoot, string typedConfirmation)
+    {
+        ArgumentNullException.ThrowIfNull(preview);
+
+        EnsureTypedConfirmation(preview.RequiresTypedConfirmation, preview.RequiredTypedConfirmation, typedConfirmation);
+        return new ExecutionPlan(
+            preview.Action,
+            preview.AllowedTargets,
+            GetEffectiveDestinationRoot(preview.Action, destinationRoot));
+    }
+
+    private static void EnsureTypedConfirmation(bool requiresTypedConfirmation, string requiredTypedConfirmation, string typedConfirmation)
+    {
+        if (!requiresTypedConfirmation || string.IsNullOrWhiteSpace(typedConfirmation))
+        {
+            throw new InvalidOperationException("Typed confirmation is required.");
+        }
+
+        if (!string.Equals(requiredTypedConfirmation, typedConfirmation, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Typed confirmation does not match the preview.");
+        }
+    }
+
+    private static List<SessionPhysicalCopy> MoveTargets(
+        IReadOnlyList<SessionPhysicalCopy> allowedTargets,
+        string effectiveDestinationRoot,
+        CancellationToken cancellationToken)
+    {
+        var movedTargets = new List<SessionPhysicalCopy>();
+        foreach (var target in allowedTargets)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var destinationPath = ResolveDestinationPath(effectiveDestinationRoot, target.FilePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+            File.Move(target.FilePath, destinationPath);
+            movedTargets.Add(target with { FilePath = destinationPath });
+        }
+
+        return movedTargets;
+    }
+
+    private static string ResolveDestinationPath(string effectiveDestinationRoot, string sourceFilePath)
+    {
+        var fileName = Path.GetFileName(sourceFilePath);
+        var destinationPath = Path.Combine(effectiveDestinationRoot, fileName);
+        if (!File.Exists(destinationPath))
+        {
+            return destinationPath;
+        }
+
+        var uniqueName = $"{Path.GetFileNameWithoutExtension(fileName)}-{Guid.NewGuid():N}{Path.GetExtension(fileName)}";
+        return Path.Combine(effectiveDestinationRoot, uniqueName);
+    }
+
     private string GetEffectiveDestinationRoot(MaintenanceAction action, string destinationRoot) =>
         action switch
         {
@@ -84,5 +111,10 @@ public sealed class MaintenanceExecutor
             MaintenanceAction.Reconcile => Path.Combine(destinationRoot, "reconciled"),
             _ => destinationRoot
         };
+
+    private readonly record struct ExecutionPlan(
+        MaintenanceAction Action,
+        IReadOnlyList<SessionPhysicalCopy> AllowedTargets,
+        string EffectiveDestinationRoot);
 }
 

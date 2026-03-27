@@ -9,6 +9,7 @@ using CodexSessionManager.Storage.Parsing;
 
 namespace CodexSessionManager.Storage.Tests;
 
+[Collection("CurrentDirectorySensitive")]
 public sealed class StorageCoverageExpansionTests
 {
     [Fact]
@@ -490,6 +491,24 @@ public sealed class StorageCoverageExpansionTests
         {
             await Assert.ThrowsAsync<InvalidOperationException>(() => executor.ExecuteAsync(preview, Path.Combine(root, "archive"), string.Empty, CancellationToken.None));
             await Assert.ThrowsAsync<InvalidOperationException>(() => executor.ExecuteAsync(preview, Path.Combine(root, "archive"), "WRONG", CancellationToken.None));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ThrowsWhenPreviewIsNull()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var executor = new MaintenanceExecutor(Path.Combine(root, "checkpoints"));
+
+        try
+        {
+            await Assert.ThrowsAsync<ArgumentNullException>(() =>
+                executor.ExecuteAsync(null!, Path.Combine(root, "archive"), "ARCHIVE 1 FILE", CancellationToken.None));
         }
         finally
         {

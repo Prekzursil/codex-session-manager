@@ -14,55 +14,65 @@ public static class MaintenancePlanner
 
     public static MaintenancePreview CreatePreview(MaintenanceRequest request)
     {
-        if (request is null)
-        {
-            throw new ArgumentNullException(nameof(request));
-        }
-
-        var action = request.Action;
-        var requiredTypedConfirmation = request.TypedConfirmation;
+        var previewRequest = CreatePreviewRequest(request);
         var blockedTargets = new List<SessionPhysicalCopy>();
         var allowedTargets = new List<SessionPhysicalCopy>();
         var warnings = new List<MaintenanceWarning>();
 
-        var targets = request.Targets ?? [];
-        foreach (var candidate in targets)
+        foreach (var candidate in previewRequest.Targets)
         {
             ArgumentNullException.ThrowIfNull(candidate);
-            var filePath = candidate.FilePath;
+            var candidatePath = candidate.FilePath;
             if (IsProtected(candidate))
             {
                 blockedTargets.Add(candidate);
-                warnings.Add(new MaintenanceWarning(MaintenanceWarningSeverity.Dangerous, $"Protected path blocked: {filePath}"));
+                warnings.Add(new MaintenanceWarning(MaintenanceWarningSeverity.Dangerous, $"Protected path blocked: {candidatePath}"));
                 continue;
             }
 
             allowedTargets.Add(candidate);
-            warnings.Add(new MaintenanceWarning(MaintenanceWarningSeverity.Dangerous, $"Dangerous maintenance target: {filePath}"));
+            warnings.Add(new MaintenanceWarning(MaintenanceWarningSeverity.Dangerous, $"Dangerous maintenance target: {candidatePath}"));
         }
 
         return new MaintenancePreview
         {
-            Action = action,
+            Action = previewRequest.Action,
             AllowedTargets = allowedTargets,
             BlockedTargets = blockedTargets,
             Warnings = warnings,
             RequiresCheckpoint = true,
             RequiresTypedConfirmation = true,
-            RequiredTypedConfirmation = requiredTypedConfirmation
+            RequiredTypedConfirmation = previewRequest.RequiredTypedConfirmation
         };
     }
 
     private static bool IsProtected(SessionPhysicalCopy candidate)
     {
-        if (candidate is null)
-        {
-            throw new ArgumentNullException(nameof(candidate));
-        }
+        ArgumentNullException.ThrowIfNull(candidate);
 
-        var normalizedPath = candidate.FilePath.Replace('/', '\\');
+        var normalizedPath = NormalizePath(candidate.FilePath);
         return candidate.StoreKind is SessionStoreKind.Live
             || ProtectedPathMarkers.Any(marker => normalizedPath.Contains(marker, StringComparison.OrdinalIgnoreCase));
     }
+
+    private static PreviewRequest CreatePreviewRequest(MaintenanceRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return new PreviewRequest(
+            request.Action,
+            request.TypedConfirmation,
+            request.Targets ?? []);
+    }
+
+    private static string NormalizePath(string filePath)
+    {
+        ArgumentNullException.ThrowIfNull(filePath);
+        return filePath.Replace('/', '\\');
+    }
+
+    private readonly record struct PreviewRequest(
+        MaintenanceAction Action,
+        string RequiredTypedConfirmation,
+        IReadOnlyList<SessionPhysicalCopy> Targets);
 }
 
