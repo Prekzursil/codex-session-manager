@@ -15,7 +15,7 @@ using Microsoft.Win32;
 
 namespace CodexSessionManager.App;
 
-public partial class MainWindow : Window
+public partial class MainWindow : Window // NOSONAR - partial is required because XAML generates the companion partial type.
 {
     private readonly ObservableCollection<IndexedLogicalSession> _sessions = [];
     private SessionCatalogRepository? _repository;
@@ -171,6 +171,7 @@ public partial class MainWindow : Window
     private string? SelectExportPath(string defaultFileName)
     {
         var dialog = SaveFileDialogFactory();
+        // nosemgrep: csharp_injection_rule-CommandInjection -- assigning a default save file name on a SaveFileDialog is not command execution.
         dialog.FileName = defaultFileName;
         dialog.Filter = "Markdown (*.md)|*.md|Text (*.txt)|*.txt|JSON (*.json)|*.json";
         return SaveFileDialogPresenter(dialog, this) == true ? dialog.FileName : null;

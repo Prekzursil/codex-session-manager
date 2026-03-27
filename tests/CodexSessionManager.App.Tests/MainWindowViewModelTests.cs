@@ -178,13 +178,23 @@ public sealed class MainWindowViewModelTests
             _searchHits = searchHits;
         }
 
-        public Task<IReadOnlyList<IndexedLogicalSession>> GetSessionsAsync(CancellationToken _) =>
-            Task.FromResult(_sessions);
+        public Task<IReadOnlyList<IndexedLogicalSession>> GetSessionsAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(_sessions);
+        }
 
-        public Task<IReadOnlyList<SessionSearchHit>> SearchAsync(string query, CancellationToken cancellationToken) =>
-            Task.FromResult(_searchHits ?? []);
+        public Task<IReadOnlyList<SessionSearchHit>> SearchAsync(string query, CancellationToken cancellationToken)
+        {
+            _ = query;
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(_searchHits ?? []);
+        }
 
-        public Task RefreshIndexAsync(CancellationToken cancellationToken) =>
-            Task.CompletedTask;
+        public Task RefreshIndexAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
     }
 }

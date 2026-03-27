@@ -74,7 +74,7 @@ public sealed class StorageGuardClauseTests
     public async Task Public_guard_clauses_throw_for_null_inputs()
     {
         var repository = new SessionCatalogRepository(Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db"));
-        var previewTarget = new SessionPhysicalCopy("session-1", @"C:\tmp\session-1.jsonl", SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false));
+        var previewTarget = new SessionPhysicalCopy("session-1", Path.Combine(Path.GetTempPath(), "session-1.jsonl"), SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false));
 
         await Assert.ThrowsAsync<ArgumentException>(() => SessionJsonlParser.ParseAsync(null!, CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentNullException>(() => SessionDiscoveryService.DiscoverAsync(null!, CancellationToken.None));
@@ -91,13 +91,12 @@ public sealed class StorageGuardClauseTests
     public async Task Private_guard_clauses_throw_for_null_inputs()
     {
         var emptyElement = JsonDocument.Parse("{}").RootElement.Clone();
-        var state = Activator.CreateInstance(ParseStateType)!;
         var filePaths = new HashSet<string>(StringComparer.Ordinal);
         var urls = new HashSet<string>(StringComparer.Ordinal);
         var repositorySession = new IndexedLogicalSession(
             "session-1",
             "Thread",
-            new SessionPhysicalCopy("session-1", @"C:\tmp\session-1.jsonl", SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false)),
+            new SessionPhysicalCopy("session-1", Path.Combine(Path.GetTempPath(), "session-1.jsonl"), SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false)),
             [],
             new SessionSearchDocument());
 
@@ -155,7 +154,7 @@ public sealed class StorageGuardClauseTests
         var session = new IndexedLogicalSession(
             "session-branch",
             "Thread",
-            new SessionPhysicalCopy("session-branch", @"C:\tmp\session-branch.jsonl", SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false)),
+            new SessionPhysicalCopy("session-branch", Path.Combine(Path.GetTempPath(), "session-branch.jsonl"), SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false)),
             [],
             new SessionSearchDocument());
 
@@ -184,7 +183,7 @@ public sealed class StorageGuardClauseTests
     [Fact]
     public void MaintenancePlanner_handles_null_target_collections_and_private_null_candidate_guard()
     {
-        var request = new MaintenanceRequest(MaintenanceAction.Archive, [new SessionPhysicalCopy("session", @"C:\tmp\session.jsonl", SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false))], "ARCHIVE");
+        var request = new MaintenanceRequest(MaintenanceAction.Archive, [new SessionPhysicalCopy("session", Path.Combine(Path.GetTempPath(), "session.jsonl"), SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false))], "ARCHIVE");
         typeof(MaintenanceRequest).GetField("<Targets>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(request, null);
 
         var preview = MaintenancePlanner.CreatePreview(request);

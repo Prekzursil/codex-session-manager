@@ -8,9 +8,17 @@ public sealed record NormalizedSessionEvent
     public NormalizedSessionEvent(
         NormalizedEventKind kind,
         SessionActor actor,
+        string text)
+        : this(kind, actor, text, string.Empty, string.Empty)
+    {
+    }
+
+    public NormalizedSessionEvent(
+        NormalizedEventKind kind,
+        SessionActor actor,
         string text,
-        string? toolName = null,
-        string? rawPayload = null)
+        string toolName,
+        string rawPayload)
     {
         Kind = kind;
         Actor = actor;

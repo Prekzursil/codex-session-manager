@@ -5,7 +5,7 @@ using System.Globalization;
 
 namespace CodexSessionManager.Storage.Parsing;
 
-public static partial class SessionJsonlParser
+public static partial class SessionJsonlParser // NOSONAR - partial is required for GeneratedRegex members.
 {
     private static readonly Regex UrlRegex = UrlRegexFactory();
     private static readonly Regex FilePathRegex = FilePathRegexFactory();
