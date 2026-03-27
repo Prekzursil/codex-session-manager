@@ -408,8 +408,7 @@ public sealed class SessionCatalogRepository
 
     private async Task<SqliteConnection> OpenConnectionAsync(CancellationToken cancellationToken)
     {
-        var directoryPath = Path.GetDirectoryName(_databasePath);
-        Directory.CreateDirectory(string.IsNullOrWhiteSpace(directoryPath) ? "." : directoryPath);
+        Directory.CreateDirectory(Path.GetDirectoryName(_databasePath)!);
         var connection = new SqliteConnection($"Data Source={_databasePath};Pooling=False");
         await connection.OpenAsync(cancellationToken);
         return connection;
