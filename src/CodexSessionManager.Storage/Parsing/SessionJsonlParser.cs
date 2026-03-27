@@ -1,5 +1,4 @@
-// NOSONAR - CLSCompliant(false) is declared at assembly level for this project.
-using System.Text.Json; // NOSONAR - Codacy SonarC# S3990 false positive; assembly-level CLSCompliant(false) is already declared.
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using CodexSessionManager.Core.Transcripts;
 using System.Globalization;
@@ -8,7 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 namespace CodexSessionManager.Storage.Parsing;
 
 [SuppressMessage("Code Smell", "S2333", Justification = "GeneratedRegex members require the containing type to be partial.")]
-public static partial class SessionJsonlParser // NOSONAR - partial is required for GeneratedRegex members.
+public static partial class SessionJsonlParser
 {
     private static readonly Regex UrlRegex = UrlRegexFactory();
     private static readonly Regex FilePathRegex = FilePathRegexFactory();

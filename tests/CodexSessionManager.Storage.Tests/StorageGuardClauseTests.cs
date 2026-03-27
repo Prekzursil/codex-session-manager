@@ -1,5 +1,4 @@
-// NOSONAR - CLSCompliant(false) is declared at assembly level for this project.
-using System.Reflection; // NOSONAR - Codacy SonarC# S3990 false positive; assembly-level CLSCompliant(false) is already declared.
+using System.Reflection;
 using System.Text.Json;
 using CodexSessionManager.Core.Maintenance;
 using CodexSessionManager.Core.Sessions;

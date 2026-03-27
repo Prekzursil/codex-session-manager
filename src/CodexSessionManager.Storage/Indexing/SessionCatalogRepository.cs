@@ -1,5 +1,4 @@
-// NOSONAR - CLSCompliant(false) is declared at assembly level for this project.
-using CodexSessionManager.Core.Sessions; // NOSONAR - Codacy SonarC# S3990 false positive; assembly-level CLSCompliant(false) is already declared.
+using CodexSessionManager.Core.Sessions;
 using Microsoft.Data.Sqlite;
 using System.Globalization;
 
@@ -9,7 +8,6 @@ public sealed class SessionCatalogRepository
 {
     private const string SessionIdParameterName = "$sessionId";
     private const string DeleteSessionCopiesSql = "DELETE FROM session_copies WHERE session_id = $sessionId;";
-    private const string SelectSessionMetadataSql = "SELECT alias, tags, notes FROM sessions WHERE session_id = $sessionId;";
     private readonly string _databasePath;
 
     public SessionCatalogRepository(string databasePath)
@@ -22,7 +20,7 @@ public sealed class SessionCatalogRepository
         await using var connection = await OpenConnectionAsync(cancellationToken);
         await using (var createSessionsCommand = connection.CreateCommand())
         {
-            // nosemgrep: csharp.lang.security.sqli.csharp-sqli.csharp-sqli -- constant SQL schema text authored in-repo, not interpolated user input.
+
             createSessionsCommand.CommandText =
                 """
                 CREATE TABLE IF NOT EXISTS sessions (
@@ -47,7 +45,7 @@ public sealed class SessionCatalogRepository
 
         await using (var createCopiesCommand = connection.CreateCommand())
         {
-            // nosemgrep: csharp.lang.security.sqli.csharp-sqli.csharp-sqli -- constant SQL schema text authored in-repo, not interpolated user input.
+
             createCopiesCommand.CommandText =
                 """
                 CREATE TABLE IF NOT EXISTS session_copies (
@@ -65,7 +63,7 @@ public sealed class SessionCatalogRepository
 
         await using (var createSearchCommand = connection.CreateCommand())
         {
-            // nosemgrep: csharp.lang.security.sqli.csharp-sqli.csharp-sqli -- constant SQL schema text authored in-repo, not interpolated user input.
+
             createSearchCommand.CommandText =
                 """
                 CREATE VIRTUAL TABLE IF NOT EXISTS session_search
@@ -91,7 +89,7 @@ public sealed class SessionCatalogRepository
 
         await using (var command = connection.CreateCommand())
         {
-            // nosemgrep: csharp.lang.security.sqli.csharp-sqli.csharp-sqli -- constant SQL statement authored in-repo, values supplied through parameters.
+
             command.CommandText =
                 """
                 INSERT INTO sessions(session_id, thread_name, preferred_path, readable_transcript, dialogue_transcript, tool_summary, command_text, file_paths, urls, error_text, alias, tags, notes, combined_text)
@@ -130,7 +128,7 @@ public sealed class SessionCatalogRepository
 
         await using (var deleteCopies = connection.CreateCommand())
         {
-            // nosemgrep: csharp.lang.security.sqli.csharp-sqli.csharp-sqli -- constant SQL text, parameter bound separately via SqliteParameter.
+
             deleteCopies.CommandText = DeleteSessionCopiesSql;
             deleteCopies.Parameters.AddWithValue(SessionIdParameterName, session.SessionId);
             await deleteCopies.ExecuteNonQueryAsync(cancellationToken);
@@ -170,7 +168,7 @@ public sealed class SessionCatalogRepository
 
         await using var connection = await OpenConnectionAsync(cancellationToken);
         await using var command = connection.CreateCommand();
-        // nosemgrep: csharp.lang.security.sqli.csharp-sqli.csharp-sqli -- constant SQL statement authored in-repo, values supplied through parameters.
+
         command.CommandText =
             """
             SELECT s.session_id, s.thread_name, s.preferred_path, coalesce(snippet(session_search, 1, '[', ']', '...', 10), '') AS snippet
@@ -233,7 +231,7 @@ public sealed class SessionCatalogRepository
         var copiesBySession = new Dictionary<string, List<SessionPhysicalCopy>>(StringComparer.Ordinal);
         await using (var copiesCommand = connection.CreateCommand())
         {
-            // nosemgrep: csharp.lang.security.sqli.csharp-sqli.csharp-sqli -- constant SQL statement authored in-repo, no string interpolation.
+
             copiesCommand.CommandText =
                 """
                 SELECT session_id, file_path, store_kind, last_write_utc, file_size_bytes, is_hot
@@ -265,7 +263,7 @@ public sealed class SessionCatalogRepository
         var sessions = new List<IndexedLogicalSession>();
         await using (var sessionCommand = connection.CreateCommand())
         {
-            // nosemgrep: csharp.lang.security.sqli.csharp-sqli.csharp-sqli -- constant SQL statement authored in-repo, no string interpolation.
+
             sessionCommand.CommandText =
                 """
                 SELECT session_id, thread_name, preferred_path, readable_transcript, dialogue_transcript, tool_summary, command_text, file_paths, urls, error_text, alias, tags, notes
@@ -325,8 +323,13 @@ public sealed class SessionCatalogRepository
         }
 
         await using var command = connection.CreateCommand();
-        // nosemgrep: csharp.lang.security.sqli.csharp-sqli.csharp-sqli -- constant SQL text, parameter bound separately via SqliteParameter.
-        command.CommandText = SelectSessionMetadataSql;
+
+        command.CommandText =
+            """
+            SELECT alias, tags, notes
+            FROM sessions
+            WHERE session_id = $sessionId;
+            """;
         command.Parameters.AddWithValue(SessionIdParameterName, session.SessionId);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))
@@ -352,13 +355,13 @@ public sealed class SessionCatalogRepository
 
         await using (var deleteCommand = connection.CreateCommand())
         {
-            // nosemgrep: csharp.lang.security.sqli.csharp-sqli.csharp-sqli -- constant SQL maintenance statement authored in-repo.
+
             deleteCommand.CommandText = "DELETE FROM session_search;";
             await deleteCommand.ExecuteNonQueryAsync(cancellationToken);
         }
 
         await using var insertCommand = connection.CreateCommand();
-        // nosemgrep: csharp.lang.security.sqli.csharp-sqli.csharp-sqli -- constant SQL maintenance statement authored in-repo.
+
         insertCommand.CommandText =
             """
             INSERT INTO session_search(session_id, combined_text)
@@ -382,7 +385,7 @@ public sealed class SessionCatalogRepository
 
         await using (var deleteCommand = connection.CreateCommand())
         {
-            // nosemgrep: csharp.lang.security.sqli.csharp-sqli.csharp-sqli -- constant SQL maintenance statement authored in-repo, value supplied through parameter.
+
             deleteCommand.CommandText = "DELETE FROM session_search WHERE session_id = $sessionId;";
             deleteCommand.Parameters.AddWithValue(SessionIdParameterName, sessionId);
             await deleteCommand.ExecuteNonQueryAsync(cancellationToken);
@@ -390,7 +393,7 @@ public sealed class SessionCatalogRepository
 
         await using (var insertCommand = connection.CreateCommand())
         {
-            // nosemgrep: csharp.lang.security.sqli.csharp-sqli.csharp-sqli -- constant SQL maintenance statement authored in-repo, value supplied through parameter.
+
             insertCommand.CommandText =
                 """
                 INSERT INTO session_search(session_id, combined_text)
