@@ -8,7 +8,6 @@ public sealed class SessionCatalogRepository
 {
     private const string SessionIdParameterName = "$sessionId";
     private const string DeleteSessionCopiesSql = "DELETE FROM session_copies WHERE session_id = $sessionId;";
-    private const string SelectSessionMetadataSql = "SELECT alias, tags, notes FROM sessions WHERE session_id = $sessionId;";
     private readonly string _databasePath;
 
     public SessionCatalogRepository(string databasePath)
@@ -325,7 +324,12 @@ public sealed class SessionCatalogRepository
 
         await using var command = connection.CreateCommand();
 
-        command.CommandText = SelectSessionMetadataSql;
+        command.CommandText =
+            """
+            SELECT alias, tags, notes
+            FROM sessions
+            WHERE session_id = $sessionId;
+            """;
         command.Parameters.AddWithValue(SessionIdParameterName, session.SessionId);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))
