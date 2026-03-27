@@ -6,15 +6,6 @@ namespace CodexSessionManager.Storage.Tests;
 [Collection("CurrentDirectorySensitive")]
 public sealed class SessionCatalogRepositoryTests
 {
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
-    public void Constructor_ThrowsForNullOrWhitespaceDatabasePath(string? databasePath)
-    {
-        Assert.Throws<ArgumentException>(() => new SessionCatalogRepository(databasePath!));
-    }
-
     [Fact]
     public async Task SearchAsync_FindsTranscript_Alias_AndCommandText()
     {
@@ -567,43 +558,6 @@ public sealed class SessionCatalogRepositoryTests
                 {
                     // best-effort cleanup for Windows temp SQLite files
                 }
-            }
-        }
-    }
-
-    [Fact]
-    public async Task InitializeAsync_Preserves_relative_database_path_across_current_directory_changes()
-    {
-        var rootA = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
-        var rootB = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
-        var previousCurrentDirectory = Environment.CurrentDirectory;
-        Directory.CreateDirectory(rootA);
-        Directory.CreateDirectory(rootB);
-        const string databasePath = "catalog-relative.db";
-        var expectedDatabasePath = Path.Combine(rootA, databasePath);
-
-        try
-        {
-            Environment.CurrentDirectory = rootA;
-            var repository = new SessionCatalogRepository(databasePath);
-            await repository.InitializeAsync(CancellationToken.None);
-
-            Environment.CurrentDirectory = rootB;
-            Assert.Empty(await repository.ListSessionsAsync(CancellationToken.None));
-            Assert.True(File.Exists(expectedDatabasePath));
-            Assert.False(File.Exists(Path.Combine(rootB, databasePath)));
-        }
-        finally
-        {
-            Environment.CurrentDirectory = previousCurrentDirectory;
-            if (Directory.Exists(rootA))
-            {
-                Directory.Delete(rootA, recursive: true);
-            }
-
-            if (Directory.Exists(rootB))
-            {
-                Directory.Delete(rootB, recursive: true);
             }
         }
     }

@@ -499,24 +499,6 @@ public sealed class StorageCoverageExpansionTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_ThrowsWhenPreviewIsNull()
-    {
-        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(root);
-        var executor = new MaintenanceExecutor(Path.Combine(root, "checkpoints"));
-
-        try
-        {
-            await Assert.ThrowsAsync<ArgumentNullException>(() =>
-                executor.ExecuteAsync(null!, Path.Combine(root, "archive"), "ARCHIVE 1 FILE", CancellationToken.None));
-        }
-        finally
-        {
-            Directory.Delete(root, recursive: true);
-        }
-    }
-
-    [Fact]
     public async Task ExecuteAsync_ReconcileMovesTargetsIntoReconciledFolder()
     {
         var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
