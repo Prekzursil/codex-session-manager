@@ -19,8 +19,8 @@ public sealed class SessionCatalogRepository
     public async Task InitializeAsync(CancellationToken cancellationToken)
     {
         await using var connection = await OpenConnectionAsync(cancellationToken);
-        var commands = new[]
-        {
+        await ExecuteSqlAsync(
+            connection,
             """
             CREATE TABLE IF NOT EXISTS sessions (
                 session_id TEXT PRIMARY KEY,
@@ -39,6 +39,9 @@ public sealed class SessionCatalogRepository
                 combined_text TEXT NOT NULL
             );
             """,
+            cancellationToken);
+        await ExecuteSqlAsync(
+            connection,
             """
             CREATE TABLE IF NOT EXISTS session_copies (
                 session_id TEXT NOT NULL,
@@ -50,25 +53,24 @@ public sealed class SessionCatalogRepository
                 PRIMARY KEY(session_id, file_path)
             );
             """,
+            cancellationToken);
+        await ExecuteSqlAsync(
+            connection,
             """
             CREATE VIRTUAL TABLE IF NOT EXISTS session_search
             USING fts5(session_id UNINDEXED, combined_text);
-            """
-        };
-
-        foreach (var sql in commands)
-        {
-            await using var command = connection.CreateCommand();
-            command.CommandText = sql;
-            await command.ExecuteNonQueryAsync(cancellationToken);
-        }
+            """,
+            cancellationToken);
 
         await RefreshSearchIndexAsync(connection, cancellationToken);
     }
 
     public async Task UpsertAsync(IndexedLogicalSession session, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(session);
+        if (session is null)
+        {
+            throw new ArgumentNullException(nameof(session));
+        }
 
         await using var connection = await OpenConnectionAsync(cancellationToken);
         var searchDocument = await MergeExistingMetadataAsync(connection, session, cancellationToken);
@@ -141,7 +143,10 @@ public sealed class SessionCatalogRepository
 
     public async Task<IReadOnlyList<SessionSearchHit>> SearchAsync(string query, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(query);
+        if (query is null)
+        {
+            throw new ArgumentNullException(nameof(query));
+        }
 
         if (string.IsNullOrWhiteSpace(query))
         {
@@ -173,8 +178,15 @@ public sealed class SessionCatalogRepository
 
     public async Task SaveMetadataAsync(string sessionId, string alias, IReadOnlyList<string> tags, string notes, CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
-        ArgumentNullException.ThrowIfNull(tags);
+        if (string.IsNullOrWhiteSpace(sessionId))
+        {
+            throw new ArgumentException("Value cannot be null or whitespace.", nameof(sessionId));
+        }
+
+        if (tags is null)
+        {
+            throw new ArgumentNullException(nameof(tags));
+        }
 
         await using var connection = await OpenConnectionAsync(cancellationToken);
         await using var command = connection.CreateCommand();
@@ -282,8 +294,15 @@ public sealed class SessionCatalogRepository
 
     private static async Task<SessionSearchDocument> MergeExistingMetadataAsync(SqliteConnection connection, IndexedLogicalSession session, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(connection);
-        ArgumentNullException.ThrowIfNull(session);
+        if (connection is null)
+        {
+            throw new ArgumentNullException(nameof(connection));
+        }
+
+        if (session is null)
+        {
+            throw new ArgumentNullException(nameof(session));
+        }
 
         await using var command = connection.CreateCommand();
         // nosemgrep: csharp.lang.security.sqli.csharp-sqli.csharp-sqli -- constant SQL text, parameter bound separately via SqliteParameter.
@@ -305,7 +324,10 @@ public sealed class SessionCatalogRepository
 
     private static async Task RefreshSearchIndexAsync(SqliteConnection connection, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(connection);
+        if (connection is null)
+        {
+            throw new ArgumentNullException(nameof(connection));
+        }
 
         await using (var deleteCommand = connection.CreateCommand())
         {
@@ -325,8 +347,15 @@ public sealed class SessionCatalogRepository
 
     private static async Task RefreshSearchRowAsync(SqliteConnection connection, string sessionId, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(connection);
-        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+        if (connection is null)
+        {
+            throw new ArgumentNullException(nameof(connection));
+        }
+
+        if (string.IsNullOrWhiteSpace(sessionId))
+        {
+            throw new ArgumentException("Value cannot be null or whitespace.", nameof(sessionId));
+        }
 
         await using (var deleteCommand = connection.CreateCommand())
         {
@@ -360,7 +389,11 @@ public sealed class SessionCatalogRepository
 
     private static IReadOnlyList<string> SplitLines(string value)
     {
-        ArgumentNullException.ThrowIfNull(value);
+        if (value is null)
+        {
+            throw new ArgumentNullException(nameof(value));
+        }
+
         return string.IsNullOrWhiteSpace(value)
             ? []
             : value.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -368,7 +401,11 @@ public sealed class SessionCatalogRepository
 
     private static string ToFtsQuery(string query)
     {
-        ArgumentNullException.ThrowIfNull(query);
+        if (query is null)
+        {
+            throw new ArgumentNullException(nameof(query));
+        }
+
         return string.Join(
             " AND ",
             query
@@ -378,11 +415,21 @@ public sealed class SessionCatalogRepository
 
     private static string ToFtsToken(string token)
     {
-        ArgumentNullException.ThrowIfNull(token);
+        if (token is null)
+        {
+            throw new ArgumentNullException(nameof(token));
+        }
 
         var escaped = token.Replace("\"", "\"\"");
         return escaped.All(static ch => char.IsLetterOrDigit(ch) || ch == '_')
             ? $"{escaped}*"
             : $"\"{escaped}\"*";
+    }
+
+    private static async Task ExecuteSqlAsync(SqliteConnection connection, string commandText, CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = commandText;
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 }

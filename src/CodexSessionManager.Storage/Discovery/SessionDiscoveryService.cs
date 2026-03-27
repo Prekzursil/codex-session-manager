@@ -7,7 +7,10 @@ public static class SessionDiscoveryService
 {
     public static async Task<DiscoveredSessionCatalog> DiscoverAsync(IEnumerable<SessionStoreRoot> roots, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(roots);
+        if (roots is null)
+        {
+            throw new ArgumentNullException(nameof(roots));
+        }
 
         var stores = roots.Select(root =>
         {

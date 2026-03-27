@@ -12,7 +12,10 @@ public static partial class SessionJsonlParser
 
     public static async Task<ParsedSessionFile> ParseAsync(string filePath, CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            throw new ArgumentException("Value cannot be null or whitespace.", nameof(filePath));
+        }
 
         var lines = await File.ReadAllLinesAsync(filePath, cancellationToken);
         var state = new ParseState();
@@ -48,7 +51,10 @@ public static partial class SessionJsonlParser
 
     private static void ParseLine(JsonElement root, ParseState state)
     {
-        ArgumentNullException.ThrowIfNull(state);
+        if (state is null)
+        {
+            throw new ArgumentNullException(nameof(state));
+        }
 
         var type = root.GetProperty("type").GetString();
         switch (type)
@@ -66,7 +72,10 @@ public static partial class SessionJsonlParser
 
     private static void ParseSessionMetadata(JsonElement payload, ParseState state)
     {
-        ArgumentNullException.ThrowIfNull(state);
+        if (state is null)
+        {
+            throw new ArgumentNullException(nameof(state));
+        }
 
         state.SessionId ??= TryGetString(payload, "id");
         state.ForkedFromId ??= TryGetString(payload, "forked_from_id");
@@ -82,7 +91,10 @@ public static partial class SessionJsonlParser
 
     private static void ParseResponseItem(JsonElement payload, ParseState state)
     {
-        ArgumentNullException.ThrowIfNull(state);
+        if (state is null)
+        {
+            throw new ArgumentNullException(nameof(state));
+        }
 
         var payloadType = TryGetString(payload, "type");
         switch (payloadType)
@@ -103,7 +115,10 @@ public static partial class SessionJsonlParser
 
     private static void ParseMessage(JsonElement payload, ParseState state)
     {
-        ArgumentNullException.ThrowIfNull(state);
+        if (state is null)
+        {
+            throw new ArgumentNullException(nameof(state));
+        }
 
         if (!payload.TryGetProperty("content", out var contentElement)
             || contentElement.ValueKind is not JsonValueKind.Array)
@@ -127,7 +142,10 @@ public static partial class SessionJsonlParser
 
     private static void ParseFunctionCall(JsonElement payload, ParseState state)
     {
-        ArgumentNullException.ThrowIfNull(state);
+        if (state is null)
+        {
+            throw new ArgumentNullException(nameof(state));
+        }
 
         var toolName = TryGetString(payload, "name") ?? "unknown_tool";
         var rawArguments = TryGetString(payload, "arguments") ?? string.Empty;
@@ -144,7 +162,10 @@ public static partial class SessionJsonlParser
 
     private static void ParseFunctionCallOutput(JsonElement payload, ParseState state)
     {
-        ArgumentNullException.ThrowIfNull(state);
+        if (state is null)
+        {
+            throw new ArgumentNullException(nameof(state));
+        }
 
         var outputText = TryGetString(payload, "output") ?? string.Empty;
         var toolName = TryGetString(payload, "name") ?? "tool";
@@ -160,7 +181,10 @@ public static partial class SessionJsonlParser
 
     private static string? TryGetString(JsonElement element, string propertyName)
     {
-        ArgumentNullException.ThrowIfNull(propertyName);
+        if (propertyName is null)
+        {
+            throw new ArgumentNullException(nameof(propertyName));
+        }
 
         if (!element.TryGetProperty(propertyName, out var propertyElement))
         {
@@ -197,7 +221,10 @@ public static partial class SessionJsonlParser
 
     private static string? TryExtractCommand(string rawArguments)
     {
-        ArgumentNullException.ThrowIfNull(rawArguments);
+        if (rawArguments is null)
+        {
+            throw new ArgumentNullException(nameof(rawArguments));
+        }
 
         if (string.IsNullOrWhiteSpace(rawArguments))
         {
@@ -212,8 +239,15 @@ public static partial class SessionJsonlParser
 
     private static void ExtractFilePathsAndUrls(string value, ISet<string> filePaths, ISet<string> urls)
     {
-        ArgumentNullException.ThrowIfNull(filePaths);
-        ArgumentNullException.ThrowIfNull(urls);
+        if (filePaths is null)
+        {
+            throw new ArgumentNullException(nameof(filePaths));
+        }
+
+        if (urls is null)
+        {
+            throw new ArgumentNullException(nameof(urls));
+        }
 
         foreach (Match match in UrlRegex.Matches(value))
         {
@@ -228,7 +262,10 @@ public static partial class SessionJsonlParser
 
     private static bool TryExtractExitCode(string text, out int exitCode)
     {
-        ArgumentNullException.ThrowIfNull(text);
+        if (text is null)
+        {
+            throw new ArgumentNullException(nameof(text));
+        }
 
         exitCode = 0;
         if (string.IsNullOrWhiteSpace(text))
