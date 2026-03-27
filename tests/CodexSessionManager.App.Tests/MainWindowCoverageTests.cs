@@ -78,6 +78,14 @@ public sealed class MainWindowCoverageTests
     private static readonly MethodInfo SearchSessionsAsyncMethod =
         typeof(MainWindow).GetMethod("SearchSessionsAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
 
+    private static readonly MethodInfo ApplySearchResultsAsyncMethod =
+        typeof(MainWindow).GetMethods(BindingFlags.NonPublic | BindingFlags.Instance)
+            .Single(method => method.Name == "ApplySearchResultsAsync" && method.GetParameters().Length == 2);
+
+    private static readonly MethodInfo ReloadSessionsForSearchAsyncMethod =
+        typeof(MainWindow).GetMethods(BindingFlags.NonPublic | BindingFlags.Instance)
+            .Single(method => method.Name == "ReloadSessionsForSearchAsync" && method.GetParameters().Length == 2);
+
     private static readonly MethodInfo SaveSelectedMetadataAsyncMethod =
         typeof(MainWindow).GetMethod("SaveSelectedMetadataAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
 
@@ -281,6 +289,34 @@ public sealed class MainWindowCoverageTests
 
             Assert.Equal("Value from background", value);
             window.Close();
+        });
+    }
+
+    [Fact]
+    public async Task App_helper_methods_throw_for_null_inputs()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var window = new MainWindow();
+
+            var actionException = Assert.Throws<TargetInvocationException>(() =>
+                RunOnUiThreadAsyncMethod.Invoke(window, [null!]));
+            Assert.IsType<ArgumentNullException>(actionException.InnerException);
+
+            var funcException = Assert.Throws<TargetInvocationException>(() =>
+                RunOnUiThreadValueAsyncMethod.Invoke(window, [null!]));
+            Assert.IsType<ArgumentNullException>(funcException.InnerException);
+
+            var sqlitePathException = Assert.Throws<TargetInvocationException>(() =>
+                DescribeSqlitePathMethod.Invoke(null, [null!, null]));
+            Assert.IsType<ArgumentNullException>(sqlitePathException.InnerException);
+
+            var sqliteInputsException = Assert.Throws<TargetInvocationException>(() =>
+                GetLiveSqliteStatusWithInputsMethod.Invoke(null, [null!, null!]));
+            Assert.IsType<ArgumentNullException>(sqliteInputsException.InnerException);
+
+            window.Close();
+            await Task.CompletedTask;
         });
     }
 
@@ -584,7 +620,7 @@ public sealed class MainWindowCoverageTests
         {
             var window = new MainWindow();
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() => InvokePrivateTask(window, typeof(MainWindow).GetMethod("ApplySearchResultsAsync", BindingFlags.NonPublic | BindingFlags.Instance)!, "query", CancellationToken.None));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => InvokePrivateTask(window, ApplySearchResultsAsyncMethod, "query", CancellationToken.None));
 
             window.Close();
         });
@@ -604,7 +640,7 @@ public sealed class MainWindowCoverageTests
 
                 RepositoryField.SetValue(window, repository);
 
-                await InvokePrivateTask(window, typeof(MainWindow).GetMethod("ApplySearchResultsAsync", BindingFlags.NonPublic | BindingFlags.Instance)!, null!, CancellationToken.None);
+                await InvokePrivateTask(window, ApplySearchResultsAsyncMethod, null!, CancellationToken.None);
 
                 Assert.Contains("Search returned", GetNamedField<TextBlock>(window, "StatusTextBlock").Text, StringComparison.Ordinal);
             }
@@ -773,6 +809,73 @@ public sealed class MainWindowCoverageTests
 
                 window.Close();
                 Assert.Null(SearchCtsField.GetValue(window));
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task SearchSessionsAsync_returns_without_repository()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var window = new MainWindow();
+            GetNamedField<TextBlock>(window, "StatusTextBlock").Text = "idle";
+
+            await InvokePrivateTask(window, SearchSessionsAsyncMethod);
+
+            Assert.Equal("idle", GetNamedField<TextBlock>(window, "StatusTextBlock").Text);
+            Assert.Empty(GetNamedField<ListBox>(window, "SessionsListBox").Items);
+        });
+    }
+
+    [Fact]
+    public async Task ReloadSessionsForSearchAsync_skips_ui_updates_when_search_is_already_cancelled()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var root = CreateTempDirectory();
+            try
+            {
+                var session = BuildIndexedSession("session-reload-cancel", "Reload Cancel", WriteSessionJsonl(root, "session-reload-cancel", "Reload Cancel"));
+                var repository = CreateRepository(root, session);
+                var window = new MainWindow();
+                GetNamedField<TextBlock>(window, "StatusTextBlock").Text = "unchanged";
+
+                using var searchCts = new CancellationTokenSource();
+                searchCts.Cancel();
+
+                await InvokePrivateTask(window, ReloadSessionsForSearchAsyncMethod, repository, searchCts.Token);
+
+                Assert.Equal("unchanged", GetNamedField<TextBlock>(window, "StatusTextBlock").Text);
+                Assert.Empty(GetNamedField<ListBox>(window, "SessionsListBox").Items);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task ReloadSessionsForSearchAsync_loads_sessions_for_non_cancelable_token()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var root = CreateTempDirectory();
+            try
+            {
+                var session = BuildIndexedSession("session-reload-open", "Reload Open", WriteSessionJsonl(root, "session-reload-open", "Reload Open"));
+                var repository = CreateRepository(root, session);
+                var window = new MainWindow();
+
+                await InvokePrivateTask(window, ReloadSessionsForSearchAsyncMethod, repository, CancellationToken.None);
+
+                Assert.Single(GetNamedField<ListBox>(window, "SessionsListBox").Items);
+                Assert.Contains("Loaded 1 sessions", GetNamedField<TextBlock>(window, "StatusTextBlock").Text, StringComparison.Ordinal);
             }
             finally
             {
@@ -1130,6 +1233,76 @@ public sealed class MainWindowCoverageTests
 
             Assert.NotNull(createdDialog);
             Assert.Null(exportPath);
+            window.Close();
+        });
+    }
+
+    [Fact]
+    public void SelectExportPath_sanitizes_the_default_file_name()
+    {
+        RunInSta(() =>
+        {
+            var window = new MainWindow();
+            SaveFileDialog? createdDialog = null;
+
+            SetProvider(window, "SaveFileDialogFactory", (Func<SaveFileDialog>)(() => createdDialog = new SaveFileDialog()));
+            SetProvider(window, "SaveFileDialogPresenter", (Func<SaveFileDialog, Window, bool?>)((dialog, _) =>
+            {
+                dialog.FileName = dialog.FileName;
+                return false;
+            }));
+
+            var exportSelector = (Delegate)typeof(MainWindow)
+                .GetProperty("ExportPathSelector", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .GetValue(window)!;
+            _ = (string?)exportSelector.DynamicInvoke(@"..\unsafe\session-2.md");
+
+            Assert.NotNull(createdDialog);
+            Assert.Equal("session-2.md", createdDialog!.FileName);
+            window.Close();
+        });
+    }
+
+    [Fact]
+    public void SelectExportPath_uses_session_default_when_file_name_is_missing()
+    {
+        RunInSta(() =>
+        {
+            var window = new MainWindow();
+            SaveFileDialog? createdDialog = null;
+
+            SetProvider(window, "SaveFileDialogFactory", (Func<SaveFileDialog>)(() => createdDialog = new SaveFileDialog()));
+            SetProvider(window, "SaveFileDialogPresenter", (Func<SaveFileDialog, Window, bool?>)((_, _) => false));
+
+            var exportSelector = (Delegate)typeof(MainWindow)
+                .GetProperty("ExportPathSelector", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .GetValue(window)!;
+            _ = (string?)exportSelector.DynamicInvoke([null]);
+
+            Assert.NotNull(createdDialog);
+            Assert.Equal("session.md", createdDialog!.FileName);
+            window.Close();
+        });
+    }
+
+    [Fact]
+    public void SelectExportPath_uses_session_default_when_file_name_resolves_to_empty()
+    {
+        RunInSta(() =>
+        {
+            var window = new MainWindow();
+            SaveFileDialog? createdDialog = null;
+
+            SetProvider(window, "SaveFileDialogFactory", (Func<SaveFileDialog>)(() => createdDialog = new SaveFileDialog()));
+            SetProvider(window, "SaveFileDialogPresenter", (Func<SaveFileDialog, Window, bool?>)((_, _) => false));
+
+            var exportSelector = (Delegate)typeof(MainWindow)
+                .GetProperty("ExportPathSelector", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .GetValue(window)!;
+            _ = (string?)exportSelector.DynamicInvoke(@"C:\unsafe\");
+
+            Assert.NotNull(createdDialog);
+            Assert.Equal("session.md", createdDialog!.FileName);
             window.Close();
         });
     }

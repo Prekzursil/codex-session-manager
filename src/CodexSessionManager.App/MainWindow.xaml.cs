@@ -131,15 +131,19 @@ public partial class MainWindow : Window
 
     private async Task RefreshAsync(bool deepScan)
     {
-        if (_repository is null || _workspaceIndexer is null)
+        var repository = _repository;
+        var workspaceIndexer = _workspaceIndexer;
+        if (repository is null || workspaceIndexer is null)
         {
             return;
         }
 
         await RunOnUiThreadAsync(() => StatusTextBlock.Text = deepScan ? "Running deep scan…" : "Refreshing known stores…");
 
-        var knownStores = KnownStoresProvider(deepScan);
-        await _workspaceIndexer.RebuildAsync(knownStores, CancellationToken.None);
+        var knownStoresProvider = KnownStoresProvider;
+        ArgumentNullException.ThrowIfNull(knownStoresProvider);
+        var knownStores = knownStoresProvider(deepScan);
+        await workspaceIndexer.RebuildAsync(knownStores, CancellationToken.None);
         await LoadSessionsFromCatalogAsync();
 
         await RunOnUiThreadAsync(() =>
@@ -150,32 +154,47 @@ public partial class MainWindow : Window
 
     private Task RunOnUiThreadAsync(Action action)
     {
-        if (Dispatcher.CheckAccess())
+        ArgumentNullException.ThrowIfNull(action);
+
+        var dispatcher = Dispatcher;
+        if (dispatcher.CheckAccess())
         {
             action();
             return Task.CompletedTask;
         }
 
-        return Dispatcher.InvokeAsync(action).Task;
+        return dispatcher.InvokeAsync(action).Task;
     }
 
     private Task<T> RunOnUiThreadValueAsync<T>(Func<T> func)
     {
-        if (Dispatcher.CheckAccess())
+        ArgumentNullException.ThrowIfNull(func);
+
+        var dispatcher = Dispatcher;
+        if (dispatcher.CheckAccess())
         {
             return Task.FromResult(func());
         }
 
-        return Dispatcher.InvokeAsync(func).Task;
+        return dispatcher.InvokeAsync(func).Task;
     }
 
     private string? SelectExportPath(string defaultFileName)
     {
         var dialog = SaveFileDialogFactory();
 
-        dialog.FileName = defaultFileName;
+        dialog.FileName = GetSafeExportFileName(defaultFileName);
         dialog.Filter = "Markdown (*.md)|*.md|Text (*.txt)|*.txt|JSON (*.json)|*.json";
         return SaveFileDialogPresenter(dialog, this) == true ? dialog.FileName : null;
+    }
+
+    private static string GetSafeExportFileName(string? defaultFileName)
+    {
+        var fileName = string.IsNullOrWhiteSpace(defaultFileName)
+            ? "session.md"
+            : Path.GetFileName(defaultFileName);
+
+        return string.IsNullOrWhiteSpace(fileName) ? "session.md" : fileName;
     }
 
     private static IReadOnlyList<KnownSessionStore> BuildKnownStores(bool deepScan)
@@ -385,9 +404,13 @@ public partial class MainWindow : Window
 
     internal static string? DescribeSqlitePath(string path, Func<string, FileInfo>? fileInfoFactory = null)
     {
+        ArgumentNullException.ThrowIfNull(path);
+
         try
         {
-            var info = (fileInfoFactory ?? (static filePath => new FileInfo(filePath)))(path);
+            var info = fileInfoFactory is null
+                ? new FileInfo(path)
+                : fileInfoFactory(path);
             if (!info.Exists)
             {
                 return null;
@@ -419,13 +442,25 @@ public partial class MainWindow : Window
 
     private static string GetLiveSqliteStatus(IEnumerable<string> sqlitePaths, Func<string, string?> describeSqlitePath)
     {
-        var details = sqlitePaths
-            .Select(describeSqlitePath)
-            .Where(detail => detail is not null)
-            .Cast<string>()
-            .ToArray();
+        ArgumentNullException.ThrowIfNull(sqlitePaths);
+        ArgumentNullException.ThrowIfNull(describeSqlitePath);
 
-        return details.Length == 0
+        var details = new List<string>();
+        foreach (var sqlitePath in sqlitePaths)
+        {
+            if (string.IsNullOrWhiteSpace(sqlitePath))
+            {
+                continue;
+            }
+
+            var detail = describeSqlitePath(sqlitePath);
+            if (!string.IsNullOrWhiteSpace(detail))
+            {
+                details.Add(detail);
+            }
+        }
+
+        return details.Count == 0
             ? "No live SQLite store detected."
             : string.Join(Environment.NewLine, details);
     }
