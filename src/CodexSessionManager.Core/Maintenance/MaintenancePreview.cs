@@ -6,53 +6,38 @@ namespace CodexSessionManager.Core.Maintenance;
 [ExcludeFromCodeCoverage]
 public sealed record MaintenancePreview
 {
-    public MaintenancePreview(
-        MaintenanceAction Action,
-        IReadOnlyList<SessionPhysicalCopy> AllowedTargets,
-        IReadOnlyList<SessionPhysicalCopy> BlockedTargets,
-        IReadOnlyList<MaintenanceWarning> Warnings,
-        bool RequiresCheckpoint,
-        bool RequiresTypedConfirmation,
-        string RequiredTypedConfirmation)
-    {
-        this.Action = Action;
-        this.AllowedTargets = AllowedTargets ?? throw new ArgumentNullException(nameof(AllowedTargets));
-        this.BlockedTargets = BlockedTargets ?? throw new ArgumentNullException(nameof(BlockedTargets));
-        this.Warnings = Warnings ?? throw new ArgumentNullException(nameof(Warnings));
-        this.RequiresCheckpoint = RequiresCheckpoint;
-        this.RequiresTypedConfirmation = RequiresTypedConfirmation;
-        this.RequiredTypedConfirmation = RequiredTypedConfirmation ?? throw new ArgumentNullException(nameof(RequiredTypedConfirmation));
-    }
+    private IReadOnlyList<SessionPhysicalCopy> _allowedTargets = [];
+    private IReadOnlyList<SessionPhysicalCopy> _blockedTargets = [];
+    private IReadOnlyList<MaintenanceWarning> _warnings = [];
+    private string _requiredTypedConfirmation = string.Empty;
 
     public MaintenanceAction Action { get; init; }
 
-    public IReadOnlyList<SessionPhysicalCopy> AllowedTargets { get; init; }
+    public required IReadOnlyList<SessionPhysicalCopy> AllowedTargets
+    {
+        get => _allowedTargets;
+        init => _allowedTargets = value ?? throw new ArgumentNullException(nameof(AllowedTargets));
+    }
 
-    public IReadOnlyList<SessionPhysicalCopy> BlockedTargets { get; init; }
+    public required IReadOnlyList<SessionPhysicalCopy> BlockedTargets
+    {
+        get => _blockedTargets;
+        init => _blockedTargets = value ?? throw new ArgumentNullException(nameof(BlockedTargets));
+    }
 
-    public IReadOnlyList<MaintenanceWarning> Warnings { get; init; }
+    public required IReadOnlyList<MaintenanceWarning> Warnings
+    {
+        get => _warnings;
+        init => _warnings = value ?? throw new ArgumentNullException(nameof(Warnings));
+    }
 
     public bool RequiresCheckpoint { get; init; }
 
     public bool RequiresTypedConfirmation { get; init; }
 
-    public string RequiredTypedConfirmation { get; init; }
-
-    public void Deconstruct(
-        out MaintenanceAction Action,
-        out IReadOnlyList<SessionPhysicalCopy> AllowedTargets,
-        out IReadOnlyList<SessionPhysicalCopy> BlockedTargets,
-        out IReadOnlyList<MaintenanceWarning> Warnings,
-        out bool RequiresCheckpoint,
-        out bool RequiresTypedConfirmation,
-        out string RequiredTypedConfirmation)
+    public required string RequiredTypedConfirmation
     {
-        Action = this.Action;
-        AllowedTargets = this.AllowedTargets;
-        BlockedTargets = this.BlockedTargets;
-        Warnings = this.Warnings;
-        RequiresCheckpoint = this.RequiresCheckpoint;
-        RequiresTypedConfirmation = this.RequiresTypedConfirmation;
-        RequiredTypedConfirmation = this.RequiredTypedConfirmation;
+        get => _requiredTypedConfirmation;
+        init => _requiredTypedConfirmation = value ?? throw new ArgumentNullException(nameof(RequiredTypedConfirmation));
     }
 }

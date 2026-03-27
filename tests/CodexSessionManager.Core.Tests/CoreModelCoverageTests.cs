@@ -9,17 +9,19 @@ public sealed class CoreModelCoverageTests
     [Fact]
     public void SessionSearchDocument_CombinedText_JoinsAllNonEmptySegments()
     {
-        var document = new SessionSearchDocument(
-            ReadableTranscript: "Readable transcript",
-            DialogueTranscript: "Dialogue transcript",
-            ToolSummary: "Tool summary",
-            CommandText: "dotnet test",
-            FilePaths: ["src/File.cs", "tests/FileTests.cs"],
-            Urls: ["https://example.com/doc"],
-            ErrorText: "",
-            Alias: "Session Alias",
-            Tags: ["ops", "wpf"],
-            Notes: "Session note");
+        var document = new SessionSearchDocument
+        {
+            ReadableTranscript = "Readable transcript",
+            DialogueTranscript = "Dialogue transcript",
+            ToolSummary = "Tool summary",
+            CommandText = "dotnet test",
+            FilePaths = ["src/File.cs", "tests/FileTests.cs"],
+            Urls = ["https://example.com/doc"],
+            ErrorText = "",
+            Alias = "Session Alias",
+            Tags = ["ops", "wpf"],
+            Notes = "Session note"
+        };
 
         Assert.Equal(
             string.Join(
@@ -56,18 +58,20 @@ public sealed class CoreModelCoverageTests
             ThreadName: logical.ThreadName ?? string.Empty,
             PreferredCopy: copy,
             PhysicalCopies: [copy],
-            SearchDocument: new SessionSearchDocument("", "", "", "", [], [], "", "", [], ""));
+            SearchDocument: new SessionSearchDocument());
         var searchHit = new SessionSearchHit("session-42", "Thread", copy.FilePath, "snippet", 0.75);
 
         var warning = new MaintenanceWarning(MaintenanceWarningSeverity.Review, "Needs attention");
-        var preview = new MaintenancePreview(
-            Action: MaintenanceAction.Reconcile,
-            AllowedTargets: [copy],
-            BlockedTargets: [],
-            Warnings: [warning],
-            RequiresCheckpoint: true,
-            RequiresTypedConfirmation: true,
-            RequiredTypedConfirmation: "RECONCILE");
+        var preview = new MaintenancePreview
+        {
+            Action = MaintenanceAction.Reconcile,
+            AllowedTargets = [copy],
+            BlockedTargets = [],
+            Warnings = [warning],
+            RequiresCheckpoint = true,
+            RequiresTypedConfirmation = true,
+            RequiredTypedConfirmation = "RECONCILE"
+        };
         var request = new MaintenanceRequest(MaintenanceAction.Delete, [copy], "DELETE");
 
         Assert.Equal("session-42", copy.SessionId);
@@ -82,14 +86,13 @@ public sealed class CoreModelCoverageTests
         Assert.Equal(indexed, indexed with { });
         Assert.Equal(MaintenanceAction.Reconcile, preview.Action);
         Assert.NotEqual(preview, preview with { RequiredTypedConfirmation = "UPDATED" });
-        var (previewAction, allowedTargets, blockedTargets, warnings, requiresCheckpoint, requiresTypedConfirmation, requiredTypedConfirmation) = preview;
-        Assert.Equal(MaintenanceAction.Reconcile, previewAction);
-        Assert.Equal(copy, Assert.Single(allowedTargets));
-        Assert.Empty(blockedTargets);
-        Assert.Equal(warning, Assert.Single(warnings));
-        Assert.True(requiresCheckpoint);
-        Assert.True(requiresTypedConfirmation);
-        Assert.Equal("RECONCILE", requiredTypedConfirmation);
+        Assert.Equal(MaintenanceAction.Reconcile, preview.Action);
+        Assert.Equal(copy, Assert.Single(preview.AllowedTargets));
+        Assert.Empty(preview.BlockedTargets);
+        Assert.Equal(warning, Assert.Single(preview.Warnings));
+        Assert.True(preview.RequiresCheckpoint);
+        Assert.True(preview.RequiresTypedConfirmation);
+        Assert.Equal("RECONCILE", preview.RequiredTypedConfirmation);
         Assert.Equal(MaintenanceWarningSeverity.Review, warning.Severity);
         Assert.Contains("MaintenanceWarning", warning.ToString());
         Assert.Equal("DELETE", request.TypedConfirmation);

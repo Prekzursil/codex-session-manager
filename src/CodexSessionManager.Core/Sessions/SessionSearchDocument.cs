@@ -5,49 +5,76 @@ namespace CodexSessionManager.Core.Sessions;
 [ExcludeFromCodeCoverage]
 public sealed record SessionSearchDocument
 {
-    public SessionSearchDocument(
-        string ReadableTranscript,
-        string DialogueTranscript,
-        string ToolSummary,
-        string CommandText,
-        IReadOnlyList<string> FilePaths,
-        IReadOnlyList<string> Urls,
-        string ErrorText,
-        string Alias,
-        IReadOnlyList<string> Tags,
-        string Notes)
+    private string _readableTranscript = string.Empty;
+    private string _dialogueTranscript = string.Empty;
+    private string _toolSummary = string.Empty;
+    private string _commandText = string.Empty;
+    private IReadOnlyList<string> _filePaths = Array.Empty<string>();
+    private IReadOnlyList<string> _urls = Array.Empty<string>();
+    private string _errorText = string.Empty;
+    private string _alias = string.Empty;
+    private IReadOnlyList<string> _tags = Array.Empty<string>();
+    private string _notes = string.Empty;
+
+    public string ReadableTranscript
     {
-        this.ReadableTranscript = ReadableTranscript ?? string.Empty;
-        this.DialogueTranscript = DialogueTranscript ?? string.Empty;
-        this.ToolSummary = ToolSummary ?? string.Empty;
-        this.CommandText = CommandText ?? string.Empty;
-        this.FilePaths = FilePaths ?? Array.Empty<string>();
-        this.Urls = Urls ?? Array.Empty<string>();
-        this.ErrorText = ErrorText ?? string.Empty;
-        this.Alias = Alias ?? string.Empty;
-        this.Tags = Tags ?? Array.Empty<string>();
-        this.Notes = Notes ?? string.Empty;
+        get => _readableTranscript;
+        init => _readableTranscript = value ?? string.Empty;
     }
 
-    public string ReadableTranscript { get; init; }
+    public string DialogueTranscript
+    {
+        get => _dialogueTranscript;
+        init => _dialogueTranscript = value ?? string.Empty;
+    }
 
-    public string DialogueTranscript { get; init; }
+    public string ToolSummary
+    {
+        get => _toolSummary;
+        init => _toolSummary = value ?? string.Empty;
+    }
 
-    public string ToolSummary { get; init; }
+    public string CommandText
+    {
+        get => _commandText;
+        init => _commandText = value ?? string.Empty;
+    }
 
-    public string CommandText { get; init; }
+    public IReadOnlyList<string> FilePaths
+    {
+        get => _filePaths;
+        init => _filePaths = value ?? Array.Empty<string>();
+    }
 
-    public IReadOnlyList<string> FilePaths { get; init; }
+    public IReadOnlyList<string> Urls
+    {
+        get => _urls;
+        init => _urls = value ?? Array.Empty<string>();
+    }
 
-    public IReadOnlyList<string> Urls { get; init; }
+    public string ErrorText
+    {
+        get => _errorText;
+        init => _errorText = value ?? string.Empty;
+    }
 
-    public string ErrorText { get; init; }
+    public string Alias
+    {
+        get => _alias;
+        init => _alias = value ?? string.Empty;
+    }
 
-    public string Alias { get; init; }
+    public IReadOnlyList<string> Tags
+    {
+        get => _tags;
+        init => _tags = value ?? Array.Empty<string>();
+    }
 
-    public IReadOnlyList<string> Tags { get; init; }
-
-    public string Notes { get; init; }
+    public string Notes
+    {
+        get => _notes;
+        init => _notes = value ?? string.Empty;
+    }
 
     public string CombinedText =>
         string.Join(

@@ -22,7 +22,19 @@ public sealed class SessionMetadataRepositoryTests
                 [
                     new SessionPhysicalCopy("session-1", @"C:\Users\Prekzursil\.codex\sessions\2026\03\23\session-1.jsonl", SessionStoreKind.Live, new SessionPhysicalCopyState(new DateTimeOffset(2026, 3, 23, 10, 0, 0, TimeSpan.Zero), 1000, false))
                 ],
-                new SessionSearchDocument("renderer transcript", "renderer transcript", "tool summary", "rg renderer", [], [], "", "", [], ""));
+                new SessionSearchDocument
+                {
+                    ReadableTranscript = "renderer transcript",
+                    DialogueTranscript = "renderer transcript",
+                    ToolSummary = "tool summary",
+                    CommandText = "rg renderer",
+                    FilePaths = [],
+                    Urls = [],
+                    ErrorText = "",
+                    Alias = "",
+                    Tags = [],
+                    Notes = ""
+                });
 
             await repository.UpsertAsync(session, CancellationToken.None);
             await repository.UpdateMetadataAsync("session-1", "Pinned session", ["important", "renderer"], "Keep for regression checks", CancellationToken.None);

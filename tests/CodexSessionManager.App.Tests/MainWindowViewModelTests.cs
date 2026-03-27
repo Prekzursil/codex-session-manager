@@ -151,17 +151,19 @@ public sealed class MainWindowViewModelTests
             [
                 new SessionPhysicalCopy(sessionId, $@"C:\Users\Prekzursil\.codex\sessions\{sessionId}.jsonl", SessionStoreKind.Live, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1024, false))
             ],
-            SearchDocument: new SessionSearchDocument(
-                ReadableTranscript: transcript,
-                DialogueTranscript: transcript,
-                ToolSummary: "tool summary",
-                CommandText: "rg command",
-                FilePaths: [],
-                Urls: [],
-                ErrorText: string.Empty,
-                Alias: string.Empty,
-                Tags: [],
-                Notes: string.Empty));
+            SearchDocument: new SessionSearchDocument
+            {
+                ReadableTranscript = transcript,
+                DialogueTranscript = transcript,
+                ToolSummary = "tool summary",
+                CommandText = "rg command",
+                FilePaths = [],
+                Urls = [],
+                ErrorText = string.Empty,
+                Alias = string.Empty,
+                Tags = [],
+                Notes = string.Empty
+            });
 
     private sealed class FakeSessionBrowserService : CodexSessionManager.App.ViewModels.ISessionBrowserService
     {

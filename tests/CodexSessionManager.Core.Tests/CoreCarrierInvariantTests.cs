@@ -9,17 +9,19 @@ public sealed class CoreCarrierInvariantTests
     [Fact]
     public void SessionSearchDocument_normalizes_null_text_and_collections()
     {
-        var document = new SessionSearchDocument(
-            ReadableTranscript: null!,
-            DialogueTranscript: null!,
-            ToolSummary: null!,
-            CommandText: null!,
-            FilePaths: null!,
-            Urls: null!,
-            ErrorText: null!,
-            Alias: null!,
-            Tags: null!,
-            Notes: null!);
+        var document = new SessionSearchDocument
+        {
+            ReadableTranscript = null!,
+            DialogueTranscript = null!,
+            ToolSummary = null!,
+            CommandText = null!,
+            FilePaths = null!,
+            Urls = null!,
+            ErrorText = null!,
+            Alias = null!,
+            Tags = null!,
+            Notes = null!
+        };
 
         Assert.Equal(string.Empty, document.ReadableTranscript);
         Assert.Equal(string.Empty, document.DialogueTranscript);
@@ -32,8 +34,8 @@ public sealed class CoreCarrierInvariantTests
     [Fact]
     public void IndexedLogicalSession_throws_when_required_reference_members_are_null()
     {
-        Assert.Throws<ArgumentNullException>(() => new IndexedLogicalSession("session", "thread", null!, [], new SessionSearchDocument("", "", "", "", [], [], "", "", [], "")));
-        Assert.Throws<ArgumentNullException>(() => new IndexedLogicalSession("session", "thread", BuildCopy(), null!, new SessionSearchDocument("", "", "", "", [], [], "", "", [], "")));
+        Assert.Throws<ArgumentNullException>(() => new IndexedLogicalSession("session", "thread", null!, [], new SessionSearchDocument()));
+        Assert.Throws<ArgumentNullException>(() => new IndexedLogicalSession("session", "thread", BuildCopy(), null!, new SessionSearchDocument()));
         Assert.Throws<ArgumentNullException>(() => new IndexedLogicalSession("session", "thread", BuildCopy(), [BuildCopy()], null!));
     }
 
@@ -60,10 +62,46 @@ public sealed class CoreCarrierInvariantTests
         Assert.Throws<ArgumentNullException>(() => new MaintenanceRequest(MaintenanceAction.Archive, null!, "ARCHIVE 1 FILE"));
         Assert.Throws<ArgumentNullException>(() => new MaintenanceRequest(MaintenanceAction.Archive, [BuildCopy()], null!));
 
-        Assert.Throws<ArgumentNullException>(() => new MaintenancePreview(MaintenanceAction.Archive, null!, [], [], true, true, "ARCHIVE 1 FILE"));
-        Assert.Throws<ArgumentNullException>(() => new MaintenancePreview(MaintenanceAction.Archive, [], null!, [], true, true, "ARCHIVE 1 FILE"));
-        Assert.Throws<ArgumentNullException>(() => new MaintenancePreview(MaintenanceAction.Archive, [], [], null!, true, true, "ARCHIVE 1 FILE"));
-        Assert.Throws<ArgumentNullException>(() => new MaintenancePreview(MaintenanceAction.Archive, [], [], [], true, true, null!));
+        Assert.Throws<ArgumentNullException>(() => new MaintenancePreview
+        {
+            Action = MaintenanceAction.Archive,
+            AllowedTargets = null!,
+            BlockedTargets = [],
+            Warnings = [],
+            RequiresCheckpoint = true,
+            RequiresTypedConfirmation = true,
+            RequiredTypedConfirmation = "ARCHIVE 1 FILE"
+        });
+        Assert.Throws<ArgumentNullException>(() => new MaintenancePreview
+        {
+            Action = MaintenanceAction.Archive,
+            AllowedTargets = [],
+            BlockedTargets = null!,
+            Warnings = [],
+            RequiresCheckpoint = true,
+            RequiresTypedConfirmation = true,
+            RequiredTypedConfirmation = "ARCHIVE 1 FILE"
+        });
+        Assert.Throws<ArgumentNullException>(() => new MaintenancePreview
+        {
+            Action = MaintenanceAction.Archive,
+            AllowedTargets = [],
+            BlockedTargets = [],
+            Warnings = null!,
+            RequiresCheckpoint = true,
+            RequiresTypedConfirmation = true,
+            RequiredTypedConfirmation = "ARCHIVE 1 FILE"
+        });
+        Assert.Throws<ArgumentNullException>(() => new MaintenancePreview
+        {
+            Action = MaintenanceAction.Archive,
+            AllowedTargets = [],
+            BlockedTargets = [],
+            Warnings = [],
+            RequiresCheckpoint = true,
+            RequiresTypedConfirmation = true,
+            RequiredTypedConfirmation = null!
+        });
     }
 
     private static SessionPhysicalCopy BuildCopy() =>

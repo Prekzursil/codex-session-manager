@@ -18,17 +18,19 @@ public sealed class SessionCatalogRepositoryTests
             var session = CreateIndexedSession(
                 "session-1",
                 "Renderer work",
-                new SessionSearchDocument(
-                    ReadableTranscript: "User asked to inspect renderer logic",
-                    DialogueTranscript: "inspect renderer logic",
-                    ToolSummary: "Ran exec_command: rg -n session renderer",
-                    CommandText: "rg -n session renderer",
-                    FilePaths: [@"C:\repo\renderer.mjs"],
-                    Urls: [],
-                    ErrorText: "",
-                    Alias: "Important renderer session",
-                    Tags: ["renderer", "search"],
-                    Notes: "Keeps the parser behavior"),
+                new SessionSearchDocument
+                {
+                    ReadableTranscript = "User asked to inspect renderer logic",
+                    DialogueTranscript = "inspect renderer logic",
+                    ToolSummary = "Ran exec_command: rg -n session renderer",
+                    CommandText = "rg -n session renderer",
+                    FilePaths = [@"C:\repo\renderer.mjs"],
+                    Urls = [],
+                    ErrorText = "",
+                    Alias = "Important renderer session",
+                    Tags = ["renderer", "search"],
+                    Notes = "Keeps the parser behavior"
+                },
                 new DateTimeOffset(2026, 3, 23, 10, 0, 0, TimeSpan.Zero));
 
             await repository.UpsertAsync(session, CancellationToken.None);
@@ -67,17 +69,19 @@ public sealed class SessionCatalogRepositoryTests
             var session = CreateIndexedSession(
                 "session-fts",
                 "Renderer work",
-                new SessionSearchDocument(
-                    "inspect renderer logic",
-                    "inspect renderer logic",
-                    "",
-                    "",
-                    [],
-                    [],
-                    "",
-                    "",
-                    [],
-                    ""));
+                new SessionSearchDocument
+                {
+                    ReadableTranscript = "inspect renderer logic",
+                    DialogueTranscript = "inspect renderer logic",
+                    ToolSummary = "",
+                    CommandText = "",
+                    FilePaths = [],
+                    Urls = [],
+                    ErrorText = "",
+                    Alias = "",
+                    Tags = [],
+                    Notes = ""
+                });
 
             await repository.UpsertAsync(session, CancellationToken.None);
 
@@ -193,7 +197,19 @@ public sealed class SessionCatalogRepositoryTests
             var session = CreateIndexedSession(
                 "session-2",
                 "Maintenance work",
-                new SessionSearchDocument("transcript", "dialogue", "", "", [], [], "", "", [], ""),
+                new SessionSearchDocument
+                {
+                    ReadableTranscript = "transcript",
+                    DialogueTranscript = "dialogue",
+                    ToolSummary = "",
+                    CommandText = "",
+                    FilePaths = [],
+                    Urls = [],
+                    ErrorText = "",
+                    Alias = "",
+                    Tags = [],
+                    Notes = ""
+                },
                 new DateTimeOffset(2026, 3, 23, 10, 0, 0, TimeSpan.Zero));
 
             await repository.UpsertAsync(session, CancellationToken.None);
@@ -232,17 +248,19 @@ public sealed class SessionCatalogRepositoryTests
             var session = CreateIndexedSession(
                 "session-empty-snippet",
                 "Thread heading",
-                new SessionSearchDocument(
-                    ReadableTranscript: "readable",
-                    DialogueTranscript: "dialogue",
-                    ToolSummary: "",
-                    CommandText: "",
-                    FilePaths: [],
-                    Urls: [],
-                    ErrorText: "",
-                    Alias: "unique alias marker",
-                    Tags: [],
-                    Notes: ""));
+                new SessionSearchDocument
+                {
+                    ReadableTranscript = "readable",
+                    DialogueTranscript = "dialogue",
+                    ToolSummary = "",
+                    CommandText = "",
+                    FilePaths = [],
+                    Urls = [],
+                    ErrorText = "",
+                    Alias = "unique alias marker",
+                    Tags = [],
+                    Notes = ""
+                });
 
             await repository.UpsertAsync(session, CancellationToken.None);
 
@@ -275,7 +293,19 @@ public sealed class SessionCatalogRepositoryTests
             var initial = CreateIndexedSession(
                 "session-3",
                 "Initial",
-                new SessionSearchDocument("first transcript", "first transcript", "", "", [], [], "", "", [], ""),
+                new SessionSearchDocument
+                {
+                    ReadableTranscript = "first transcript",
+                    DialogueTranscript = "first transcript",
+                    ToolSummary = "",
+                    CommandText = "",
+                    FilePaths = [],
+                    Urls = [],
+                    ErrorText = "",
+                    Alias = "",
+                    Tags = [],
+                    Notes = ""
+                },
                 fileSizeBytes: 100);
 
             await repository.UpsertAsync(initial, CancellationToken.None);
@@ -321,7 +351,19 @@ public sealed class SessionCatalogRepositoryTests
             var initial = CreateIndexedSession(
                 "session-override",
                 "Initial",
-                new SessionSearchDocument("first transcript", "first transcript", "", "", [], [], "", "", [], ""));
+                new SessionSearchDocument
+                {
+                    ReadableTranscript = "first transcript",
+                    DialogueTranscript = "first transcript",
+                    ToolSummary = "",
+                    CommandText = "",
+                    FilePaths = [],
+                    Urls = [],
+                    ErrorText = "",
+                    Alias = "",
+                    Tags = [],
+                    Notes = ""
+                });
 
             await repository.UpsertAsync(initial, CancellationToken.None);
             await repository.SaveMetadataAsync("session-override", "Stored alias", ["stored"], "stored note", CancellationToken.None);
@@ -532,17 +574,19 @@ public sealed class SessionCatalogRepositoryTests
             var session = CreateIndexedSession(
                 "session-preserve-metadata",
                 "Preserve Metadata",
-                new SessionSearchDocument(
-                    ReadableTranscript: "readable",
-                    DialogueTranscript: "dialogue",
-                    ToolSummary: "",
-                    CommandText: "",
-                    FilePaths: [],
-                    Urls: [],
-                    ErrorText: "",
-                    Alias: "inline alias",
-                    Tags: ["inline-tag"],
-                    Notes: "inline note"));
+                new SessionSearchDocument
+                {
+                    ReadableTranscript = "readable",
+                    DialogueTranscript = "dialogue",
+                    ToolSummary = "",
+                    CommandText = "",
+                    FilePaths = [],
+                    Urls = [],
+                    ErrorText = "",
+                    Alias = "inline alias",
+                    Tags = ["inline-tag"],
+                    Notes = "inline note"
+                });
 
             await repository.UpsertAsync(session, CancellationToken.None);
             await repository.SaveMetadataAsync("session-preserve-metadata", "stored alias", ["stored-tag"], "stored note", CancellationToken.None);

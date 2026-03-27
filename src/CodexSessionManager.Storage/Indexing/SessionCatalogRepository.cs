@@ -283,17 +283,19 @@ public sealed class SessionCatalogRepository
                         threadName,
                         preferredCopy,
                         copies.Count > 0 ? copies : [preferredCopy],
-                        new SessionSearchDocument(
-                            reader.GetString(3),
-                            reader.GetString(4),
-                            reader.GetString(5),
-                            reader.GetString(6),
-                            SplitLines(reader.GetString(7)),
-                            SplitLines(reader.GetString(8)),
-                            reader.GetString(9),
-                            reader.GetString(10),
-                            SplitLines(reader.GetString(11)),
-                            reader.GetString(12))));
+                        new SessionSearchDocument
+                        {
+                            ReadableTranscript = reader.GetString(3),
+                            DialogueTranscript = reader.GetString(4),
+                            ToolSummary = reader.GetString(5),
+                            CommandText = reader.GetString(6),
+                            FilePaths = SplitLines(reader.GetString(7)),
+                            Urls = SplitLines(reader.GetString(8)),
+                            ErrorText = reader.GetString(9),
+                            Alias = reader.GetString(10),
+                            Tags = SplitLines(reader.GetString(11)),
+                            Notes = reader.GetString(12)
+                        }));
             }
         }
 

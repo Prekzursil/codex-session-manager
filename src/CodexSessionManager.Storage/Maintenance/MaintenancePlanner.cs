@@ -36,14 +36,16 @@ public static class MaintenancePlanner
             warnings.Add(new MaintenanceWarning(MaintenanceWarningSeverity.Dangerous, $"Dangerous maintenance target: {candidate.FilePath}"));
         }
 
-        return new MaintenancePreview(
-            request.Action,
-            AllowedTargets: allowedTargets,
-            BlockedTargets: blockedTargets,
-            Warnings: warnings,
-            RequiresCheckpoint: true,
-            RequiresTypedConfirmation: true,
-            RequiredTypedConfirmation: request.TypedConfirmation);
+        return new MaintenancePreview
+        {
+            Action = request.Action,
+            AllowedTargets = allowedTargets,
+            BlockedTargets = blockedTargets,
+            Warnings = warnings,
+            RequiresCheckpoint = true,
+            RequiresTypedConfirmation = true,
+            RequiredTypedConfirmation = request.TypedConfirmation
+        };
     }
 
     private static bool IsProtected(SessionPhysicalCopy candidate)

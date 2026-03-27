@@ -44,17 +44,19 @@ public sealed class SessionWorkspaceIndexer
                 var readableTranscript = SessionTranscriptFormatter.Format(parsed.Document, TranscriptMode.Readable).RenderedMarkdown;
                 var dialogueTranscript = SessionTranscriptFormatter.Format(parsed.Document, TranscriptMode.Dialogue).RenderedMarkdown;
                 var toolSummary = string.Join(Environment.NewLine, parsed.TechnicalBreadcrumbs.Commands.Select(command => $"Ran: {command}"));
-                var searchDocument = new SessionSearchDocument(
-                    readableTranscript,
-                    dialogueTranscript,
-                    toolSummary,
-                    string.Join(Environment.NewLine, parsed.TechnicalBreadcrumbs.Commands),
-                    parsed.TechnicalBreadcrumbs.FilePaths,
-                    parsed.TechnicalBreadcrumbs.Urls,
-                    string.Join(Environment.NewLine, parsed.TechnicalBreadcrumbs.ExitCodes.Select(code => $"Exit {code}")),
-                    string.Empty,
-                    [],
-                    string.Empty);
+                var searchDocument = new SessionSearchDocument
+                {
+                    ReadableTranscript = readableTranscript,
+                    DialogueTranscript = dialogueTranscript,
+                    ToolSummary = toolSummary,
+                    CommandText = string.Join(Environment.NewLine, parsed.TechnicalBreadcrumbs.Commands),
+                    FilePaths = parsed.TechnicalBreadcrumbs.FilePaths,
+                    Urls = parsed.TechnicalBreadcrumbs.Urls,
+                    ErrorText = string.Join(Environment.NewLine, parsed.TechnicalBreadcrumbs.ExitCodes.Select(code => $"Exit {code}")),
+                    Alias = string.Empty,
+                    Tags = [],
+                    Notes = string.Empty
+                };
 
                 return new IndexedLogicalSession(
                     logical.SessionId,
