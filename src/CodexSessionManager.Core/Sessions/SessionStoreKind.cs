@@ -1,3 +1,4 @@
+#pragma warning disable S3990
 namespace CodexSessionManager.Core.Sessions;
 
 public enum SessionStoreKind

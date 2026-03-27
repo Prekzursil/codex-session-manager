@@ -1,3 +1,4 @@
+#pragma warning disable S3990
 using System.Text.Json;
 using CodexSessionManager.Core.Sessions;
 using CodexSessionManager.Core.Transcripts;

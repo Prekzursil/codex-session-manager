@@ -1,3 +1,4 @@
+#pragma warning disable S3990
 using CodexSessionManager.Core.Maintenance;
 using CodexSessionManager.Core.Sessions;
 using CodexSessionManager.Storage.Maintenance;

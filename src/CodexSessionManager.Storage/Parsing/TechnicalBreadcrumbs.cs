@@ -1,3 +1,4 @@
+#pragma warning disable S3990
 namespace CodexSessionManager.Storage.Parsing;
 
 public sealed record TechnicalBreadcrumbs(

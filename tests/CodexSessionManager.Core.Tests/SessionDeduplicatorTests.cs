@@ -1,3 +1,4 @@
+#pragma warning disable S3990
 using CodexSessionManager.Core.Sessions;
 
 namespace CodexSessionManager.Core.Tests;
