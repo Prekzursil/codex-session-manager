@@ -176,7 +176,7 @@ public sealed class MainWindowViewModelTests
             _searchHits = searchHits;
         }
 
-        public Task<IReadOnlyList<IndexedLogicalSession>> GetSessionsAsync(CancellationToken cancellationToken) =>
+        public Task<IReadOnlyList<IndexedLogicalSession>> GetSessionsAsync(CancellationToken _) =>
             Task.FromResult(_sessions);
 
         public Task<IReadOnlyList<SessionSearchHit>> SearchAsync(string query, CancellationToken cancellationToken) =>

@@ -1093,7 +1093,7 @@ public sealed class MainWindowCoverageTests
                 SetProvider(
                     window,
                     "MaintenanceRunner",
-                    ((Func<MaintenancePreview, string, string, CancellationToken, Task<MaintenanceExecutionResult>>)((preview, destinationRoot, _, _) =>
+                    ((Func<MaintenancePreview, string, string, CancellationToken, Task<MaintenanceExecutionResult>>)((_, destinationRoot, _, _) =>
                     {
                         destinationRoots.Add(destinationRoot);
                         return Task.FromResult(new MaintenanceExecutionResult(true, [], Path.Combine(root, "checkpoint.json")));

@@ -34,31 +34,7 @@ public sealed class SessionWorkspaceIndexer
 
         foreach (var store in stores)
         {
-            foreach (var kvp in await LoadSessionIndexAsync(store.SessionIndexPath, cancellationToken))
-            {
-                threadNames[kvp.Key] = kvp.Value;
-            }
-
-            if (!Directory.Exists(store.SessionsPath))
-            {
-                continue;
-            }
-
-            foreach (var filePath in Directory.EnumerateFiles(store.SessionsPath, "*.jsonl", SearchOption.AllDirectories))
-            {
-                var parsed = await SessionJsonlParser.ParseAsync(filePath, cancellationToken);
-                parsedSessions[parsed.SessionId] = parsed;
-                var fileInfo = new FileInfo(filePath);
-                copies.Add(
-                    new SessionPhysicalCopy(
-                        parsed.SessionId,
-                        filePath,
-                        store.StoreKind,
-                        new SessionPhysicalCopyState(
-                            fileInfo.LastWriteTimeUtc,
-                            fileInfo.Length,
-                            false)));
-            }
+            await LoadStoreSessionsAsync(store, threadNames, parsedSessions, copies, cancellationToken);
         }
 
         return SessionDeduplicator.Consolidate(copies)
@@ -89,6 +65,44 @@ public sealed class SessionWorkspaceIndexer
             })
             .OrderBy(session => session.ThreadName, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    private static async Task LoadStoreSessionsAsync(
+        KnownSessionStore store,
+        IDictionary<string, string> threadNames,
+        IDictionary<string, ParsedSessionFile> parsedSessions,
+        ICollection<SessionPhysicalCopy> copies,
+        CancellationToken cancellationToken)
+    {
+        foreach (var kvp in await LoadSessionIndexAsync(store.SessionIndexPath, cancellationToken))
+        {
+            threadNames[kvp.Key] = kvp.Value;
+        }
+
+        if (!Directory.Exists(store.SessionsPath))
+        {
+            return;
+        }
+
+        foreach (var filePath in Directory.EnumerateFiles(store.SessionsPath, "*.jsonl", SearchOption.AllDirectories))
+        {
+            var parsed = await SessionJsonlParser.ParseAsync(filePath, cancellationToken);
+            parsedSessions[parsed.SessionId] = parsed;
+            copies.Add(CreateSessionCopy(store.StoreKind, filePath, parsed.SessionId));
+        }
+    }
+
+    private static SessionPhysicalCopy CreateSessionCopy(SessionStoreKind storeKind, string filePath, string sessionId)
+    {
+        var fileInfo = new FileInfo(filePath);
+        return new SessionPhysicalCopy(
+            sessionId,
+            filePath,
+            storeKind,
+            new SessionPhysicalCopyState(
+                fileInfo.LastWriteTimeUtc,
+                fileInfo.Length,
+                false));
     }
 
     private static async Task<Dictionary<string, string>> LoadSessionIndexAsync(string sessionIndexPath, CancellationToken cancellationToken)
