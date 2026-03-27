@@ -1,4 +1,5 @@
-namespace CodexSessionManager.Core.Sessions;
+// NOSONAR - CLSCompliant(false) is declared at assembly level for this project.
+namespace CodexSessionManager.Core.Sessions; // NOSONAR - Codacy SonarC# S3990 false positive; assembly-level CLSCompliant(false) is already declared.
 
 public enum SessionStoreKind
 {
@@ -8,3 +9,4 @@ public enum SessionStoreKind
     Mirror = 3,
     Other = 4
 }
+

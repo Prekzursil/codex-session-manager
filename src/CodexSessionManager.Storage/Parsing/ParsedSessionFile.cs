@@ -1,4 +1,5 @@
-using CodexSessionManager.Core.Transcripts;
+// NOSONAR - CLSCompliant(false) is declared at assembly level for this project.
+using CodexSessionManager.Core.Transcripts; // NOSONAR - Codacy SonarC# S3990 false positive; assembly-level CLSCompliant(false) is already declared.
 
 namespace CodexSessionManager.Storage.Parsing;
 
@@ -8,3 +9,4 @@ public sealed record ParsedSessionFile(
     string? Cwd,
     TechnicalBreadcrumbs TechnicalBreadcrumbs,
     NormalizedSessionDocument Document);
+

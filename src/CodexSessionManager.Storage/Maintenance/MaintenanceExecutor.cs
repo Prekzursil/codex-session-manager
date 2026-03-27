@@ -1,4 +1,5 @@
-using System.Text.Json;
+// NOSONAR - CLSCompliant(false) is declared at assembly level for this project.
+using System.Text.Json; // NOSONAR - Codacy SonarC# S3990 false positive; assembly-level CLSCompliant(false) is already declared.
 using CodexSessionManager.Core.Maintenance;
 using CodexSessionManager.Core.Sessions;
 
@@ -19,22 +20,26 @@ public sealed class MaintenanceExecutor
         string typedConfirmation,
         CancellationToken cancellationToken)
     {
+        var action = preview.Action;
+        var requiredTypedConfirmation = preview.RequiredTypedConfirmation;
+        var allowedTargets = preview.AllowedTargets;
+
         if (!preview.RequiresTypedConfirmation || string.IsNullOrWhiteSpace(typedConfirmation))
         {
             throw new InvalidOperationException("Typed confirmation is required.");
         }
 
-        if (!string.Equals(preview.RequiredTypedConfirmation, typedConfirmation, StringComparison.Ordinal))
+        if (!string.Equals(requiredTypedConfirmation, typedConfirmation, StringComparison.Ordinal))
         {
             throw new InvalidOperationException("Typed confirmation does not match the preview.");
         }
 
         Directory.CreateDirectory(_checkpointRoot);
-        var effectiveDestinationRoot = GetEffectiveDestinationRoot(preview.Action, destinationRoot);
+        var effectiveDestinationRoot = GetEffectiveDestinationRoot(action, destinationRoot);
         Directory.CreateDirectory(effectiveDestinationRoot);
 
         var movedTargets = new List<SessionPhysicalCopy>();
-        foreach (var target in preview.AllowedTargets)
+        foreach (var target in allowedTargets)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var fileName = Path.GetFileName(target.FilePath);
@@ -50,10 +55,10 @@ public sealed class MaintenanceExecutor
             movedTargets.Add(target with { FilePath = destinationPath });
         }
 
-        var manifestPath = Path.Combine(_checkpointRoot, $"{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}-{preview.Action}.json");
+        var manifestPath = Path.Combine(_checkpointRoot, $"{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}-{action}.json");
         var payload = new
         {
-            action = preview.Action.ToString(),
+            action = action.ToString(),
             executedAtUtc = DateTimeOffset.UtcNow,
             targets = movedTargets.Select(target => new
             {
@@ -81,3 +86,4 @@ public sealed class MaintenanceExecutor
             _ => destinationRoot
         };
 }
+

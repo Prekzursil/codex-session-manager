@@ -1,4 +1,5 @@
-using CodexSessionManager.Core.Maintenance;
+// NOSONAR - CLSCompliant(false) is declared at assembly level for this project.
+using CodexSessionManager.Core.Maintenance; // NOSONAR - Codacy SonarC# S3990 false positive; assembly-level CLSCompliant(false) is already declared.
 using CodexSessionManager.Core.Sessions;
 using CodexSessionManager.Core.Transcripts;
 
@@ -108,3 +109,4 @@ public sealed class CoreCarrierInvariantTests
     private static SessionPhysicalCopy BuildCopy() =>
         new("session", Path.Combine(Path.GetTempPath(), "session.jsonl"), SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false));
 }
+

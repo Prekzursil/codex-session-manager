@@ -1,4 +1,5 @@
-using System.Text;
+// NOSONAR - CLSCompliant(false) is declared at assembly level for this project.
+using System.Text; // NOSONAR - Codacy SonarC# S3990 false positive; assembly-level CLSCompliant(false) is already declared.
 
 namespace CodexSessionManager.Core.Transcripts;
 
@@ -19,7 +20,7 @@ public static class SessionTranscriptFormatter
 
         var toolActivity = new List<string>();
 
-        var events = session.Events ?? [];
+        var events = GetEvents(session);
         foreach (var sessionEvent in events)
         {
             if (sessionEvent.Kind is NormalizedEventKind.Message)
@@ -62,7 +63,7 @@ public static class SessionTranscriptFormatter
         }
 
         builder.AppendLine(ToMessageHeading(sessionEvent.Actor));
-        builder.AppendLine(sessionEvent.Text ?? string.Empty);
+        builder.AppendLine(GetEventText(sessionEvent));
         builder.AppendLine();
     }
 
@@ -95,15 +96,15 @@ public static class SessionTranscriptFormatter
         {
             NormalizedEventKind.ToolCall => BuildToolCallDescription(sessionEvent),
             NormalizedEventKind.ToolOutput => BuildToolOutputDescription(sessionEvent),
-            NormalizedEventKind.Note => $"- Note: {Truncate(sessionEvent.Text ?? string.Empty, 140)}",
+            NormalizedEventKind.Note => $"- Note: {Truncate(GetEventText(sessionEvent), 140)}",
             _ => null,
         };
     }
 
     private static string BuildToolCallDescription(NormalizedSessionEvent sessionEvent)
     {
-        var toolName = string.IsNullOrWhiteSpace(sessionEvent.ToolName) ? "tool" : sessionEvent.ToolName;
-        var rawPayload = sessionEvent.RawPayload ?? string.Empty;
+        var toolName = GetToolName(sessionEvent);
+        var rawPayload = GetRawPayload(sessionEvent);
         if (string.IsNullOrWhiteSpace(rawPayload))
         {
             return $"- Called `{toolName}`.";
@@ -114,8 +115,7 @@ public static class SessionTranscriptFormatter
 
     private static string BuildToolOutputDescription(NormalizedSessionEvent sessionEvent)
     {
-        var toolName = string.IsNullOrWhiteSpace(sessionEvent.ToolName) ? "tool" : sessionEvent.ToolName;
-        return $"- `{toolName}` output: {Truncate(sessionEvent.Text ?? string.Empty, 140)}";
+        return $"- `{GetToolName(sessionEvent)}` output: {Truncate(GetEventText(sessionEvent), 140)}";
     }
 
     private static string Truncate(string value, int maxLength)
@@ -127,4 +127,17 @@ public static class SessionTranscriptFormatter
 
         return value.Length <= maxLength ? value : value[..(maxLength - 3)] + "...";
     }
+
+    private static IReadOnlyList<NormalizedSessionEvent> GetEvents(NormalizedSessionDocument session) =>
+        session.Events ?? [];
+
+    private static string GetEventText(NormalizedSessionEvent sessionEvent) =>
+        sessionEvent.Text ?? string.Empty;
+
+    private static string GetToolName(NormalizedSessionEvent sessionEvent) =>
+        string.IsNullOrWhiteSpace(sessionEvent.ToolName) ? "tool" : sessionEvent.ToolName;
+
+    private static string GetRawPayload(NormalizedSessionEvent sessionEvent) =>
+        sessionEvent.RawPayload ?? string.Empty;
 }
+

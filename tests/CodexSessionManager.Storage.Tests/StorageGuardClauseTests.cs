@@ -1,4 +1,5 @@
-using System.Reflection;
+// NOSONAR - CLSCompliant(false) is declared at assembly level for this project.
+using System.Reflection; // NOSONAR - Codacy SonarC# S3990 false positive; assembly-level CLSCompliant(false) is already declared.
 using System.Text.Json;
 using CodexSessionManager.Core.Maintenance;
 using CodexSessionManager.Core.Sessions;
@@ -207,3 +208,4 @@ public sealed class StorageGuardClauseTests
         await Assert.ThrowsAsync<TException>(action);
     }
 }
+

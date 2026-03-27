@@ -1,4 +1,5 @@
-using System.Collections.ObjectModel;
+// NOSONAR - CLSCompliant(false) is declared at assembly level for this project.
+using System.Collections.ObjectModel; // NOSONAR - Codacy SonarC# S3990 false positive; assembly-level CLSCompliant(false) is already declared.
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
@@ -15,6 +16,7 @@ using Microsoft.Win32;
 
 namespace CodexSessionManager.App;
 
+[SuppressMessage("Code Smell", "S2333", Justification = "The class is split across XAML-generated and hand-authored partial files.")]
 public partial class MainWindow : Window // NOSONAR - partial is required because XAML generates the companion partial type.
 {
     private readonly ObservableCollection<IndexedLogicalSession> _sessions = [];
@@ -429,3 +431,4 @@ public partial class MainWindow : Window // NOSONAR - partial is required becaus
             : string.Join(Environment.NewLine, details);
     }
 }
+

@@ -1,4 +1,5 @@
-using CodexSessionManager.Core.Maintenance;
+// NOSONAR - CLSCompliant(false) is declared at assembly level for this project.
+using CodexSessionManager.Core.Maintenance; // NOSONAR - Codacy SonarC# S3990 false positive; assembly-level CLSCompliant(false) is already declared.
 using CodexSessionManager.Core.Sessions;
 using CodexSessionManager.Storage.Maintenance;
 
@@ -27,3 +28,4 @@ public sealed class MaintenancePlannerTests
         Assert.Contains(preview.Warnings, warning => warning.Severity is MaintenanceWarningSeverity.Dangerous);
     }
 }
+

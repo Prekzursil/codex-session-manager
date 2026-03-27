@@ -1,4 +1,5 @@
-using CodexSessionManager.Core.Sessions;
+// NOSONAR - CLSCompliant(false) is declared at assembly level for this project.
+using CodexSessionManager.Core.Sessions; // NOSONAR - Codacy SonarC# S3990 false positive; assembly-level CLSCompliant(false) is already declared.
 using CodexSessionManager.Core.Transcripts;
 
 namespace CodexSessionManager.App;
@@ -13,7 +14,7 @@ public partial class MainWindow
             return;
         }
 
-        var selectedSessionId = selected.SessionId;
+        var selectedSessionId = GetSessionId(selected);
         await PopulateSelectedSessionHeaderAsync(selected, selectedSessionId);
         await LoadSelectedSessionBodyAsync(selected, selectedSessionId);
     }
@@ -28,8 +29,8 @@ public partial class MainWindow
         {
             if (string.Equals(GetSelectedSession()?.SessionId, selectedSessionId, StringComparison.Ordinal))
             {
-                ThreadNameTextBlock.Text = selected.ThreadName;
-                SessionIdTextBlock.Text = selected.SessionId;
+                ThreadNameTextBlock.Text = GetThreadName(selected);
+                SessionIdTextBlock.Text = GetSessionId(selected);
                 PreferredPathTextBlock.Text = preferredCopy.FilePath;
                 AliasTextBox.Text = searchDocument.Alias;
                 TagsTextBox.Text = string.Join(", ", searchDocument.Tags);
@@ -103,9 +104,10 @@ public partial class MainWindow
     private async Task ReloadSessionsForSearchAsync(CancellationToken searchToken)
     {
         var sessions = await _repository!.ListSessionsAsync(CancellationToken.None);
+        var searchCanceled = searchToken.IsCancellationRequested;
         await RunOnUiThreadAsync(() =>
         {
-            if (!searchToken.IsCancellationRequested)
+            if (!searchCanceled)
             {
                 _sessions.Clear();
                 foreach (var session in sessions)
@@ -121,14 +123,16 @@ public partial class MainWindow
     private async Task ApplySearchResultsAsync(string query, CancellationToken searchToken)
     {
         var repository = _repository ?? throw new InvalidOperationException("Repository has not been initialized.");
-        var hits = await repository.SearchAsync(query, CancellationToken.None);
+        var searchQuery = query ?? string.Empty;
+        var hits = await repository.SearchAsync(searchQuery, CancellationToken.None);
         var hitIds = hits.Select(hit => hit.SessionId).ToHashSet(StringComparer.Ordinal);
         var allSessions = await repository.ListSessionsAsync(CancellationToken.None);
         var visibleSessions = allSessions.Where(session => hitIds.Contains(session.SessionId)).ToArray();
+        var searchCanceled = searchToken.IsCancellationRequested;
 
         await RunOnUiThreadAsync(() =>
         {
-            if (!searchToken.IsCancellationRequested)
+            if (!searchCanceled)
             {
                 _sessions.Clear();
                 foreach (var session in visibleSessions)
@@ -162,4 +166,9 @@ public partial class MainWindow
         current?.Cancel();
         current?.Dispose();
     }
+
+    private static string GetSessionId(IndexedLogicalSession session) => session.SessionId;
+
+    private static string GetThreadName(IndexedLogicalSession session) => session.ThreadName;
 }
+

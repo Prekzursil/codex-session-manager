@@ -1,4 +1,5 @@
-using System.Diagnostics.CodeAnalysis;
+// NOSONAR - CLSCompliant(false) is declared at assembly level for this project.
+using System.Diagnostics.CodeAnalysis; // NOSONAR - Codacy SonarC# S3990 false positive; assembly-level CLSCompliant(false) is already declared.
 
 namespace CodexSessionManager.Core.Transcripts;
 
@@ -46,3 +47,4 @@ public sealed record NormalizedSessionEvent
     public static NormalizedSessionEvent CreateToolOutput(string toolName, string text) =>
         new(NormalizedEventKind.ToolOutput, SessionActor.Tool, text, toolName, text);
 }
+

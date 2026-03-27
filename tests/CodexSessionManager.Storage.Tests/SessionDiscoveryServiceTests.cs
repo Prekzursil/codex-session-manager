@@ -1,4 +1,5 @@
-using CodexSessionManager.Core.Sessions;
+// NOSONAR - CLSCompliant(false) is declared at assembly level for this project.
+using CodexSessionManager.Core.Sessions; // NOSONAR - Codacy SonarC# S3990 false positive; assembly-level CLSCompliant(false) is already declared.
 using CodexSessionManager.Storage.Discovery;
 
 namespace CodexSessionManager.Storage.Tests;
@@ -51,3 +52,4 @@ public sealed class SessionDiscoveryServiceTests
         }
     }
 }
+
