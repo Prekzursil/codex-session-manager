@@ -59,7 +59,7 @@ public sealed class StorageGuardClauseTests
         typeof(SessionCatalogRepository).GetMethod("SplitLines", BindingFlags.NonPublic | BindingFlags.Static)!;
 
     private static readonly MethodInfo ToFtsQueryMethod =
-        typeof(SessionCatalogRepository).GetMethod("ToFtsQuery", BindingFlags.NonPublic | BindingFlags.Static)!;
+        typeof(SessionCatalogRepository).GetMethod("BuildFtsQuery", BindingFlags.NonPublic | BindingFlags.Static)!;
 
     private static readonly MethodInfo ToFtsTokenMethod =
         typeof(SessionCatalogRepository).GetMethod("ToFtsToken", BindingFlags.NonPublic | BindingFlags.Static)!;
@@ -216,4 +216,3 @@ public sealed class StorageGuardClauseTests
         await Assert.ThrowsAsync<TException>(action);
     }
 }
-
