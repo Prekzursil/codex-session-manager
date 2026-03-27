@@ -7,7 +7,7 @@ namespace CodexSessionManager.Storage.Tests;
 public sealed class SessionWorkspaceIndexerTests
 {
     [Fact]
-    public async Task RebuildAsync_IndexesKnownStores_AndDeduplicatesLiveFirst()
+    public async Task RebuildAsync_IndexesKnownStores_AndDeduplicatesLiveFirstAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), $"csm-{Guid.NewGuid():N}");
         var liveRoot = Path.Combine(root, ".codex");

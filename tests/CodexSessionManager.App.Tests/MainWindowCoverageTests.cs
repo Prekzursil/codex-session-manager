@@ -249,7 +249,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task RunOnUiThreadAsync_invokes_action_when_called_off_dispatcher_thread()
+    public async Task RunOnUiThreadAsync_invokes_action_when_called_off_dispatcher_threadAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -266,7 +266,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task RunOnUiThreadValueAsync_returns_value_when_called_off_dispatcher_thread()
+    public async Task RunOnUiThreadValueAsync_returns_value_when_called_off_dispatcher_threadAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -285,7 +285,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task InitializeAsync_uses_injected_dependencies_and_schedules_refresh()
+    public async Task InitializeAsync_uses_injected_dependencies_and_schedules_refreshAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -299,7 +299,7 @@ public sealed class MainWindowCoverageTests
                 SetProvider(window, "ScheduleRefreshAction", (Action)(() => scheduled++));
                 SetProvider(window, "KnownStoresProvider", (Func<bool, IReadOnlyList<KnownSessionStore>>)(_ => Array.Empty<KnownSessionStore>()));
 
-                await InvokePrivateTask(window, InitializeAsyncMethod);
+                await InvokePrivateTaskAsync(window, InitializeAsyncMethod);
 
                 Assert.NotNull(RepositoryField.GetValue(window));
                 Assert.NotNull(WorkspaceIndexerField.GetValue(window));
@@ -316,21 +316,21 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task InitializeAsync_failure_sets_status()
+    public async Task InitializeAsync_failure_sets_statusAsync()
     {
         await RunInStaAsync(async () =>
         {
             var window = new MainWindow();
             SetProvider(window, "RepositoryFactory", ((Func<string, SessionCatalogRepository>)(_ => throw new InvalidOperationException("boom"))));
 
-            await InvokePrivateTask(window, InitializeAsyncMethod);
+            await InvokePrivateTaskAsync(window, InitializeAsyncMethod);
 
             Assert.Contains("Startup failed: boom", GetNamedField<TextBlock>(window, "StatusTextBlock").Text, StringComparison.Ordinal);
         });
     }
 
     [Fact]
-    public async Task LoadSessionsFromCatalogAsync_populates_sessions_from_repository()
+    public async Task LoadSessionsFromCatalogAsync_populates_sessions_from_repositoryAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -342,7 +342,7 @@ public sealed class MainWindowCoverageTests
                 var window = new MainWindow();
                 RepositoryField.SetValue(window, repository);
 
-                await InvokePrivateTask(window, LoadSessionsFromCatalogAsyncMethod);
+                await InvokePrivateTaskAsync(window, LoadSessionsFromCatalogAsyncMethod);
 
                 Assert.Single(GetNamedField<ListBox>(window, "SessionsListBox").Items);
                 Assert.Contains("Loaded 1 sessions", GetNamedField<TextBlock>(window, "StatusTextBlock").Text, StringComparison.Ordinal);
@@ -355,7 +355,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task RefreshAsync_uses_known_stores_and_rebuilds_catalog()
+    public async Task RefreshAsync_uses_known_stores_and_rebuilds_catalogAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -385,7 +385,7 @@ public sealed class MainWindowCoverageTests
                 WorkspaceIndexerField.SetValue(window, indexer);
                 SetProvider(window, "KnownStoresProvider", (Func<bool, IReadOnlyList<KnownSessionStore>>)(_ => stores));
 
-                await InvokePrivateTask(window, RefreshAsyncMethod, false);
+                await InvokePrivateTaskAsync(window, RefreshAsyncMethod, false);
 
                 Assert.Single(GetNamedField<ListBox>(window, "SessionsListBox").Items);
                 Assert.Contains("Indexed 1 deduped sessions", GetNamedField<TextBlock>(window, "StatusTextBlock").Text, StringComparison.Ordinal);
@@ -398,7 +398,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task RefreshAsync_with_deep_scan_uses_deep_scan_status_and_indexes_sessions()
+    public async Task RefreshAsync_with_deep_scan_uses_deep_scan_status_and_indexes_sessionsAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -432,7 +432,7 @@ public sealed class MainWindowCoverageTests
                     return stores;
                 }));
 
-                await InvokePrivateTask(window, RefreshAsyncMethod, true);
+                await InvokePrivateTaskAsync(window, RefreshAsyncMethod, true);
 
                 Assert.Single(GetNamedField<ListBox>(window, "SessionsListBox").Items);
                 Assert.Contains("Indexed 1 deduped sessions", GetNamedField<TextBlock>(window, "StatusTextBlock").Text, StringComparison.Ordinal);
@@ -445,7 +445,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task RunBackgroundRefreshAsync_sets_status_when_refresh_throws()
+    public async Task RunBackgroundRefreshAsync_sets_status_when_refresh_throwsAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -461,7 +461,7 @@ public sealed class MainWindowCoverageTests
                     "KnownStoresProvider",
                     (Func<bool, IReadOnlyList<KnownSessionStore>>)(_ => throw new InvalidOperationException("refresh boom")));
 
-                await InvokePrivateTask(window, RunBackgroundRefreshAsyncMethod);
+                await InvokePrivateTaskAsync(window, RunBackgroundRefreshAsyncMethod);
 
                 Assert.Contains("Background refresh failed: refresh boom", GetNamedField<TextBlock>(window, "StatusTextBlock").Text, StringComparison.Ordinal);
             }
@@ -473,7 +473,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task RunBackgroundRefreshAsync_completes_successfully_when_refresh_succeeds()
+    public async Task RunBackgroundRefreshAsync_completes_successfully_when_refresh_succeedsAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -486,7 +486,7 @@ public sealed class MainWindowCoverageTests
                 WorkspaceIndexerField.SetValue(window, new SessionWorkspaceIndexer(repository));
                 SetProvider(window, "KnownStoresProvider", (Func<bool, IReadOnlyList<KnownSessionStore>>)(_ => Array.Empty<KnownSessionStore>()));
 
-                await InvokePrivateTask(window, RunBackgroundRefreshAsyncMethod);
+                await InvokePrivateTaskAsync(window, RunBackgroundRefreshAsyncMethod);
 
                 Assert.Contains("Indexed 0 deduped sessions", GetNamedField<TextBlock>(window, "StatusTextBlock").Text, StringComparison.Ordinal);
             }
@@ -498,7 +498,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task LoadSelectedSessionAsync_success_updates_details_and_transcripts()
+    public async Task LoadSelectedSessionAsync_success_updates_details_and_transcriptsAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -517,7 +517,7 @@ public sealed class MainWindowCoverageTests
                 SetProvider(window, "SessionParser", ((Func<string, CancellationToken, Task<ParsedSessionFile>>)((_, _) => Task.FromResult(parsed))));
                 SetProvider(window, "FileTextReader", ((Func<string, string>)(_ => "raw-session-content")));
 
-                await InvokePrivateTask(window, LoadSelectedSessionAsyncMethod);
+                await InvokePrivateTaskAsync(window, LoadSelectedSessionAsyncMethod);
 
                 Assert.Equal("Selected Thread", GetNamedField<TextBlock>(window, "ThreadNameTextBlock").Text);
                 Assert.Equal("session-select", GetNamedField<TextBlock>(window, "SessionIdTextBlock").Text);
@@ -534,7 +534,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task PopulateSelectedSessionHeaderAsync_throws_when_selected_session_is_missing_required_members()
+    public async Task PopulateSelectedSessionHeaderAsync_throws_when_selected_session_is_missing_required_membersAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -544,9 +544,9 @@ public sealed class MainWindowCoverageTests
                 var sessionFile = WriteSessionJsonl(root, "session-header-guards", "Header Guards");
                 var session = BuildIndexedSession("session-header-guards", "Header Guards", sessionFile);
                 var window = new MainWindow();
-                await Assert.ThrowsAsync<InvalidOperationException>(() => InvokePrivateTask(window, PopulateSelectedSessionHeaderAsyncMethod, WithNullIndexedSessionProperty(session, nameof(IndexedLogicalSession.PreferredCopy)), session.SessionId));
-                await Assert.ThrowsAsync<InvalidOperationException>(() => InvokePrivateTask(window, PopulateSelectedSessionHeaderAsyncMethod, WithNullIndexedSessionProperty(session, nameof(IndexedLogicalSession.SearchDocument)), session.SessionId));
-                await InvokePrivateTask(window, PopulateSelectedSessionHeaderAsyncMethod, WithNullIndexedSessionProperty(session, nameof(IndexedLogicalSession.PhysicalCopies)), session.SessionId);
+                await Assert.ThrowsAsync<InvalidOperationException>(() => InvokePrivateTaskAsync(window, PopulateSelectedSessionHeaderAsyncMethod, WithNullIndexedSessionProperty(session, nameof(IndexedLogicalSession.PreferredCopy)), session.SessionId));
+                await Assert.ThrowsAsync<InvalidOperationException>(() => InvokePrivateTaskAsync(window, PopulateSelectedSessionHeaderAsyncMethod, WithNullIndexedSessionProperty(session, nameof(IndexedLogicalSession.SearchDocument)), session.SessionId));
+                await InvokePrivateTaskAsync(window, PopulateSelectedSessionHeaderAsyncMethod, WithNullIndexedSessionProperty(session, nameof(IndexedLogicalSession.PhysicalCopies)), session.SessionId);
             }
             finally
             {
@@ -556,7 +556,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task LoadSelectedSessionBodyAsync_missing_preferred_copy_is_handled_without_throwing()
+    public async Task LoadSelectedSessionBodyAsync_missing_preferred_copy_is_handled_without_throwingAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -567,7 +567,7 @@ public sealed class MainWindowCoverageTests
                 var window = new MainWindow();
                 var session = WithNullIndexedSessionProperty(BuildIndexedSession("session-body-guard", "Body Guard", sessionFile), nameof(IndexedLogicalSession.PreferredCopy));
 
-                await InvokePrivateTask(window, LoadSelectedSessionBodyAsyncMethod, session, session.SessionId);
+                await InvokePrivateTaskAsync(window, LoadSelectedSessionBodyAsyncMethod, session, session.SessionId);
                 Assert.Equal(string.Empty, GetNamedField<TextBox>(window, "RawTranscriptTextBox").Text);
             }
             finally
@@ -578,20 +578,20 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task ApplySearchResultsAsync_throws_when_repository_is_missing()
+    public async Task ApplySearchResultsAsync_throws_when_repository_is_missingAsync()
     {
         await RunInStaAsync(async () =>
         {
             var window = new MainWindow();
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() => InvokePrivateTask(window, typeof(MainWindow).GetMethod("ApplySearchResultsAsync", BindingFlags.NonPublic | BindingFlags.Instance)!, "query", CancellationToken.None));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => InvokePrivateTaskAsync(window, typeof(MainWindow).GetMethod("ApplySearchResultsAsync", BindingFlags.NonPublic | BindingFlags.Instance)!, "query", CancellationToken.None));
 
             window.Close();
         });
     }
 
     [Fact]
-    public async Task ApplySearchResultsAsync_normalizes_null_query_before_searching()
+    public async Task ApplySearchResultsAsync_normalizes_null_query_before_searchingAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -604,7 +604,7 @@ public sealed class MainWindowCoverageTests
 
                 RepositoryField.SetValue(window, repository);
 
-                await InvokePrivateTask(window, typeof(MainWindow).GetMethod("ApplySearchResultsAsync", BindingFlags.NonPublic | BindingFlags.Instance)!, null!, CancellationToken.None);
+                await InvokePrivateTaskAsync(window, typeof(MainWindow).GetMethod("ApplySearchResultsAsync", BindingFlags.NonPublic | BindingFlags.Instance)!, null!, CancellationToken.None);
 
                 Assert.Contains("Search returned", GetNamedField<TextBlock>(window, "StatusTextBlock").Text, StringComparison.Ordinal);
             }
@@ -616,7 +616,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task LoadSelectedSessionAsync_uses_dash_when_parsed_cwd_is_missing()
+    public async Task LoadSelectedSessionAsync_uses_dash_when_parsed_cwd_is_missingAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -635,7 +635,7 @@ public sealed class MainWindowCoverageTests
                 SetProvider(window, "SessionParser", ((Func<string, CancellationToken, Task<ParsedSessionFile>>)((_, _) => Task.FromResult(parsed))));
                 SetProvider(window, "FileTextReader", ((Func<string, string>)(_ => "raw-session-content")));
 
-                await InvokePrivateTask(window, LoadSelectedSessionAsyncMethod);
+                await InvokePrivateTaskAsync(window, LoadSelectedSessionAsyncMethod);
 
                 Assert.Equal("-", GetNamedField<TextBlock>(window, "CwdTextBlock").Text);
             }
@@ -647,7 +647,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task LoadSelectedSessionAsync_failure_updates_fallback_ui()
+    public async Task LoadSelectedSessionAsync_failure_updates_fallback_uiAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -666,7 +666,7 @@ public sealed class MainWindowCoverageTests
                     "SessionParser",
                     ((Func<string, CancellationToken, Task<ParsedSessionFile>>)((_, _) => Task.FromException<ParsedSessionFile>(new InvalidOperationException("parse failed")))));
 
-                await InvokePrivateTask(window, LoadSelectedSessionAsyncMethod);
+                await InvokePrivateTaskAsync(window, LoadSelectedSessionAsyncMethod);
 
                 Assert.Equal("-", GetNamedField<TextBlock>(window, "CwdTextBlock").Text);
                 Assert.Equal("Live SQLite status unavailable.", GetNamedField<TextBlock>(window, "SQLiteStatusTextBlock").Text);
@@ -680,7 +680,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task PopulateSelectedSessionHeaderAsync_skips_updates_when_selection_changes()
+    public async Task PopulateSelectedSessionHeaderAsync_skips_updates_when_selection_changesAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -695,7 +695,7 @@ public sealed class MainWindowCoverageTests
                 AddSession(window, session);
                 GetNamedField<ListBox>(window, "SessionsListBox").SelectedItem = null;
 
-                await InvokePrivateTask(window, PopulateSelectedSessionHeaderAsyncMethod, session, session.SessionId);
+                await InvokePrivateTaskAsync(window, PopulateSelectedSessionHeaderAsyncMethod, session, session.SessionId);
 
                 Assert.Equal(initialThreadName, GetNamedField<TextBlock>(window, "ThreadNameTextBlock").Text);
             }
@@ -707,7 +707,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task SearchSessionsAsync_filters_and_reloads()
+    public async Task SearchSessionsAsync_filters_and_reloadsAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -720,15 +720,15 @@ public sealed class MainWindowCoverageTests
                 var window = new MainWindow();
                 RepositoryField.SetValue(window, repository);
 
-                await InvokePrivateTask(window, LoadSessionsFromCatalogAsyncMethod);
+                await InvokePrivateTaskAsync(window, LoadSessionsFromCatalogAsyncMethod);
 
                 var searchBox = GetNamedField<TextBox>(window, "SearchTextBox");
                 searchBox.Text = "maint";
-                await InvokePrivateTask(window, SearchSessionsAsyncMethod);
+                await InvokePrivateTaskAsync(window, SearchSessionsAsyncMethod);
                 Assert.Single(GetNamedField<ListBox>(window, "SessionsListBox").Items);
 
                 searchBox.Text = string.Empty;
-                await InvokePrivateTask(window, SearchSessionsAsyncMethod);
+                await InvokePrivateTaskAsync(window, SearchSessionsAsyncMethod);
                 Assert.Equal(2, GetNamedField<ListBox>(window, "SessionsListBox").Items.Count);
             }
             finally
@@ -739,7 +739,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task SearchSessionsAsync_catches_cancellation_and_window_close_disposes_search_token()
+    public async Task SearchSessionsAsync_catches_cancellation_and_window_close_disposes_search_tokenAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -752,10 +752,10 @@ public sealed class MainWindowCoverageTests
                 var repository = CreateRepository(root, sessions);
                 var window = new MainWindow();
                 RepositoryField.SetValue(window, repository);
-                await InvokePrivateTask(window, LoadSessionsFromCatalogAsyncMethod);
+                await InvokePrivateTaskAsync(window, LoadSessionsFromCatalogAsyncMethod);
 
                 GetNamedField<TextBox>(window, "SearchTextBox").Text = "Thread";
-                var searchTask = Task.Run(async () => await InvokePrivateTask(window, SearchSessionsAsyncMethod));
+                var searchTask = Task.Run(async () => await InvokePrivateTaskAsync(window, SearchSessionsAsyncMethod));
 
                 CancellationTokenSource? searchCts = null;
                 for (var attempt = 0; attempt < 50 && searchCts is null; attempt++)
@@ -782,16 +782,16 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task RepositoryBackedAsyncMethods_return_early_without_repository()
+    public async Task RepositoryBackedAsyncMethods_return_early_without_repositoryAsync()
     {
         await RunInStaAsync(async () =>
         {
             var window = new MainWindow();
             GetNamedField<TextBlock>(window, "StatusTextBlock").Text = "unchanged";
 
-            await InvokePrivateTask(window, LoadSessionsFromCatalogAsyncMethod);
-            await InvokePrivateTask(window, SearchSessionsAsyncMethod);
-            await InvokePrivateTask(window, SaveSelectedMetadataAsyncMethod);
+            await InvokePrivateTaskAsync(window, LoadSessionsFromCatalogAsyncMethod);
+            await InvokePrivateTaskAsync(window, SearchSessionsAsyncMethod);
+            await InvokePrivateTaskAsync(window, SaveSelectedMetadataAsyncMethod);
 
             Assert.Equal("unchanged", GetNamedField<TextBlock>(window, "StatusTextBlock").Text);
             window.Close();
@@ -799,7 +799,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task SaveSelectedMetadataAsync_persists_alias_tags_and_notes()
+    public async Task SaveSelectedMetadataAsync_persists_alias_tags_and_notesAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -810,14 +810,14 @@ public sealed class MainWindowCoverageTests
                 var repository = CreateRepository(root, session);
                 var window = new MainWindow();
                 RepositoryField.SetValue(window, repository);
-                await InvokePrivateTask(window, LoadSessionsFromCatalogAsyncMethod);
+                await InvokePrivateTaskAsync(window, LoadSessionsFromCatalogAsyncMethod);
 
                 SelectSingleSession(window, GetNamedField<ListBox>(window, "SessionsListBox").Items.Cast<IndexedLogicalSession>().Single());
                 GetNamedField<TextBox>(window, "AliasTextBox").Text = "Ops Alias";
                 GetNamedField<TextBox>(window, "TagsTextBox").Text = "ops, strict-zero";
                 GetNamedField<TextBox>(window, "NotesTextBox").Text = "Updated note";
 
-                await InvokePrivateTask(window, SaveSelectedMetadataAsyncMethod);
+                await InvokePrivateTaskAsync(window, SaveSelectedMetadataAsyncMethod);
 
                 var refreshed = (await repository.ListSessionsAsync(CancellationToken.None)).Single();
                 Assert.Equal("Ops Alias", refreshed.SearchDocument.Alias);
@@ -832,7 +832,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task SaveSelectedMetadataAsync_without_selection_returns_without_changes()
+    public async Task SaveSelectedMetadataAsync_without_selection_returns_without_changesAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -844,7 +844,7 @@ public sealed class MainWindowCoverageTests
                 var window = new MainWindow();
                 RepositoryField.SetValue(window, repository);
 
-                await InvokePrivateTask(window, SaveSelectedMetadataAsyncMethod);
+                await InvokePrivateTaskAsync(window, SaveSelectedMetadataAsyncMethod);
 
                 Assert.Equal("Starting…", GetNamedField<TextBlock>(window, "StatusTextBlock").Text);
                 var refreshed = await repository.ListSessionsAsync(CancellationToken.None);
@@ -859,7 +859,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task SaveSelectedMetadataAsync_returns_when_no_session_is_selected()
+    public async Task SaveSelectedMetadataAsync_returns_when_no_session_is_selectedAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -870,7 +870,7 @@ public sealed class MainWindowCoverageTests
                 var repository = CreateRepository(root, session);
                 var window = new MainWindow();
                 RepositoryField.SetValue(window, repository);
-                await InvokePrivateTask(window, LoadSessionsFromCatalogAsyncMethod);
+                await InvokePrivateTaskAsync(window, LoadSessionsFromCatalogAsyncMethod);
                 GetNamedField<TextBox>(window, "AliasTextBox").Text = "should not persist";
                 GetNamedField<TextBox>(window, "TagsTextBox").Text = "ops,app";
                 GetNamedField<TextBox>(window, "NotesTextBox").Text = "ignored note";
@@ -880,7 +880,7 @@ public sealed class MainWindowCoverageTests
                 sessionsList.SelectedItems.Clear();
                 Assert.Null(GetSelectedSession(window));
 
-                await InvokePrivateTask(window, SaveSelectedMetadataAsyncMethod);
+                await InvokePrivateTaskAsync(window, SaveSelectedMetadataAsyncMethod);
 
                 var refreshed = (await repository.ListSessionsAsync(CancellationToken.None)).Single();
                 Assert.Equal(string.Empty, refreshed.SearchDocument.Alias);
@@ -990,7 +990,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task ExportButton_with_cancelled_path_does_not_write()
+    public async Task ExportButton_with_cancelled_path_does_not_writeAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -1026,7 +1026,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task ButtonHandlers_return_without_selection_or_preview()
+    public async Task ButtonHandlers_return_without_selection_or_previewAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -1039,7 +1039,7 @@ public sealed class MainWindowCoverageTests
             ResumeMethod.Invoke(window, [window, new RoutedEventArgs()]);
             ExportMethod.Invoke(window, [window, new RoutedEventArgs()]);
             BuildPreviewMethod.Invoke(window, [window, new RoutedEventArgs()]);
-            await InvokePrivateTask(window, ExecuteMaintenanceUiAsyncMethod);
+            await InvokePrivateTaskAsync(window, ExecuteMaintenanceUiAsyncMethod);
 
             Assert.Equal("idle", GetNamedField<TextBlock>(window, "StatusTextBlock").Text);
             window.Close();
@@ -1156,7 +1156,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task BuildPreview_and_execute_maintenance_paths_update_ui()
+    public async Task BuildPreview_and_execute_maintenance_paths_update_uiAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -1184,7 +1184,7 @@ public sealed class MainWindowCoverageTests
                 BuildPreviewMethod.Invoke(window, [window, new RoutedEventArgs()]);
                 GetNamedField<TextBox>(window, "DestinationRootTextBox").Text = string.Empty;
 
-                await InvokePrivateTask(window, ExecuteMaintenanceUiAsyncMethod);
+                await InvokePrivateTaskAsync(window, ExecuteMaintenanceUiAsyncMethod);
                 Assert.NotEmpty(destinationRoots);
                 Assert.Contains("Executed maintenance. Checkpoint:", GetNamedField<TextBlock>(window, "StatusTextBlock").Text, StringComparison.Ordinal);
 
@@ -1193,7 +1193,7 @@ public sealed class MainWindowCoverageTests
                     "MaintenanceRunner",
                     ((Func<MaintenancePreview, string, string, CancellationToken, Task<MaintenanceExecutionResult>>)((_, _, _, _) =>
                         Task.FromException<MaintenanceExecutionResult>(new InvalidOperationException("blocked")))));
-                await InvokePrivateTask(window, ExecuteMaintenanceUiAsyncMethod);
+                await InvokePrivateTaskAsync(window, ExecuteMaintenanceUiAsyncMethod);
                 Assert.Contains("Maintenance failed: blocked", GetNamedField<TextBlock>(window, "StatusTextBlock").Text, StringComparison.Ordinal);
             }
             finally
@@ -1238,7 +1238,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task ExecuteMaintenanceAsync_sets_status_when_runner_returns_not_executed()
+    public async Task ExecuteMaintenanceAsync_sets_status_when_runner_returns_not_executedAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -1259,7 +1259,7 @@ public sealed class MainWindowCoverageTests
                     (Func<MaintenancePreview, string, string, CancellationToken, Task<MaintenanceExecutionResult>>)((_, _, _, _) =>
                         Task.FromResult(new MaintenanceExecutionResult(false, [], Path.Combine(root, "checkpoint.json")))));
 
-                await InvokePrivateTask(window, ExecuteMaintenanceUiAsyncMethod);
+                await InvokePrivateTaskAsync(window, ExecuteMaintenanceUiAsyncMethod);
 
                 Assert.Equal("Maintenance did not execute.", GetNamedField<TextBlock>(window, "StatusTextBlock").Text);
             }
@@ -1273,7 +1273,7 @@ public sealed class MainWindowCoverageTests
     private static IReadOnlyList<KnownSessionStore> InvokeBuildKnownStores(bool deepScan) =>
         (IReadOnlyList<KnownSessionStore>)BuildKnownStoresMethod.Invoke(null, [deepScan])!;
 
-    private static Task InvokePrivateTask(object instance, MethodInfo method, params object?[] args) =>
+    private static Task InvokePrivateTaskAsync(object instance, MethodInfo method, params object?[] args) =>
         (Task)method.Invoke(instance, args)!;
 
     private static T GetNamedField<T>(MainWindow window, string name) where T : class =>

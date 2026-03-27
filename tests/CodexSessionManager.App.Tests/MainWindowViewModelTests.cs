@@ -6,7 +6,7 @@ namespace CodexSessionManager.App.Tests;
 public sealed class MainWindowViewModelTests
 {
     [Fact]
-    public async Task RefreshAsync_LoadsSessionsAndSelectsFirstSession()
+    public async Task RefreshAsync_LoadsSessionsAndSelectsFirstSessionAsync()
     {
         var service = new FakeSessionBrowserService(
             sessions:
@@ -26,7 +26,7 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
-    public async Task ApplySearchAsync_UsesSearchHitsToFilterVisibleSessions()
+    public async Task ApplySearchAsync_UsesSearchHitsToFilterVisibleSessionsAsync()
     {
         var sessions = new[]
         {
@@ -51,7 +51,7 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
-    public async Task ApplySearchAsync_WithBlankQuery_RestoresAllSessions()
+    public async Task ApplySearchAsync_WithBlankQuery_RestoresAllSessionsAsync()
     {
         var sessions = new[]
         {
@@ -77,7 +77,7 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
-    public async Task ApplySearchAsync_WithNullQuery_RestoresAllSessions()
+    public async Task ApplySearchAsync_WithNullQuery_RestoresAllSessionsAsync()
     {
         var sessions = new[]
         {
@@ -103,7 +103,7 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
-    public async Task ApplySearchAsync_WithNoHits_clears_selection_and_transcript()
+    public async Task ApplySearchAsync_WithNoHits_clears_selection_and_transcriptAsync()
     {
         var sessions = new[]
         {
@@ -123,7 +123,7 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
-    public async Task ApplySearchAsync_single_parameter_overload_normalizes_null_query()
+    public async Task ApplySearchAsync_single_parameter_overload_normalizes_null_queryAsync()
     {
         var sessions = new[]
         {

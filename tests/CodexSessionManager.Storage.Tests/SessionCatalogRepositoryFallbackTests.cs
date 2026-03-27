@@ -7,7 +7,7 @@ namespace CodexSessionManager.Storage.Tests;
 public sealed class SessionCatalogRepositoryFallbackTests
 {
     [Fact]
-    public async Task UpsertAsync_UsesIncomingMetadata_WhenReindexedDocumentAlreadyContainsValues()
+    public async Task UpsertAsync_UsesIncomingMetadata_WhenReindexedDocumentAlreadyContainsValuesAsync()
     {
         var databasePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
 
@@ -48,7 +48,7 @@ public sealed class SessionCatalogRepositoryFallbackTests
     }
 
     [Fact]
-    public async Task ListSessionsAsync_FallsBack_WhenSessionHasNoCopies()
+    public async Task ListSessionsAsync_FallsBack_WhenSessionHasNoCopiesAsync()
     {
         var databasePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
 
@@ -73,7 +73,7 @@ public sealed class SessionCatalogRepositoryFallbackTests
     }
 
     [Fact]
-    public async Task ListSessionsAsync_FallsBack_WhenPreferredPathIsMissingFromExistingCopies()
+    public async Task ListSessionsAsync_FallsBack_WhenPreferredPathIsMissingFromExistingCopiesAsync()
     {
         var databasePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
 

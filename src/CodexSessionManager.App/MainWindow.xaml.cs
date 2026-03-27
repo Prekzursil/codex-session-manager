@@ -142,10 +142,7 @@ public partial class MainWindow : Window
         await _workspaceIndexer.RebuildAsync(knownStores, CancellationToken.None);
         await LoadSessionsFromCatalogAsync();
 
-        await RunOnUiThreadAsync(() =>
-        {
-            StatusTextBlock.Text = $"Indexed {_sessions.Count} deduped sessions at {DateTime.Now:t}.";
-        });
+        await RunOnUiThreadAsync(() => StatusTextBlock.Text = $"Indexed {_sessions.Count} deduped sessions at {DateTime.Now:t}.");
     }
 
     private Task RunOnUiThreadAsync(Action action)
