@@ -23,17 +23,20 @@ public static class MaintenancePlanner
         var allowedTargets = new List<SessionPhysicalCopy>();
         var warnings = new List<MaintenanceWarning>();
 
-        foreach (var candidate in request.Targets)
+        var targets = request.Targets ?? [];
+        foreach (var candidate in targets)
         {
+            ArgumentNullException.ThrowIfNull(candidate);
+            var filePath = candidate.FilePath;
             if (IsProtected(candidate))
             {
                 blockedTargets.Add(candidate);
-                warnings.Add(new MaintenanceWarning(MaintenanceWarningSeverity.Dangerous, $"Protected path blocked: {candidate.FilePath}"));
+                warnings.Add(new MaintenanceWarning(MaintenanceWarningSeverity.Dangerous, $"Protected path blocked: {filePath}"));
                 continue;
             }
 
             allowedTargets.Add(candidate);
-            warnings.Add(new MaintenanceWarning(MaintenanceWarningSeverity.Dangerous, $"Dangerous maintenance target: {candidate.FilePath}"));
+            warnings.Add(new MaintenanceWarning(MaintenanceWarningSeverity.Dangerous, $"Dangerous maintenance target: {filePath}"));
         }
 
         return new MaintenancePreview

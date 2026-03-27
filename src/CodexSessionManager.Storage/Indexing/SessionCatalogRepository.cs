@@ -82,6 +82,8 @@ public sealed class SessionCatalogRepository
 
         await using var connection = await OpenConnectionAsync(cancellationToken);
         var searchDocument = await MergeExistingMetadataAsync(connection, session, cancellationToken);
+        var preferredCopy = session.PreferredCopy ?? throw new InvalidOperationException("Session is missing a preferred copy.");
+        var physicalCopies = session.PhysicalCopies ?? [];
 
         await using (var command = connection.CreateCommand())
         {
@@ -106,7 +108,7 @@ public sealed class SessionCatalogRepository
                 """;
             command.Parameters.AddWithValue(SessionIdParameterName, session.SessionId);
             command.Parameters.AddWithValue("$threadName", session.ThreadName);
-            command.Parameters.AddWithValue("$preferredPath", session.PreferredCopy.FilePath);
+            command.Parameters.AddWithValue("$preferredPath", preferredCopy.FilePath);
             command.Parameters.AddWithValue("$readableTranscript", searchDocument.ReadableTranscript);
             command.Parameters.AddWithValue("$dialogueTranscript", searchDocument.DialogueTranscript);
             command.Parameters.AddWithValue("$toolSummary", searchDocument.ToolSummary);
@@ -129,7 +131,7 @@ public sealed class SessionCatalogRepository
             await deleteCopies.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        foreach (var copy in session.PhysicalCopies)
+        foreach (var copy in physicalCopies)
         {
             await using var copyCommand = connection.CreateCommand();
             copyCommand.CommandText =
@@ -177,8 +179,8 @@ public sealed class SessionCatalogRepository
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            var snippet = reader.GetString(3);
-            results.Add(new SessionSearchHit(reader.GetString(0), reader.GetString(1), reader.GetString(2), snippet, 1));
+            var snippet = ReadRequiredString(reader, 3);
+            results.Add(new SessionSearchHit(ReadRequiredString(reader, 0), ReadRequiredString(reader, 1), ReadRequiredString(reader, 2), snippet, 1));
         }
 
         return results;
@@ -235,7 +237,7 @@ public sealed class SessionCatalogRepository
             await using var reader = await copiesCommand.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
             {
-                var sessionId = reader.GetString(0);
+                var sessionId = ReadRequiredString(reader, 0);
                 if (!copiesBySession.TryGetValue(sessionId, out var copies))
                 {
                     copies = [];
@@ -244,10 +246,10 @@ public sealed class SessionCatalogRepository
 
                 copies.Add(new SessionPhysicalCopy(
                     sessionId,
-                    reader.GetString(1),
+                    ReadRequiredString(reader, 1),
                     (SessionStoreKind)reader.GetInt32(2),
                     new SessionPhysicalCopyState(
-                        DateTimeOffset.Parse(reader.GetString(3), CultureInfo.InvariantCulture),
+                        DateTimeOffset.Parse(ReadRequiredString(reader, 3), CultureInfo.InvariantCulture),
                         reader.GetInt64(4),
                         reader.GetInt32(5) == 1)));
             }
@@ -266,9 +268,9 @@ public sealed class SessionCatalogRepository
             await using var reader = await sessionCommand.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
             {
-                var sessionId = reader.GetString(0);
-                var threadName = reader.GetString(1);
-                var preferredPath = reader.GetString(2);
+                var sessionId = ReadRequiredString(reader, 0);
+                var threadName = ReadRequiredString(reader, 1);
+                var preferredPath = ReadRequiredString(reader, 2);
                 var copies = copiesBySession.TryGetValue(sessionId, out var existingCopies) ? existingCopies : [];
                 var preferredCopy = copies.FirstOrDefault(copy => string.Equals(copy.FilePath, preferredPath, StringComparison.OrdinalIgnoreCase))
                     ?? new SessionPhysicalCopy(
@@ -285,16 +287,16 @@ public sealed class SessionCatalogRepository
                         copies.Count > 0 ? copies : [preferredCopy],
                         new SessionSearchDocument
                         {
-                            ReadableTranscript = reader.GetString(3),
-                            DialogueTranscript = reader.GetString(4),
-                            ToolSummary = reader.GetString(5),
-                            CommandText = reader.GetString(6),
-                            FilePaths = SplitLines(reader.GetString(7)),
-                            Urls = SplitLines(reader.GetString(8)),
-                            ErrorText = reader.GetString(9),
-                            Alias = reader.GetString(10),
-                            Tags = SplitLines(reader.GetString(11)),
-                            Notes = reader.GetString(12)
+                            ReadableTranscript = ReadRequiredString(reader, 3),
+                            DialogueTranscript = ReadRequiredString(reader, 4),
+                            ToolSummary = ReadRequiredString(reader, 5),
+                            CommandText = ReadRequiredString(reader, 6),
+                            FilePaths = SplitLines(ReadRequiredString(reader, 7)),
+                            Urls = SplitLines(ReadRequiredString(reader, 8)),
+                            ErrorText = ReadRequiredString(reader, 9),
+                            Alias = ReadRequiredString(reader, 10),
+                            Tags = SplitLines(ReadRequiredString(reader, 11)),
+                            Notes = ReadRequiredString(reader, 12)
                         }));
             }
         }
@@ -324,11 +326,12 @@ public sealed class SessionCatalogRepository
             return session.SearchDocument;
         }
 
-        return session.SearchDocument with
+        var searchDocument = session.SearchDocument ?? throw new InvalidOperationException("Session is missing search metadata.");
+        return searchDocument with
         {
-            Alias = string.IsNullOrWhiteSpace(session.SearchDocument.Alias) ? reader.GetString(0) : session.SearchDocument.Alias,
-            Tags = session.SearchDocument.Tags.Count == 0 ? SplitLines(reader.GetString(1)) : session.SearchDocument.Tags,
-            Notes = string.IsNullOrWhiteSpace(session.SearchDocument.Notes) ? reader.GetString(2) : session.SearchDocument.Notes
+            Alias = string.IsNullOrWhiteSpace(searchDocument.Alias) ? ReadRequiredString(reader, 0) : searchDocument.Alias,
+            Tags = searchDocument.Tags.Count == 0 ? SplitLines(ReadRequiredString(reader, 1)) : searchDocument.Tags,
+            Notes = string.IsNullOrWhiteSpace(searchDocument.Notes) ? ReadRequiredString(reader, 2) : searchDocument.Notes
         };
     }
 
@@ -434,5 +437,15 @@ public sealed class SessionCatalogRepository
         return escaped.All(static ch => char.IsLetterOrDigit(ch) || ch == '_')
             ? $"{escaped}*"
             : $"\"{escaped}\"*";
+    }
+
+    private static string ReadRequiredString(SqliteDataReader reader, int ordinal)
+    {
+        if (reader is null)
+        {
+            throw new ArgumentNullException(nameof(reader));
+        }
+
+        return reader.GetString(ordinal);
     }
 }
