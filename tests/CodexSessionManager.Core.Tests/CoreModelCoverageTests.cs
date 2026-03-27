@@ -43,90 +43,11 @@ public sealed class CoreModelCoverageTests
     [Fact]
     public void MaintenanceAndSessionRecords_PreserveConstructorValues()
     {
-        var copy = new SessionPhysicalCopy(
-            sessionId: "session-42",
-            filePath: @"C:\Users\Prekzursil\.codex\sessions\2026\03\26\session-42.jsonl",
-            storeKind: SessionStoreKind.Live,
-            state: new SessionPhysicalCopyState(
-                new DateTimeOffset(2026, 3, 26, 12, 0, 0, TimeSpan.Zero),
-                4096,
-                true));
+        var fixture = CreateMaintenanceAndSessionFixture();
 
-        var logical = new LogicalSession("session-42", "Thread", copy, [copy]);
-        var indexed = new IndexedLogicalSession(
-            SessionId: logical.SessionId,
-            ThreadName: logical.ThreadName ?? string.Empty,
-            PreferredCopy: copy,
-            PhysicalCopies: [copy],
-            SearchDocument: new SessionSearchDocument());
-        var searchHit = new SessionSearchHit("session-42", "Thread", copy.FilePath, "snippet", 0.75);
-
-        var warning = new MaintenanceWarning(MaintenanceWarningSeverity.Review, "Needs attention");
-        var preview = new MaintenancePreview
-        {
-            Action = MaintenanceAction.Reconcile,
-            AllowedTargets = [copy],
-            BlockedTargets = [],
-            Warnings = [warning],
-            RequiresCheckpoint = true,
-            RequiresTypedConfirmation = true,
-            RequiredTypedConfirmation = "RECONCILE"
-        };
-        var request = new MaintenanceRequest(MaintenanceAction.Delete, [copy], "DELETE");
-
-        Assert.Equal("session-42", copy.SessionId);
-        Assert.True(copy.IsHot);
-        Assert.Equal(copy, logical.PreferredCopy);
-        Assert.Equal(logical, logical with { });
-        Assert.Equal(copy.FilePath, searchHit.PreferredPath);
-        Assert.Equal("snippet", searchHit.Snippet);
-        Assert.Equal(0.75, searchHit.Score);
-        Assert.NotEqual(searchHit, searchHit with { Snippet = "updated" });
-        Assert.Equal(copy, indexed.PreferredCopy);
-        Assert.Equal(indexed, indexed with { });
-        Assert.Equal(MaintenanceAction.Reconcile, preview.Action);
-        Assert.NotEqual(preview, preview with { RequiredTypedConfirmation = "UPDATED" });
-        Assert.Equal(MaintenanceAction.Reconcile, preview.Action);
-        Assert.Equal(copy, Assert.Single(preview.AllowedTargets));
-        Assert.Empty(preview.BlockedTargets);
-        Assert.Equal(warning, Assert.Single(preview.Warnings));
-        Assert.True(preview.RequiresCheckpoint);
-        Assert.True(preview.RequiresTypedConfirmation);
-        Assert.Equal("RECONCILE", preview.RequiredTypedConfirmation);
-        Assert.Equal(MaintenanceWarningSeverity.Review, warning.Severity);
-        Assert.Contains("MaintenanceWarning", warning.ToString());
-        Assert.Equal("DELETE", request.TypedConfirmation);
-        Assert.Equal(copy, Assert.Single(request.Targets));
-        Assert.Equal(request, request with { });
-        Assert.Contains("SessionPhysicalCopy", copy.ToString());
-
-        var updatedCopy = copy with
-        {
-            SessionId = "session-99",
-            FilePath = @"C:\archive\session-99.jsonl",
-            StoreKind = SessionStoreKind.Backup,
-            LastWriteTimeUtc = copy.LastWriteTimeUtc.AddMinutes(5),
-            FileSizeBytes = 8192,
-            IsHot = false
-        };
-        Assert.Equal("session-99", updatedCopy.SessionId);
-        Assert.Equal(@"C:\archive\session-99.jsonl", updatedCopy.FilePath);
-        Assert.Equal(SessionStoreKind.Backup, updatedCopy.StoreKind);
-        Assert.False(updatedCopy.IsHot);
-
-        var (hitSessionId, hitThreadName, hitPreferredPath, hitSnippet, hitScore) = searchHit;
-        Assert.Equal("session-42", hitSessionId);
-        Assert.Equal("Thread", hitThreadName);
-        Assert.Equal(copy.FilePath, hitPreferredPath);
-        Assert.Equal("snippet", hitSnippet);
-        Assert.Equal(0.75, hitScore);
-
-        var (indexedSessionId, indexedThreadName, indexedPreferredCopy, indexedCopies, indexedSearchDocument) = indexed;
-        Assert.Equal("session-42", indexedSessionId);
-        Assert.Equal("Thread", indexedThreadName);
-        Assert.Equal(copy, indexedPreferredCopy);
-        Assert.Equal(copy, Assert.Single(indexedCopies));
-        Assert.Equal(indexed.SearchDocument, indexedSearchDocument);
+        AssertCoreRecordValues(fixture);
+        AssertDeconstructionValues(fixture);
+        AssertUpdatedCopyValues(fixture.Copy);
     }
 
     [Fact]
@@ -299,5 +220,112 @@ public sealed class CoreModelCoverageTests
         Assert.Contains("- Called `tool`.", audit.RenderedMarkdown);
         Assert.Contains("- `tool` output:", audit.RenderedMarkdown);
     }
+
+    private static MaintenanceAndSessionFixture CreateMaintenanceAndSessionFixture()
+    {
+        var copy = new SessionPhysicalCopy(
+            sessionId: "session-42",
+            filePath: @"C:\Users\Prekzursil\.codex\sessions\2026\03\26\session-42.jsonl",
+            storeKind: SessionStoreKind.Live,
+            state: new SessionPhysicalCopyState(
+                new DateTimeOffset(2026, 3, 26, 12, 0, 0, TimeSpan.Zero),
+                4096,
+                true));
+
+        var logical = new LogicalSession("session-42", "Thread", copy, [copy]);
+        var indexed = new IndexedLogicalSession(
+            SessionId: logical.SessionId,
+            ThreadName: logical.ThreadName ?? string.Empty,
+            PreferredCopy: copy,
+            PhysicalCopies: [copy],
+            SearchDocument: new SessionSearchDocument());
+        var searchHit = new SessionSearchHit("session-42", "Thread", copy.FilePath, "snippet", 0.75);
+        var warning = new MaintenanceWarning(MaintenanceWarningSeverity.Review, "Needs attention");
+        var preview = new MaintenancePreview
+        {
+            Action = MaintenanceAction.Reconcile,
+            AllowedTargets = [copy],
+            BlockedTargets = [],
+            Warnings = [warning],
+            RequiresCheckpoint = true,
+            RequiresTypedConfirmation = true,
+            RequiredTypedConfirmation = "RECONCILE"
+        };
+        var request = new MaintenanceRequest(MaintenanceAction.Delete, [copy], "DELETE");
+
+        return new MaintenanceAndSessionFixture(copy, logical, indexed, searchHit, warning, preview, request);
+    }
+
+    private static void AssertCoreRecordValues(MaintenanceAndSessionFixture fixture)
+    {
+        Assert.Equal("session-42", fixture.Copy.SessionId);
+        Assert.True(fixture.Copy.IsHot);
+        Assert.Equal(fixture.Copy, fixture.Logical.PreferredCopy);
+        Assert.Equal(fixture.Logical, fixture.Logical with { });
+        Assert.Equal(fixture.Copy.FilePath, fixture.SearchHit.PreferredPath);
+        Assert.Equal("snippet", fixture.SearchHit.Snippet);
+        Assert.Equal(0.75, fixture.SearchHit.Score);
+        Assert.NotEqual(fixture.SearchHit, fixture.SearchHit with { Snippet = "updated" });
+        Assert.Equal(fixture.Copy, fixture.Indexed.PreferredCopy);
+        Assert.Equal(fixture.Indexed, fixture.Indexed with { });
+        Assert.Equal(MaintenanceAction.Reconcile, fixture.Preview.Action);
+        Assert.NotEqual(fixture.Preview, fixture.Preview with { RequiredTypedConfirmation = "UPDATED" });
+        Assert.Equal(fixture.Copy, Assert.Single(fixture.Preview.AllowedTargets));
+        Assert.Empty(fixture.Preview.BlockedTargets);
+        Assert.Equal(fixture.Warning, Assert.Single(fixture.Preview.Warnings));
+        Assert.True(fixture.Preview.RequiresCheckpoint);
+        Assert.True(fixture.Preview.RequiresTypedConfirmation);
+        Assert.Equal("RECONCILE", fixture.Preview.RequiredTypedConfirmation);
+        Assert.Equal(MaintenanceWarningSeverity.Review, fixture.Warning.Severity);
+        Assert.Contains("MaintenanceWarning", fixture.Warning.ToString());
+        Assert.Equal("DELETE", fixture.Request.TypedConfirmation);
+        Assert.Equal(fixture.Copy, Assert.Single(fixture.Request.Targets));
+        Assert.Equal(fixture.Request, fixture.Request with { });
+        Assert.Contains("SessionPhysicalCopy", fixture.Copy.ToString());
+    }
+
+    private static void AssertDeconstructionValues(MaintenanceAndSessionFixture fixture)
+    {
+        var (hitSessionId, hitThreadName, hitPreferredPath, hitSnippet, hitScore) = fixture.SearchHit;
+        Assert.Equal("session-42", hitSessionId);
+        Assert.Equal("Thread", hitThreadName);
+        Assert.Equal(fixture.Copy.FilePath, hitPreferredPath);
+        Assert.Equal("snippet", hitSnippet);
+        Assert.Equal(0.75, hitScore);
+
+        var (indexedSessionId, indexedThreadName, indexedPreferredCopy, indexedCopies, indexedSearchDocument) = fixture.Indexed;
+        Assert.Equal("session-42", indexedSessionId);
+        Assert.Equal("Thread", indexedThreadName);
+        Assert.Equal(fixture.Copy, indexedPreferredCopy);
+        Assert.Equal(fixture.Copy, Assert.Single(indexedCopies));
+        Assert.Equal(fixture.Indexed.SearchDocument, indexedSearchDocument);
+    }
+
+    private static void AssertUpdatedCopyValues(SessionPhysicalCopy copy)
+    {
+        var updatedCopy = copy with
+        {
+            SessionId = "session-99",
+            FilePath = @"C:\archive\session-99.jsonl",
+            StoreKind = SessionStoreKind.Backup,
+            LastWriteTimeUtc = copy.LastWriteTimeUtc.AddMinutes(5),
+            FileSizeBytes = 8192,
+            IsHot = false
+        };
+
+        Assert.Equal("session-99", updatedCopy.SessionId);
+        Assert.Equal(@"C:\archive\session-99.jsonl", updatedCopy.FilePath);
+        Assert.Equal(SessionStoreKind.Backup, updatedCopy.StoreKind);
+        Assert.False(updatedCopy.IsHot);
+    }
+
+    private readonly record struct MaintenanceAndSessionFixture(
+        SessionPhysicalCopy Copy,
+        LogicalSession Logical,
+        IndexedLogicalSession Indexed,
+        SessionSearchHit SearchHit,
+        MaintenanceWarning Warning,
+        MaintenancePreview Preview,
+        MaintenanceRequest Request);
 }
 
