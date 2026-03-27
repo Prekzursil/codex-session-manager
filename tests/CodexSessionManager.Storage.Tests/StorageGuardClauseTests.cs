@@ -77,7 +77,7 @@ public sealed class StorageGuardClauseTests
         typeof(MaintenancePlanner).GetMethod("IsProtected", BindingFlags.NonPublic | BindingFlags.Static)!;
 
     [Fact]
-    public async Task Public_guard_clauses_throw_for_null_inputs()
+    public async Task Public_guard_clauses_throw_for_null_inputsAsync()
     {
         var repository = new SessionCatalogRepository(Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db"));
         var previewTarget = new SessionPhysicalCopy("session-1", Path.Combine(Path.GetTempPath(), "session-1.jsonl"), SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false));
@@ -94,7 +94,7 @@ public sealed class StorageGuardClauseTests
     }
 
     [Fact]
-    public async Task Private_guard_clauses_throw_for_null_inputs()
+    public async Task Private_guard_clauses_throw_for_null_inputsAsync()
     {
         var emptyElement = JsonDocument.Parse("{}").RootElement.Clone();
         var filePaths = new HashSet<string>(StringComparer.Ordinal);
@@ -158,7 +158,7 @@ public sealed class StorageGuardClauseTests
     }
 
     [Fact]
-    public async Task Repository_private_branches_reject_missing_required_session_members()
+    public async Task Repository_private_branches_reject_missing_required_session_membersAsync()
     {
         var session = new IndexedLogicalSession(
             "session-branch",

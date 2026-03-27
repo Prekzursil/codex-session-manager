@@ -7,7 +7,7 @@ namespace CodexSessionManager.Storage.Tests;
 public sealed class SessionWorkspaceIndexerTests
 {
     [Fact]
-    public async Task RebuildAsync_IndexesKnownStores_AndDeduplicatesLiveFirst()
+    public async Task Rebuild_IndexesKnownStores_AndDeduplicatesLiveFirstAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), $"csm-{Guid.NewGuid():N}");
         var liveRoot = Path.Combine(root, ".codex");
@@ -19,7 +19,7 @@ public sealed class SessionWorkspaceIndexerTests
         var sessionFileName = "rollout-2026-03-23T00-17-23-session-1.jsonl";
         var sessionJsonl =
             """
-            {"timestamp":"2026-03-23T00:17:23.757Z","type":"session_meta","payload":{"id":"session-1","timestamp":"2026-03-23T00:17:23.757Z","cwd":"C:\\Users\\Prekzursil","originator":"codex_cli_rs","source":"cli","model_provider":"openai"}}
+            {"timestamp":"2026-03-23T00:17:23.757Z","type":"session_meta","payload":{"id":"session-1","timestamp":"2026-03-23T00:17:23.757Z","cwd":"C:\Users\Prekzursil","originator":"codex_cli_rs","source":"cli","model_provider":"openai"}}
             {"timestamp":"2026-03-23T00:17:25.000Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"search this phrase"}]}}
             {"timestamp":"2026-03-23T00:17:28.000Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"I found the renderer."}]}}
             """;

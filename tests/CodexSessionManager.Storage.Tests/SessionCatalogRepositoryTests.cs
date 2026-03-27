@@ -7,7 +7,7 @@ namespace CodexSessionManager.Storage.Tests;
 public sealed class SessionCatalogRepositoryTests
 {
     [Fact]
-    public async Task SearchAsync_FindsTranscript_Alias_AndCommandText()
+    public async Task SearchAsync_FindsTranscript_Alias_AndCommandTextAsync()
     {
         var databasePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
 
@@ -58,7 +58,7 @@ public sealed class SessionCatalogRepositoryTests
     }
 
     [Fact]
-    public async Task SearchAsync_MatchesPhraseTokens_OutOfOriginalOrder()
+    public async Task SearchAsync_MatchesPhraseTokens_OutOfOriginalOrderAsync()
     {
         var databasePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
 
@@ -104,7 +104,7 @@ public sealed class SessionCatalogRepositoryTests
     }
 
     [Fact]
-    public async Task SearchAsync_ReturnsEmptyList_ForWhitespaceQuery()
+    public async Task SearchAsync_ReturnsEmptyList_ForWhitespaceQueryAsync()
     {
         var databasePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
 
@@ -131,7 +131,7 @@ public sealed class SessionCatalogRepositoryTests
     }
 
     [Fact]
-    public async Task InitializeAsync_BackfillsSearchIndex_ForPreexistingSessionRows()
+    public async Task InitializeAsync_BackfillsSearchIndex_ForPreexistingSessionRowsAsync()
     {
         var databasePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
 
@@ -186,7 +186,7 @@ public sealed class SessionCatalogRepositoryTests
     }
 
     [Fact]
-    public async Task SaveMetadataAsync_PersistsAliasTagsAndNotes_AndMakesThemSearchable()
+    public async Task SaveMetadataAsync_PersistsAliasTagsAndNotes_AndMakesThemSearchableAsync()
     {
         var databasePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
 
@@ -212,7 +212,6 @@ public sealed class SessionCatalogRepositoryTests
                     Notes = ""
                 },
                 new DateTimeOffset(2026, 3, 23, 10, 0, 0, TimeSpan.Zero));
-
             await repository.UpsertAsync(session, CancellationToken.None);
             await repository.SaveMetadataAsync("session-2", "Archive candidate", ["cleanup", "backup"], "Needs review", CancellationToken.None);
 
@@ -237,7 +236,7 @@ public sealed class SessionCatalogRepositoryTests
     }
 
     [Fact]
-    public async Task SearchAsync_ReturnsSnippet_WhenMatchOccursOutsideThreadName()
+    public async Task SearchAsync_ReturnsSnippet_WhenMatchOccursOutsideThreadNameAsync()
     {
         var databasePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
 
@@ -282,7 +281,7 @@ public sealed class SessionCatalogRepositoryTests
     }
 
     [Fact]
-    public async Task UpsertAsync_PreservesExistingMetadata_WhenReindexingSameSession()
+    public async Task UpsertAsync_PreservesExistingMetadata_WhenReindexingSameSessionAsync()
     {
         var databasePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
 
@@ -340,7 +339,7 @@ public sealed class SessionCatalogRepositoryTests
     }
 
     [Fact]
-    public async Task InitializeAsync_Supports_database_path_without_directory()
+    public async Task InitializeAsync_Supports_database_path_without_directoryAsync()
     {
         var databasePath = $"{Guid.NewGuid():N}.catalog.db";
         var resolvedDatabasePath = Path.GetFullPath(databasePath);
@@ -369,7 +368,7 @@ public sealed class SessionCatalogRepositoryTests
     }
 
     [Fact]
-    public async Task ListSessionsAsync_ReturnsPersistedMetadata_WhenStoredMetadataExists()
+    public async Task ListSessionsAsync_ReturnsPersistedMetadata_WhenStoredMetadataExistsAsync()
     {
         var databasePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
 

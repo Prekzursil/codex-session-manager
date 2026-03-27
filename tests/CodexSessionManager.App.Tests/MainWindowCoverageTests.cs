@@ -249,7 +249,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task RunOnUiThreadAsync_invokes_action_when_called_off_dispatcher_thread()
+    public async Task RunOnUiThreadAsync_invokes_action_when_called_off_dispatcher_threadAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -266,7 +266,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task RunOnUiThreadValueAsync_returns_value_when_called_off_dispatcher_thread()
+    public async Task RunOnUiThreadValueAsync_returns_value_when_called_off_dispatcher_thread_Async()
     {
         await RunInStaAsync(async () =>
         {
@@ -285,7 +285,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task InitializeAsync_uses_injected_dependencies_and_schedules_refresh()
+    public async Task InitializeAsync_uses_injected_dependencies_and_schedules_refreshAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -316,7 +316,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task InitializeAsync_failure_sets_status()
+    public async Task InitializeAsync_failure_sets_statusAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -330,7 +330,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task LoadSessionsFromCatalogAsync_populates_sessions_from_repository()
+    public async Task LoadSessionsFromCatalogAsync_populates_sessions_from_repositoryAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -355,7 +355,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task RefreshAsync_uses_known_stores_and_rebuilds_catalog()
+    public async Task RefreshAsync_uses_known_stores_and_rebuilds_catalogAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -398,7 +398,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task RefreshAsync_with_deep_scan_uses_deep_scan_status_and_indexes_sessions()
+    public async Task RefreshAsync_with_deep_scan_uses_deep_scan_status_and_indexes_sessionsAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -421,7 +421,7 @@ public sealed class MainWindowCoverageTests
 
                 File.WriteAllText(
                     Path.Combine(root, "sessions.index.jsonl"),
-                    """{"id":"session-refresh-deep","thread_name":"Refresh Thread Deep"}""" + Environment.NewLine,
+                    """{""id":""session-refresh-deep"",""thread_name":""Refresh Thread Deep""}""" + Environment.NewLine,
                     Encoding.UTF8);
 
                 RepositoryField.SetValue(window, repository);
@@ -445,7 +445,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task RunBackgroundRefreshAsync_sets_status_when_refresh_throws()
+    public async Task RunBackgroundRefreshAsync_sets_status_when_refresh_throwsAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -473,7 +473,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task RunBackgroundRefreshAsync_completes_successfully_when_refresh_succeeds()
+    public async Task RunBackgroundRefreshAsync_completes_successfully_when_refresh_succeedsAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -498,7 +498,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task LoadSelectedSessionAsync_success_updates_details_and_transcripts()
+    public async Task LoadSelectedSessionAsync_success_updates_details_and_transcriptsAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -534,7 +534,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task PopulateSelectedSessionHeaderAsync_throws_when_selected_session_is_missing_required_members()
+    public async Task PopulateSelectedSessionHeaderAsync_throws_when_selected_session_is_missing_required_membersAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -556,7 +556,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task LoadSelectedSessionBodyAsync_missing_preferred_copy_is_handled_without_throwing()
+    public async Task LoadSelectedSessionBodyAsync_missing_preferred_copy_is_handled_without_throwingAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -578,7 +578,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task ApplySearchResultsAsync_throws_when_repository_is_missing()
+    public async Task ApplySearchResultsAsync_throws_when_repository_is_missing_Async()
     {
         await RunInStaAsync(async () =>
         {
@@ -591,7 +591,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task ApplySearchResultsAsync_normalizes_null_query_before_searching()
+    public async Task ApplySearchResults_normalizes_null_query_before_searchingAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -616,7 +616,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task LoadSelectedSessionAsync_uses_dash_when_parsed_cwd_is_missing()
+    public async Task LoadSelectedSessionAsync_uses_dash_when_parsed_cwd_is_missingAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -647,7 +647,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task LoadSelectedSessionAsync_failure_updates_fallback_ui()
+    public async Task LoadSelectedSessionAsync_failure_updates_fallback_uiAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -680,7 +680,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task PopulateSelectedSessionHeaderAsync_skips_updates_when_selection_changes()
+    public async Task PopulateSelectedSessionHeaderAsync_skips_updates_when_selection_changesAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -707,7 +707,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task SearchSessionsAsync_filters_and_reloads()
+    public async Task SearchSessionsAsync_filters_and_reloadsAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -739,7 +739,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task SearchSessionsAsync_catches_cancellation_and_window_close_disposes_search_token()
+    public async Task SearchSessionsAsync_catches_cancellation_and_window_close_disposes_search_tokenAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -782,7 +782,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task RepositoryBackedAsyncMethods_return_early_without_repository()
+    public async Task RepositoryBackedAsyncMethods_return_early_without_repositoryAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -799,7 +799,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task SaveSelectedMetadataAsync_persists_alias_tags_and_notes()
+    public async Task SaveSelectedMetadataAsync_persists_alias_tags_and_notesAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -832,7 +832,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task SaveSelectedMetadataAsync_without_selection_returns_without_changes()
+    public async Task SaveSelectedMetadataWithoutSelectionReturnsWithoutChangesAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -859,7 +859,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task SaveSelectedMetadataAsync_returns_when_no_session_is_selected()
+    public async Task SaveSelectedMetadataAsync_returns_when_no_session_is_selected_Async()
     {
         await RunInStaAsync(async () =>
         {
@@ -990,7 +990,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task ExportButton_with_cancelled_path_does_not_write()
+    public async Task ExportButton_with_cancelled_path_does_not_writeAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -1026,7 +1026,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task ButtonHandlers_return_without_selection_or_preview()
+    public async Task ButtonHandlers_return_without_selection_or_previewAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -1156,7 +1156,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task BuildPreview_and_execute_maintenance_paths_update_ui()
+    public async Task BuildPreview_and_execute_maintenance_paths_update_uiAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -1238,7 +1238,7 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task ExecuteMaintenanceAsync_sets_status_when_runner_returns_not_executed()
+    public async Task ExecuteMaintenanceAsync_sets_status_when_runner_returns_not_executedAsync()
     {
         await RunInStaAsync(async () =>
         {
@@ -1273,7 +1273,7 @@ public sealed class MainWindowCoverageTests
     private static IReadOnlyList<KnownSessionStore> InvokeBuildKnownStores(bool deepScan) =>
         (IReadOnlyList<KnownSessionStore>)BuildKnownStoresMethod.Invoke(null, [deepScan])!;
 
-    private static Task InvokePrivateTask(object instance, MethodInfo method, params object?[] args) =>
+    private static Task InvokePrivateTaskAsync(object instance, MethodInfo method, params object?[] args) =>
         (Task)method.Invoke(instance, args)!;
 
     private static T GetNamedField<T>(MainWindow window, string name) where T : class =>

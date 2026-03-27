@@ -6,7 +6,7 @@ namespace CodexSessionManager.Storage.Tests;
 public sealed class SessionDiscoveryServiceTests
 {
     [Fact]
-    public async Task DiscoverAsync_LoadsKnownStores_AppliesSessionIndexMetadata_AndDedupesCopies()
+    public async Task DiscoverAsync_LoadsKnownStores_AppliesSessionIndexMetadata_AndDedupesCopiesAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         var liveDir = Path.Combine(root, ".codex", "sessions", "2026", "03", "23");
