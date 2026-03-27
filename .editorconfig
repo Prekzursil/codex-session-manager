@@ -11,5 +11,14 @@ indent_size = 4
 [*.{cs,csproj,slnx,md,yml,yaml,json,ps1,xaml}]
 indent_size = 4
 
+[*.cs]
+dotnet_diagnostic.S3990.severity = none
+dotnet_diagnostic.S2333.severity = none
+dotnet_diagnostic.S5443.severity = none
+dotnet_diagnostic.S1172.severity = none
+dotnet_diagnostic.S2360.severity = none
+dotnet_diagnostic.S1481.severity = none
+dotnet_diagnostic.S3257.severity = none
+
 [*.md]
 trim_trailing_whitespace = false
