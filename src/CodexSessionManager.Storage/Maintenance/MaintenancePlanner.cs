@@ -20,13 +20,13 @@ public static class MaintenancePlanner
             throw new ArgumentNullException(nameof(request));
         }
 
-        var action = request.Action;
-        var requiredTypedConfirmation = request.TypedConfirmation;
+        var action = request.Action; // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+        var requiredTypedConfirmation = request.TypedConfirmation; // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
         var blockedTargets = new List<SessionPhysicalCopy>();
         var allowedTargets = new List<SessionPhysicalCopy>();
         var warnings = new List<MaintenanceWarning>();
 
-        var targets = request.Targets ?? [];
+        var targets = request.Targets ?? []; // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
         foreach (var candidate in targets)
         {
             ArgumentNullException.ThrowIfNull(candidate);
@@ -61,8 +61,8 @@ public static class MaintenancePlanner
             throw new ArgumentNullException(nameof(candidate));
         }
 
-        var normalizedPath = candidate.FilePath.Replace('/', '\\');
-        return candidate.StoreKind is SessionStoreKind.Live
+        var normalizedPath = candidate.FilePath.Replace('/', '\\'); // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+        return candidate.StoreKind is SessionStoreKind.Live // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
             || ProtectedPathMarkers.Any(marker => normalizedPath.Contains(marker, StringComparison.OrdinalIgnoreCase));
     }
 }

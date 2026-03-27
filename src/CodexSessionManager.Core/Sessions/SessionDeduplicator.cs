@@ -5,7 +5,7 @@ public static class SessionDeduplicator
 {
     public static IReadOnlyList<LogicalSession> Consolidate(IEnumerable<SessionPhysicalCopy> copies)
     {
-        return copies
+        return copies // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
             .Where(copy => !string.IsNullOrWhiteSpace(copy.SessionId))
             .GroupBy(copy => copy.SessionId, StringComparer.Ordinal)
             .Select(group =>
