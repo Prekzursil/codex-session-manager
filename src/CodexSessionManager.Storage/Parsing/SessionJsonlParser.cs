@@ -9,17 +9,16 @@ namespace CodexSessionManager.Storage.Parsing;
 [SuppressMessage("Code Smell", "S2333", Justification = "GeneratedRegex members require the containing type to be partial.")]
 public static partial class SessionJsonlParser
 {
+    private const string UnknownToolName = "unknown_tool";
+    private const string DefaultToolOutputName = "tool";
     private static readonly Regex UrlRegex = UrlRegexFactory();
     private static readonly Regex FilePathRegex = FilePathRegexFactory();
 
     public static async Task<ParsedSessionFile> ParseAsync(string filePath, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(filePath))
-        {
-            throw new ArgumentException("Value cannot be null or whitespace.", nameof(filePath));
-        }
+        var sessionPath = RequireFilePath(filePath);
 
-        var lines = await File.ReadAllLinesAsync(filePath, cancellationToken);
+        var lines = await File.ReadAllLinesAsync(sessionPath, cancellationToken);
         var state = new ParseState();
 
         foreach (var line in lines.Where(static value => !string.IsNullOrWhiteSpace(value)))
@@ -28,78 +27,41 @@ public static partial class SessionJsonlParser
             ParseLine(document.RootElement, state);
         }
 
-        if (string.IsNullOrWhiteSpace(state.SessionId))
-        {
-            throw new InvalidOperationException($"Session ID was not found in {filePath}.");
-        }
-
-        return new ParsedSessionFile(
-            SessionId: state.SessionId,
-            ForkedFromId: state.ForkedFromId,
-            Cwd: state.Cwd,
-            TechnicalBreadcrumbs: new TechnicalBreadcrumbs(
-                state.Commands,
-                state.ExitCodes,
-                state.FilePaths.ToArray(),
-                state.Urls.ToArray()),
-            Document: new NormalizedSessionDocument(
-                state.SessionId,
-                ThreadName: null,
-                StartedAtUtc: state.StartedAtUtc == DateTimeOffset.MinValue ? DateTimeOffset.UtcNow : state.StartedAtUtc,
-                ForkedFromId: state.ForkedFromId,
-                Cwd: state.Cwd,
-                Events: state.Events));
+        return state.CreateParsedSessionFile(sessionPath);
     }
 
     private static void ParseLine(JsonElement root, ParseState state)
     {
-        if (state is null)
-        {
-            throw new ArgumentNullException(nameof(state));
-        }
+        ArgumentNullException.ThrowIfNull(state);
 
         var type = TryGetString(root, "type");
-        switch (type)
+        if (type is "session_meta" && TryGetPayload(root, out var sessionMetaPayload))
         {
-            case "session_meta" when root.TryGetProperty("payload", out var sessionMetaPayload):
-                ParseSessionMetadata(sessionMetaPayload, state);
-                break;
-            case "response_item" when root.TryGetProperty("payload", out var responseItemPayload):
-                ParseResponseItem(responseItemPayload, state);
-                break;
-            default:
-                return;
+            ParseSessionMetadata(sessionMetaPayload, state);
+            return;
+        }
+
+        if (type is "response_item" && TryGetPayload(root, out var responseItemPayload))
+        {
+            ParseResponseItem(responseItemPayload, state);
         }
     }
 
     private static void ParseSessionMetadata(JsonElement payload, ParseState state)
     {
-        if (state is null)
-        {
-            throw new ArgumentNullException(nameof(state));
-        }
+        ArgumentNullException.ThrowIfNull(state);
 
-        state.SessionId ??= TryGetString(payload, "id");
-        state.ForkedFromId ??= TryGetString(payload, "forked_from_id");
-        state.Cwd ??= TryGetString(payload, "cwd");
-
-        if (state.StartedAtUtc == DateTimeOffset.MinValue
-            && payload.TryGetProperty("timestamp", out var timestampElement)
-            && DateTimeOffset.TryParse(timestampElement.GetString() ?? string.Empty, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsedStartedAt))
-        {
-            state.StartedAtUtc = parsedStartedAt;
-        }
+        state.SetSessionIdIfMissing(TryGetString(payload, "id"));
+        state.SetForkedFromIdIfMissing(TryGetString(payload, "forked_from_id"));
+        state.SetCwdIfMissing(TryGetString(payload, "cwd"));
+        state.SetStartedAtIfMissing(TryGetTimestamp(payload));
     }
 
     private static void ParseResponseItem(JsonElement payload, ParseState state)
     {
-        if (state is null)
-        {
-            throw new ArgumentNullException(nameof(state));
-        }
+        ArgumentNullException.ThrowIfNull(state);
 
-        var payloadType = TryGetString(payload, "type");
-        switch (payloadType)
+        switch (TryGetString(payload, "type"))
         {
             case "message":
                 ParseMessage(payload, state);
@@ -117,13 +79,9 @@ public static partial class SessionJsonlParser
 
     private static void ParseMessage(JsonElement payload, ParseState state)
     {
-        if (state is null)
-        {
-            throw new ArgumentNullException(nameof(state));
-        }
+        ArgumentNullException.ThrowIfNull(state);
 
-        if (!payload.TryGetProperty("content", out var contentElement)
-            || contentElement.ValueKind is not JsonValueKind.Array)
+        if (!TryGetContentArray(payload, out var contentElement))
         {
             return;
         }
@@ -136,57 +94,31 @@ public static partial class SessionJsonlParser
                 continue;
             }
 
-            var text = contentItem.GetProperty("text").GetString()!;
-            state.Events.Add(NormalizedSessionEvent.CreateMessage(actor, text));
-            ExtractFilePathsAndUrls(text, state.FilePaths, state.Urls);
+            state.AddMessage(actor, contentItem.GetProperty("text").GetString()!);
         }
     }
 
     private static void ParseFunctionCall(JsonElement payload, ParseState state)
     {
-        if (state is null)
-        {
-            throw new ArgumentNullException(nameof(state));
-        }
+        ArgumentNullException.ThrowIfNull(state);
 
-        var toolName = TryGetString(payload, "name") ?? "unknown_tool";
+        var toolName = TryGetString(payload, "name") ?? UnknownToolName;
         var rawArguments = TryGetString(payload, "arguments") ?? string.Empty;
-        state.Events.Add(NormalizedSessionEvent.CreateToolCall(toolName, rawArguments));
-
-        var command = TryExtractCommand(rawArguments);
-        if (!string.IsNullOrWhiteSpace(command))
-        {
-            state.Commands.Add(command!);
-        }
-
-        ExtractFilePathsAndUrls(rawArguments, state.FilePaths, state.Urls);
+        state.AddToolCall(toolName, rawArguments);
     }
 
     private static void ParseFunctionCallOutput(JsonElement payload, ParseState state)
     {
-        if (state is null)
-        {
-            throw new ArgumentNullException(nameof(state));
-        }
+        ArgumentNullException.ThrowIfNull(state);
 
         var outputText = TryGetString(payload, "output") ?? string.Empty;
-        var toolName = TryGetString(payload, "name") ?? "tool";
-        state.Events.Add(NormalizedSessionEvent.CreateToolOutput(toolName, outputText));
-
-        if (TryExtractExitCode(outputText, out var exitCode))
-        {
-            state.ExitCodes.Add(exitCode);
-        }
-
-        ExtractFilePathsAndUrls(outputText, state.FilePaths, state.Urls);
+        var toolName = TryGetString(payload, "name") ?? DefaultToolOutputName;
+        state.AddToolOutput(toolName, outputText);
     }
 
     private static string? TryGetString(JsonElement element, string propertyName)
     {
-        if (propertyName is null)
-        {
-            throw new ArgumentNullException(nameof(propertyName));
-        }
+        ArgumentNullException.ThrowIfNull(propertyName);
 
         if (!element.TryGetProperty(propertyName, out var propertyElement))
         {
@@ -223,10 +155,7 @@ public static partial class SessionJsonlParser
 
     private static string? TryExtractCommand(string rawArguments)
     {
-        if (rawArguments is null)
-        {
-            throw new ArgumentNullException(nameof(rawArguments));
-        }
+        ArgumentNullException.ThrowIfNull(rawArguments);
 
         if (string.IsNullOrWhiteSpace(rawArguments))
         {
@@ -245,20 +174,9 @@ public static partial class SessionJsonlParser
 
     private static void ExtractFilePathsAndUrls(string value, ISet<string> filePaths, ISet<string> urls)
     {
-        if (value is null)
-        {
-            throw new ArgumentNullException(nameof(value));
-        }
-
-        if (filePaths is null)
-        {
-            throw new ArgumentNullException(nameof(filePaths));
-        }
-
-        if (urls is null)
-        {
-            throw new ArgumentNullException(nameof(urls));
-        }
+        ArgumentNullException.ThrowIfNull(value);
+        ArgumentNullException.ThrowIfNull(filePaths);
+        ArgumentNullException.ThrowIfNull(urls);
 
         foreach (Match match in UrlRegex.Matches(value))
         {
@@ -273,10 +191,7 @@ public static partial class SessionJsonlParser
 
     private static bool TryExtractExitCode(string text, out int exitCode)
     {
-        if (text is null)
-        {
-            throw new ArgumentNullException(nameof(text));
-        }
+        ArgumentNullException.ThrowIfNull(text);
 
         exitCode = 0;
         if (string.IsNullOrWhiteSpace(text))
@@ -295,6 +210,45 @@ public static partial class SessionJsonlParser
         return int.TryParse(numericValue, out exitCode);
     }
 
+    private static string RequireFilePath(string? filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            throw new ArgumentException("Value cannot be null or whitespace.", nameof(filePath));
+        }
+
+        return filePath;
+    }
+
+    private static bool TryGetPayload(JsonElement root, out JsonElement payload)
+    {
+        payload = default;
+        return root.TryGetProperty("payload", out payload);
+    }
+
+    private static DateTimeOffset? TryGetTimestamp(JsonElement payload)
+    {
+        if (!payload.TryGetProperty("timestamp", out var timestampElement))
+        {
+            return null;
+        }
+
+        return DateTimeOffset.TryParse(
+            timestampElement.GetString() ?? string.Empty,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.RoundtripKind,
+            out var parsedStartedAt)
+            ? parsedStartedAt
+            : null;
+    }
+
+    private static bool TryGetContentArray(JsonElement payload, out JsonElement contentElement)
+    {
+        contentElement = default;
+        return payload.TryGetProperty("content", out contentElement)
+            && contentElement.ValueKind is JsonValueKind.Array;
+    }
+
     [GeneratedRegex(@"https?://[^\s`""']+", RegexOptions.Compiled | RegexOptions.IgnoreCase)]
     private static partial Regex UrlRegexFactory();
 
@@ -303,11 +257,11 @@ public static partial class SessionJsonlParser
 
     private sealed class ParseState
     {
-        public string? SessionId { get; set; }
+        public string? SessionId { get; private set; }
 
-        public string? ForkedFromId { get; set; }
+        public string? ForkedFromId { get; private set; }
 
-        public string? Cwd { get; set; }
+        public string? Cwd { get; private set; }
 
         public DateTimeOffset StartedAtUtc { get; set; } = DateTimeOffset.MinValue;
 
@@ -320,6 +274,79 @@ public static partial class SessionJsonlParser
         public HashSet<string> FilePaths { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         public HashSet<string> Urls { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public void SetSessionIdIfMissing(string? sessionId)
+        {
+            SessionId ??= sessionId;
+        }
+
+        public void SetForkedFromIdIfMissing(string? forkedFromId)
+        {
+            ForkedFromId ??= forkedFromId;
+        }
+
+        public void SetCwdIfMissing(string? cwd)
+        {
+            Cwd ??= cwd;
+        }
+
+        public void SetStartedAtIfMissing(DateTimeOffset? startedAtUtc)
+        {
+            if (StartedAtUtc == DateTimeOffset.MinValue && startedAtUtc.HasValue)
+            {
+                StartedAtUtc = startedAtUtc.Value;
+            }
+        }
+
+        public void AddMessage(SessionActor actor, string text)
+        {
+            Events.Add(NormalizedSessionEvent.CreateMessage(actor, text));
+            ExtractFilePathsAndUrls(text, FilePaths, Urls);
+        }
+
+        public void AddToolCall(string toolName, string rawArguments)
+        {
+            Events.Add(NormalizedSessionEvent.CreateToolCall(toolName, rawArguments));
+            var command = TryExtractCommand(rawArguments);
+            if (!string.IsNullOrWhiteSpace(command))
+            {
+                Commands.Add(command);
+            }
+
+            ExtractFilePathsAndUrls(rawArguments, FilePaths, Urls);
+        }
+
+        public void AddToolOutput(string toolName, string outputText)
+        {
+            Events.Add(NormalizedSessionEvent.CreateToolOutput(toolName, outputText));
+            if (TryExtractExitCode(outputText, out var exitCode))
+            {
+                ExitCodes.Add(exitCode);
+            }
+
+            ExtractFilePathsAndUrls(outputText, FilePaths, Urls);
+        }
+
+        public ParsedSessionFile CreateParsedSessionFile(string filePath)
+        {
+            if (string.IsNullOrWhiteSpace(SessionId))
+            {
+                throw new InvalidOperationException($"Session ID was not found in {filePath}.");
+            }
+
+            return new ParsedSessionFile(
+                SessionId,
+                ForkedFromId,
+                Cwd,
+                new TechnicalBreadcrumbs(Commands, ExitCodes, FilePaths.ToArray(), Urls.ToArray()),
+                new NormalizedSessionDocument(
+                    SessionId,
+                    ThreadName: null,
+                    StartedAtUtc: StartedAtUtc == DateTimeOffset.MinValue ? DateTimeOffset.UtcNow : StartedAtUtc,
+                    ForkedFromId,
+                    Cwd,
+                    Events));
+        }
     }
 }
 
