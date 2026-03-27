@@ -19,7 +19,8 @@ public static class SessionTranscriptFormatter
 
         var toolActivity = new List<string>();
 
-        foreach (var sessionEvent in session.Events)
+        var events = session.Events ?? [];
+        foreach (var sessionEvent in events)
         {
             if (sessionEvent.Kind is NormalizedEventKind.Message)
             {
@@ -61,7 +62,7 @@ public static class SessionTranscriptFormatter
         }
 
         builder.AppendLine(ToMessageHeading(sessionEvent.Actor));
-        builder.AppendLine(sessionEvent.Text);
+        builder.AppendLine(sessionEvent.Text ?? string.Empty);
         builder.AppendLine();
     }
 
@@ -94,25 +95,27 @@ public static class SessionTranscriptFormatter
         {
             NormalizedEventKind.ToolCall => BuildToolCallDescription(sessionEvent),
             NormalizedEventKind.ToolOutput => BuildToolOutputDescription(sessionEvent),
-            NormalizedEventKind.Note => $"- Note: {Truncate(sessionEvent.Text, 140)}",
+            NormalizedEventKind.Note => $"- Note: {Truncate(sessionEvent.Text ?? string.Empty, 140)}",
             _ => null,
         };
     }
 
     private static string BuildToolCallDescription(NormalizedSessionEvent sessionEvent)
     {
-        if (string.IsNullOrWhiteSpace(sessionEvent.RawPayload))
+        var toolName = string.IsNullOrWhiteSpace(sessionEvent.ToolName) ? "tool" : sessionEvent.ToolName;
+        var rawPayload = sessionEvent.RawPayload ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(rawPayload))
         {
-            return $"- Called `{sessionEvent.ToolName}`.";
+            return $"- Called `{toolName}`.";
         }
 
-        return $"- Called `{sessionEvent.ToolName}` with arguments `{Truncate(sessionEvent.RawPayload, 120)}`.";
+        return $"- Called `{toolName}` with arguments `{Truncate(rawPayload, 120)}`.";
     }
 
     private static string BuildToolOutputDescription(NormalizedSessionEvent sessionEvent)
     {
         var toolName = string.IsNullOrWhiteSpace(sessionEvent.ToolName) ? "tool" : sessionEvent.ToolName;
-        return $"- `{toolName}` output: {Truncate(sessionEvent.Text, 140)}";
+        return $"- `{toolName}` output: {Truncate(sessionEvent.Text ?? string.Empty, 140)}";
     }
 
     private static string Truncate(string value, int maxLength)

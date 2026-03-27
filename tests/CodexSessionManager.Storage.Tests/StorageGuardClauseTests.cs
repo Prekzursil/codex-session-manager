@@ -64,6 +64,12 @@ public sealed class StorageGuardClauseTests
     private static readonly MethodInfo ToFtsTokenMethod =
         typeof(SessionCatalogRepository).GetMethod("ToFtsToken", BindingFlags.NonPublic | BindingFlags.Static)!;
 
+    private static readonly MethodInfo ReadRequiredStringMethod =
+        typeof(SessionCatalogRepository).GetMethod("ReadRequiredString", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    private static readonly MethodInfo IsProtectedMethod =
+        typeof(MaintenancePlanner).GetMethod("IsProtected", BindingFlags.NonPublic | BindingFlags.Static)!;
+
     [Fact]
     public async Task Public_guard_clauses_throw_for_null_inputs()
     {
@@ -117,6 +123,76 @@ public sealed class StorageGuardClauseTests
         AssertInner<ArgumentNullException>(() => SplitLinesMethod.Invoke(null, [null!]));
         AssertInner<ArgumentNullException>(() => ToFtsQueryMethod.Invoke(null, [null!]));
         AssertInner<ArgumentNullException>(() => ToFtsTokenMethod.Invoke(null, [null!]));
+        AssertInner<ArgumentNullException>(() => ExtractFilePathsAndUrlsMethod.Invoke(null, [null!, new HashSet<string>(StringComparer.Ordinal), new HashSet<string>(StringComparer.Ordinal)]));
+        AssertInner<ArgumentNullException>(() => ReadRequiredStringMethod.Invoke(null, [null!, 0]));
+    }
+
+    [Fact]
+    public void ParseLine_ignores_payloadless_entries_and_invalid_timestamps()
+    {
+        var sessionMetaWithoutPayload = JsonDocument.Parse("""{"type":"session_meta"}""").RootElement.Clone();
+        var responseItemWithoutPayload = JsonDocument.Parse("""{"type":"response_item"}""").RootElement.Clone();
+        var invalidTimestampPayload = JsonDocument.Parse("""{"id":"session-1","timestamp":"not-a-date"}""").RootElement.Clone();
+        var state = Activator.CreateInstance(ParseStateType)!;
+
+        ParseLineMethod.Invoke(null, [sessionMetaWithoutPayload, state]);
+        ParseLineMethod.Invoke(null, [responseItemWithoutPayload, state]);
+        ParseSessionMetadataMethod.Invoke(null, [invalidTimestampPayload, state]);
+        ParseSessionMetadataMethod.Invoke(null, [JsonDocument.Parse("""{"id":"session-2"}""").RootElement.Clone(), state]);
+        ParseSessionMetadataMethod.Invoke(null, [JsonDocument.Parse("""{"timestamp":null}""").RootElement.Clone(), state]);
+
+        var startedAt = (DateTimeOffset)ParseStateType.GetProperty("StartedAtUtc")!.GetValue(state)!;
+        Assert.Equal(DateTimeOffset.MinValue, startedAt);
+
+        ParseStateType.GetProperty("StartedAtUtc")!.SetValue(state, new DateTimeOffset(2026, 3, 27, 2, 0, 0, TimeSpan.Zero));
+        ParseSessionMetadataMethod.Invoke(null, [JsonDocument.Parse("""{"timestamp":"2026-03-27T04:00:00Z"}""").RootElement.Clone(), state]);
+        Assert.Equal(new DateTimeOffset(2026, 3, 27, 2, 0, 0, TimeSpan.Zero), (DateTimeOffset)ParseStateType.GetProperty("StartedAtUtc")!.GetValue(state)!);
+    }
+
+    [Fact]
+    public async Task Repository_private_branches_reject_missing_required_session_members()
+    {
+        var session = new IndexedLogicalSession(
+            "session-branch",
+            "Thread",
+            new SessionPhysicalCopy("session-branch", @"C:\tmp\session-branch.jsonl", SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false)),
+            [],
+            new SessionSearchDocument());
+
+        var databasePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
+        var repository = new SessionCatalogRepository(databasePath);
+        await repository.InitializeAsync(CancellationToken.None);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => repository.UpsertAsync(WithNullIndexedSessionProperty(session, nameof(IndexedLogicalSession.PreferredCopy)), CancellationToken.None));
+
+        await repository.UpsertAsync(WithNullIndexedSessionProperty(session, nameof(IndexedLogicalSession.PhysicalCopies)), CancellationToken.None);
+        var stored = Assert.Single(await repository.ListSessionsAsync(CancellationToken.None));
+        Assert.Single(stored.PhysicalCopies);
+
+        await using var connection = new SqliteConnection($"Data Source={databasePath}");
+        await connection.OpenAsync();
+        await AssertInnerAsync<InvalidOperationException>(() => (Task<SessionSearchDocument>)MergeExistingMetadataMethod.Invoke(null, [connection, WithNullIndexedSessionProperty(session, nameof(IndexedLogicalSession.SearchDocument)), CancellationToken.None])!);
+    }
+
+    private static IndexedLogicalSession WithNullIndexedSessionProperty(IndexedLogicalSession session, string propertyName)
+    {
+        var clone = session with { };
+        typeof(IndexedLogicalSession).GetField($"<{propertyName}>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(clone, null);
+        return clone;
+    }
+
+    [Fact]
+    public void MaintenancePlanner_handles_null_target_collections_and_private_null_candidate_guard()
+    {
+        var request = new MaintenanceRequest(MaintenanceAction.Archive, [new SessionPhysicalCopy("session", @"C:\tmp\session.jsonl", SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false))], "ARCHIVE");
+        typeof(MaintenanceRequest).GetField("<Targets>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(request, null);
+
+        var preview = MaintenancePlanner.CreatePreview(request);
+
+        Assert.Empty(preview.AllowedTargets);
+        Assert.Empty(preview.BlockedTargets);
+        Assert.Empty(preview.Warnings);
+        AssertInner<ArgumentNullException>(() => IsProtectedMethod.Invoke(null, [null!]));
     }
 
     private static void AssertInner<TException>(Action action)

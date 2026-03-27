@@ -260,4 +260,43 @@ public sealed class CoreModelCoverageTests
         Assert.Contains("`exec_command` output: short output", audit.RenderedMarkdown);
         Assert.DoesNotContain("...", audit.RenderedMarkdown);
     }
+
+    [Fact]
+    public void FormatAudit_handles_null_event_collections_and_optional_event_payloads()
+    {
+        var emptySession = new NormalizedSessionDocument(
+            SessionId: "session-empty-events",
+            ThreadName: "Empty events",
+            StartedAtUtc: new DateTimeOffset(2026, 3, 26, 16, 10, 0, TimeSpan.Zero),
+            ForkedFromId: null,
+            Cwd: @"C:\Users\Prekzursil",
+            Events: []) with
+        {
+            Events = null!
+        };
+
+        var emptyAudit = SessionTranscriptFormatter.Format(emptySession, TranscriptMode.Audit);
+        Assert.DoesNotContain("### Tool Activity", emptyAudit.RenderedMarkdown);
+
+        var payloadSession = new NormalizedSessionDocument(
+            SessionId: "session-null-payloads",
+            ThreadName: "Null payloads",
+            StartedAtUtc: new DateTimeOffset(2026, 3, 26, 16, 15, 0, TimeSpan.Zero),
+            ForkedFromId: null,
+            Cwd: @"C:\Users\Prekzursil",
+            Events:
+            [
+                new NormalizedSessionEvent(NormalizedEventKind.Message, SessionActor.Assistant, "Assistant message") with { Text = null! },
+                new NormalizedSessionEvent(NormalizedEventKind.Note, SessionActor.Note, "Note payload") with { Text = null! },
+                new NormalizedSessionEvent(NormalizedEventKind.ToolCall, SessionActor.Tool, "Tool call") with { ToolName = null!, RawPayload = null! },
+                new NormalizedSessionEvent(NormalizedEventKind.ToolOutput, SessionActor.Tool, "Tool output") with { ToolName = null!, Text = null! }
+            ]);
+
+        var audit = SessionTranscriptFormatter.Format(payloadSession, TranscriptMode.Audit);
+
+        Assert.Contains("### Assistant", audit.RenderedMarkdown);
+        Assert.Contains("- Note:", audit.RenderedMarkdown);
+        Assert.Contains("- Called `tool`.", audit.RenderedMarkdown);
+        Assert.Contains("- `tool` output:", audit.RenderedMarkdown);
+    }
 }

@@ -20,19 +20,23 @@ public partial class MainWindow
 
     private async Task PopulateSelectedSessionHeaderAsync(IndexedLogicalSession selected, string selectedSessionId)
     {
+        var preferredCopy = selected.PreferredCopy ?? throw new InvalidOperationException("Selected session is missing a preferred copy.");
+        var searchDocument = selected.SearchDocument ?? throw new InvalidOperationException("Selected session is missing search metadata.");
+        var physicalCopies = selected.PhysicalCopies ?? [];
+
         await RunOnUiThreadAsync(() =>
         {
             if (string.Equals(GetSelectedSession()?.SessionId, selectedSessionId, StringComparison.Ordinal))
             {
                 ThreadNameTextBlock.Text = selected.ThreadName;
                 SessionIdTextBlock.Text = selected.SessionId;
-                PreferredPathTextBlock.Text = selected.PreferredCopy.FilePath;
-                AliasTextBox.Text = selected.SearchDocument.Alias;
-                TagsTextBox.Text = string.Join(", ", selected.SearchDocument.Tags);
-                NotesTextBox.Text = selected.SearchDocument.Notes;
-                CopiesListBox.ItemsSource = selected.PhysicalCopies;
-                ReadableTranscriptTextBox.Text = selected.SearchDocument.ReadableTranscript;
-                DialogueTranscriptTextBox.Text = selected.SearchDocument.DialogueTranscript;
+                PreferredPathTextBlock.Text = preferredCopy.FilePath;
+                AliasTextBox.Text = searchDocument.Alias;
+                TagsTextBox.Text = string.Join(", ", searchDocument.Tags);
+                NotesTextBox.Text = searchDocument.Notes;
+                CopiesListBox.ItemsSource = physicalCopies;
+                ReadableTranscriptTextBox.Text = searchDocument.ReadableTranscript;
+                DialogueTranscriptTextBox.Text = searchDocument.DialogueTranscript;
             }
         });
     }
@@ -41,8 +45,9 @@ public partial class MainWindow
     {
         try
         {
-            var parsed = await SessionParser(selected.PreferredCopy.FilePath, CancellationToken.None);
-            var rawContent = FileTextReader(selected.PreferredCopy.FilePath);
+            var preferredCopy = selected.PreferredCopy ?? throw new InvalidOperationException("Selected session is missing a preferred copy.");
+            var parsed = await SessionParser(preferredCopy.FilePath, CancellationToken.None);
+            var rawContent = FileTextReader(preferredCopy.FilePath);
             var readableTranscript = SessionTranscriptFormatter.Format(parsed.Document, TranscriptMode.Readable).RenderedMarkdown;
             var dialogueTranscript = SessionTranscriptFormatter.Format(parsed.Document, TranscriptMode.Dialogue).RenderedMarkdown;
             var auditTranscript = SessionTranscriptFormatter.Format(parsed.Document, TranscriptMode.Audit).RenderedMarkdown;
@@ -115,9 +120,10 @@ public partial class MainWindow
 
     private async Task ApplySearchResultsAsync(string query, CancellationToken searchToken)
     {
-        var hits = await _repository!.SearchAsync(query, CancellationToken.None);
+        var repository = _repository ?? throw new InvalidOperationException("Repository has not been initialized.");
+        var hits = await repository.SearchAsync(query, CancellationToken.None);
         var hitIds = hits.Select(hit => hit.SessionId).ToHashSet(StringComparer.Ordinal);
-        var allSessions = await _repository.ListSessionsAsync(CancellationToken.None);
+        var allSessions = await repository.ListSessionsAsync(CancellationToken.None);
         var visibleSessions = allSessions.Where(session => hitIds.Contains(session.SessionId)).ToArray();
 
         await RunOnUiThreadAsync(() =>

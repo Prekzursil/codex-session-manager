@@ -534,6 +534,63 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
+    public async Task PopulateSelectedSessionHeaderAsync_throws_when_selected_session_is_missing_required_members()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var root = CreateTempDirectory();
+            try
+            {
+                var sessionFile = WriteSessionJsonl(root, "session-header-guards", "Header Guards");
+                var session = BuildIndexedSession("session-header-guards", "Header Guards", sessionFile);
+                var window = new MainWindow();
+                await Assert.ThrowsAsync<InvalidOperationException>(() => InvokePrivateTask(window, PopulateSelectedSessionHeaderAsyncMethod, WithNullIndexedSessionProperty(session, nameof(IndexedLogicalSession.PreferredCopy)), session.SessionId));
+                await Assert.ThrowsAsync<InvalidOperationException>(() => InvokePrivateTask(window, PopulateSelectedSessionHeaderAsyncMethod, WithNullIndexedSessionProperty(session, nameof(IndexedLogicalSession.SearchDocument)), session.SessionId));
+                await InvokePrivateTask(window, PopulateSelectedSessionHeaderAsyncMethod, WithNullIndexedSessionProperty(session, nameof(IndexedLogicalSession.PhysicalCopies)), session.SessionId);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task LoadSelectedSessionBodyAsync_missing_preferred_copy_is_handled_without_throwing()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var root = CreateTempDirectory();
+            try
+            {
+                var sessionFile = WriteSessionJsonl(root, "session-body-guard", "Body Guard");
+                var window = new MainWindow();
+                var session = WithNullIndexedSessionProperty(BuildIndexedSession("session-body-guard", "Body Guard", sessionFile), nameof(IndexedLogicalSession.PreferredCopy));
+
+                await InvokePrivateTask(window, LoadSelectedSessionBodyAsyncMethod, session, session.SessionId);
+                Assert.Equal(string.Empty, GetNamedField<TextBox>(window, "RawTranscriptTextBox").Text);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task ApplySearchResultsAsync_throws_when_repository_is_missing()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var window = new MainWindow();
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() => InvokePrivateTask(window, typeof(MainWindow).GetMethod("ApplySearchResultsAsync", BindingFlags.NonPublic | BindingFlags.Instance)!, "query", CancellationToken.None));
+
+            window.Close();
+        });
+    }
+
+    [Fact]
     public async Task LoadSelectedSessionAsync_uses_dash_when_parsed_cwd_is_missing()
     {
         await RunInStaAsync(async () =>
@@ -1263,6 +1320,13 @@ public sealed class MainWindowCoverageTests
                     NormalizedSessionEvent.CreateMessage(SessionActor.User, "Hello"),
                     NormalizedSessionEvent.CreateMessage(SessionActor.Assistant, "World")
                 ]));
+
+    private static IndexedLogicalSession WithNullIndexedSessionProperty(IndexedLogicalSession session, string propertyName)
+    {
+        var clone = session with { };
+        typeof(IndexedLogicalSession).GetField($"<{propertyName}>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(clone, null);
+        return clone;
+    }
 
     private static string WriteSessionJsonl(string root, string sessionId, string threadName)
     {

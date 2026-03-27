@@ -56,14 +56,14 @@ public static partial class SessionJsonlParser
             throw new ArgumentNullException(nameof(state));
         }
 
-        var type = root.GetProperty("type").GetString();
+        var type = TryGetString(root, "type");
         switch (type)
         {
-            case "session_meta":
-                ParseSessionMetadata(root.GetProperty("payload"), state);
+            case "session_meta" when root.TryGetProperty("payload", out var sessionMetaPayload):
+                ParseSessionMetadata(sessionMetaPayload, state);
                 break;
-            case "response_item":
-                ParseResponseItem(root.GetProperty("payload"), state);
+            case "response_item" when root.TryGetProperty("payload", out var responseItemPayload):
+                ParseResponseItem(responseItemPayload, state);
                 break;
             default:
                 return;
@@ -83,7 +83,7 @@ public static partial class SessionJsonlParser
 
         if (state.StartedAtUtc == DateTimeOffset.MinValue
             && payload.TryGetProperty("timestamp", out var timestampElement)
-            && DateTimeOffset.TryParse(timestampElement.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsedStartedAt))
+            && DateTimeOffset.TryParse(timestampElement.GetString() ?? string.Empty, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsedStartedAt))
         {
             state.StartedAtUtc = parsedStartedAt;
         }
@@ -232,13 +232,22 @@ public static partial class SessionJsonlParser
         }
 
         using var document = JsonDocument.Parse(rawArguments);
-        return document.RootElement.TryGetProperty("cmd", out var commandElement)
-            ? commandElement.GetString()
-            : null;
+        if (!document.RootElement.TryGetProperty("cmd", out var commandElement)
+            || commandElement.ValueKind is not JsonValueKind.String)
+        {
+            return null;
+        }
+
+        return commandElement.GetString();
     }
 
     private static void ExtractFilePathsAndUrls(string value, ISet<string> filePaths, ISet<string> urls)
     {
+        if (value is null)
+        {
+            throw new ArgumentNullException(nameof(value));
+        }
+
         if (filePaths is null)
         {
             throw new ArgumentNullException(nameof(filePaths));

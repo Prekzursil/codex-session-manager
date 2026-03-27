@@ -46,13 +46,14 @@ public sealed class MainWindowViewModel
 
     public async Task ApplySearchAsync(string query, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(query))
+        var normalizedQuery = query ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(normalizedQuery))
         {
             ReplaceSessions(_allSessions);
             return;
         }
 
-        var hits = await _service.SearchAsync(query, cancellationToken);
+        var hits = await _service.SearchAsync(normalizedQuery, cancellationToken);
         var hitIds = hits.Select(hit => hit.SessionId).ToHashSet(StringComparer.Ordinal);
         ReplaceSessions(_allSessions.Where(session => hitIds.Contains(session.SessionId)));
     }
