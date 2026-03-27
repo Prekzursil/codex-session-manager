@@ -67,6 +67,12 @@ public sealed class StorageGuardClauseTests
     private static readonly MethodInfo ReadRequiredStringMethod =
         typeof(SessionCatalogRepository).GetMethod("ReadRequiredString", BindingFlags.NonPublic | BindingFlags.Static)!;
 
+    private static readonly MethodInfo RequireConnectionMethod =
+        typeof(SessionCatalogRepository).GetMethod("RequireConnection", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    private static readonly MethodInfo RequireReaderMethod =
+        typeof(SessionCatalogRepository).GetMethod("RequireReader", BindingFlags.NonPublic | BindingFlags.Static)!;
+
     private static readonly MethodInfo IsProtectedMethod =
         typeof(MaintenancePlanner).GetMethod("IsProtected", BindingFlags.NonPublic | BindingFlags.Static)!;
 
@@ -124,6 +130,9 @@ public sealed class StorageGuardClauseTests
         AssertInner<ArgumentNullException>(() => ToFtsTokenMethod.Invoke(null, [null!]));
         AssertInner<ArgumentNullException>(() => ExtractFilePathsAndUrlsMethod.Invoke(null, [null!, new HashSet<string>(StringComparer.Ordinal), new HashSet<string>(StringComparer.Ordinal)]));
         AssertInner<ArgumentNullException>(() => ReadRequiredStringMethod.Invoke(null, [null!, 0]));
+        AssertInner<InvalidOperationException>(() => RequireConnectionMethod.Invoke(null, [null!]));
+        AssertInner<ArgumentException>(() => RequireReaderMethod.Invoke(null, [null!, null!]));
+        AssertInner<InvalidOperationException>(() => RequireReaderMethod.Invoke(null, [null!, "reader required"]));
     }
 
     [Fact]
