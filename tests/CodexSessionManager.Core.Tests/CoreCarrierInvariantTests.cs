@@ -42,7 +42,8 @@ public sealed class CoreCarrierInvariantTests
     [Fact]
     public void SessionPhysicalCopy_throws_when_required_strings_are_null()
     {
-        Assert.Throws<ArgumentNullException>(() => new SessionPhysicalCopy(null!, @"C:\tmp\session.jsonl", SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false)));
+        var tempSessionPath = Path.Combine(Path.GetTempPath(), "session.jsonl");
+        Assert.Throws<ArgumentNullException>(() => new SessionPhysicalCopy(null!, tempSessionPath, SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false)));
         Assert.Throws<ArgumentNullException>(() => new SessionPhysicalCopy("session", null!, SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false)));
     }
 
@@ -105,5 +106,5 @@ public sealed class CoreCarrierInvariantTests
     }
 
     private static SessionPhysicalCopy BuildCopy() =>
-        new("session", @"C:\tmp\session.jsonl", SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false));
+        new("session", Path.Combine(Path.GetTempPath(), "session.jsonl"), SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false));
 }

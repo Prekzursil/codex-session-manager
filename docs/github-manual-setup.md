@@ -27,4 +27,3 @@ These settings are not fully enforceable from repository files alone and should 
 - repo files can define workflows, templates, Dependabot config, and release automation
 - branch protections and some secret-scanning controls are admin settings
 - keep local-green and remote/provider-green as separate completion signals
-
