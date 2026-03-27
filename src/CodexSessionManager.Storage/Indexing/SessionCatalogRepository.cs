@@ -19,48 +19,56 @@ public sealed class SessionCatalogRepository
     public async Task InitializeAsync(CancellationToken cancellationToken)
     {
         await using var connection = await OpenConnectionAsync(cancellationToken);
-        await ExecuteSqlAsync(
-            connection,
-            """
-            CREATE TABLE IF NOT EXISTS sessions (
-                session_id TEXT PRIMARY KEY,
-                thread_name TEXT NOT NULL,
-                preferred_path TEXT NOT NULL,
-                readable_transcript TEXT NOT NULL,
-                dialogue_transcript TEXT NOT NULL,
-                tool_summary TEXT NOT NULL,
-                command_text TEXT NOT NULL,
-                file_paths TEXT NOT NULL,
-                urls TEXT NOT NULL,
-                error_text TEXT NOT NULL,
-                alias TEXT NOT NULL,
-                tags TEXT NOT NULL,
-                notes TEXT NOT NULL,
-                combined_text TEXT NOT NULL
-            );
-            """,
-            cancellationToken);
-        await ExecuteSqlAsync(
-            connection,
-            """
-            CREATE TABLE IF NOT EXISTS session_copies (
-                session_id TEXT NOT NULL,
-                file_path TEXT NOT NULL,
-                store_kind INTEGER NOT NULL,
-                last_write_utc TEXT NOT NULL,
-                file_size_bytes INTEGER NOT NULL,
-                is_hot INTEGER NOT NULL,
-                PRIMARY KEY(session_id, file_path)
-            );
-            """,
-            cancellationToken);
-        await ExecuteSqlAsync(
-            connection,
-            """
-            CREATE VIRTUAL TABLE IF NOT EXISTS session_search
-            USING fts5(session_id UNINDEXED, combined_text);
-            """,
-            cancellationToken);
+        await using (var createSessionsCommand = connection.CreateCommand())
+        {
+            createSessionsCommand.CommandText =
+                """
+                CREATE TABLE IF NOT EXISTS sessions (
+                    session_id TEXT PRIMARY KEY,
+                    thread_name TEXT NOT NULL,
+                    preferred_path TEXT NOT NULL,
+                    readable_transcript TEXT NOT NULL,
+                    dialogue_transcript TEXT NOT NULL,
+                    tool_summary TEXT NOT NULL,
+                    command_text TEXT NOT NULL,
+                    file_paths TEXT NOT NULL,
+                    urls TEXT NOT NULL,
+                    error_text TEXT NOT NULL,
+                    alias TEXT NOT NULL,
+                    tags TEXT NOT NULL,
+                    notes TEXT NOT NULL,
+                    combined_text TEXT NOT NULL
+                );
+                """;
+            await createSessionsCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await using (var createCopiesCommand = connection.CreateCommand())
+        {
+            createCopiesCommand.CommandText =
+                """
+                CREATE TABLE IF NOT EXISTS session_copies (
+                    session_id TEXT NOT NULL,
+                    file_path TEXT NOT NULL,
+                    store_kind INTEGER NOT NULL,
+                    last_write_utc TEXT NOT NULL,
+                    file_size_bytes INTEGER NOT NULL,
+                    is_hot INTEGER NOT NULL,
+                    PRIMARY KEY(session_id, file_path)
+                );
+                """;
+            await createCopiesCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await using (var createSearchCommand = connection.CreateCommand())
+        {
+            createSearchCommand.CommandText =
+                """
+                CREATE VIRTUAL TABLE IF NOT EXISTS session_search
+                USING fts5(session_id UNINDEXED, combined_text);
+                """;
+            await createSearchCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
 
         await RefreshSearchIndexAsync(connection, cancellationToken);
     }
@@ -424,12 +432,5 @@ public sealed class SessionCatalogRepository
         return escaped.All(static ch => char.IsLetterOrDigit(ch) || ch == '_')
             ? $"{escaped}*"
             : $"\"{escaped}\"*";
-    }
-
-    private static async Task ExecuteSqlAsync(SqliteConnection connection, string commandText, CancellationToken cancellationToken)
-    {
-        await using var command = connection.CreateCommand();
-        command.CommandText = commandText;
-        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 }
