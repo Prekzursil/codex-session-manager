@@ -12,7 +12,7 @@ public sealed class SessionCatalogRepository
 
     public SessionCatalogRepository(string databasePath)
     {
-        _databasePath = databasePath;
+        _databasePath = Path.GetFullPath(databasePath);
     }
 
     public async Task InitializeAsync(CancellationToken cancellationToken)
