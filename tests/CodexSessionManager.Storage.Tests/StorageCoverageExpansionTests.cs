@@ -9,6 +9,7 @@ using CodexSessionManager.Storage.Parsing;
 
 namespace CodexSessionManager.Storage.Tests;
 
+[Collection("CurrentDirectorySensitive")]
 public sealed class StorageCoverageExpansionTests
 {
     [Fact]

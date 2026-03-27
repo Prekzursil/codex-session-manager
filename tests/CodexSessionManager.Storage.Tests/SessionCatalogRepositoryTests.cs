@@ -3,6 +3,7 @@ using CodexSessionManager.Storage.Indexing;
 
 namespace CodexSessionManager.Storage.Tests;
 
+[Collection("CurrentDirectorySensitive")]
 public sealed class SessionCatalogRepositoryTests
 {
     [Fact]
