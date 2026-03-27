@@ -6,7 +6,7 @@ namespace CodexSessionManager.Storage.Tests;
 public sealed class SessionMetadataRepositoryTests
 {
     [Fact]
-    public async Task UpdateMetadataAsync_PersistsAliasTagsNotes_AndMakesThemSearchable()
+    public async Task UpdateMetadataAsync_PersistsAliasTagsNotes_AndMakesThemSearchableAsync()
     {
         var databasePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
 

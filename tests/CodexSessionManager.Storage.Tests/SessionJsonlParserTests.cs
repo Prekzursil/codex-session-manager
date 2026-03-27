@@ -6,7 +6,7 @@ namespace CodexSessionManager.Storage.Tests;
 public sealed class SessionJsonlParserTests
 {
     [Fact]
-    public async Task ParseAsync_ExtractsSessionMetadata_Messages_AndTechnicalBreadcrumbs()
+    public async Task ParseAsync_ExtractsSessionMetadata_Messages_AndTechnicalBreadcrumbsAsync()
     {
         var tempFile = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.jsonl");
         await File.WriteAllLinesAsync(tempFile,

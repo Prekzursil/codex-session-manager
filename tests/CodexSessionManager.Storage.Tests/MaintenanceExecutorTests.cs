@@ -8,7 +8,7 @@ namespace CodexSessionManager.Storage.Tests;
 public sealed class MaintenanceExecutorTests
 {
     [Fact]
-    public async Task ExecuteAsync_ArchivesAllowedTargets_AndWritesCheckpointManifest()
+    public async Task ExecuteAsync_ArchivesAllowedTargets_AndWritesCheckpointManifestAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         var sourceDir = Path.Combine(root, "sessions_backup");
@@ -49,7 +49,7 @@ public sealed class MaintenanceExecutorTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_DeleteMovesTargetsIntoCheckpointDeletedArea()
+    public async Task ExecuteAsync_DeleteMovesTargetsIntoCheckpointDeletedAreaAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         var sourceDir = Path.Combine(root, "sessions_backup");
@@ -88,7 +88,7 @@ public sealed class MaintenanceExecutorTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_GeneratesUniqueDestinationNames_WhenBasenamesCollide()
+    public async Task ExecuteAsync_GeneratesUniqueDestinationNames_WhenBasenamesCollideAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         var sourceA = Path.Combine(root, "a");

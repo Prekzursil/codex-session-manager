@@ -47,7 +47,7 @@ public sealed class StorageCoverageExpansionTests
     }
 
     [Fact]
-    public async Task DiscoverAsync_UsesCustomStoreRoots_AndFallsBackWhenThreadIndexMissing()
+    public async Task DiscoverAsync_UsesCustomStoreRoots_AndFallsBackWhenThreadIndexMissingAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         var customStore = Path.Combine(root, "custom-store");
@@ -73,7 +73,7 @@ public sealed class StorageCoverageExpansionTests
     }
 
     [Fact]
-    public async Task DiscoverAsync_Normalizes_sessions_backup_roots()
+    public async Task DiscoverAsync_Normalizes_sessions_backup_rootsAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         var backupRoot = Path.Combine(root, "sessions_backup");
@@ -99,7 +99,7 @@ public sealed class StorageCoverageExpansionTests
     }
 
     [Fact]
-    public async Task DiscoverAsync_Normalizes_relative_sessions_backup_roots()
+    public async Task DiscoverAsync_Normalizes_relative_sessions_backup_rootsAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         var previousCurrentDirectory = Environment.CurrentDirectory;
@@ -130,7 +130,7 @@ public sealed class StorageCoverageExpansionTests
     }
 
     [Fact]
-    public async Task RebuildAsync_SkipsMissingSessionDirectories_AndBuildsSearchDocument()
+    public async Task RebuildAsync_SkipsMissingSessionDirectories_AndBuildsSearchDocumentAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         var liveRoot = Path.Combine(root, ".codex");
@@ -183,7 +183,7 @@ public sealed class StorageCoverageExpansionTests
     }
 
     [Fact]
-    public async Task ParseAsync_ThrowsWhenSessionIdIsMissing()
+    public async Task ParseAsync_ThrowsWhenSessionIdIsMissingAsync()
     {
         var tempFile = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.jsonl");
         await File.WriteAllTextAsync(
@@ -201,7 +201,7 @@ public sealed class StorageCoverageExpansionTests
     }
 
     [Fact]
-    public async Task ParseAsync_Handles_unknown_roles_blank_content_missing_cmd_and_missing_exit_code()
+    public async Task ParseAsync_Handles_unknown_roles_blank_content_missing_cmd_and_missing_exit_codeAsync()
     {
         var tempFile = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.jsonl");
         await File.WriteAllLinesAsync(
@@ -234,7 +234,7 @@ public sealed class StorageCoverageExpansionTests
     }
 
     [Fact]
-    public async Task ParseAsync_CoversAdditionalRoleAndGuardBranches()
+    public async Task ParseAsync_CoversAdditionalRoleAndGuardBranchesAsync()
     {
         var tempFile = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.jsonl");
         await File.WriteAllLinesAsync(
@@ -267,7 +267,7 @@ public sealed class StorageCoverageExpansionTests
     }
 
     [Fact]
-    public async Task ParseAsync_Ignores_unknown_types_and_missing_tool_metadata()
+    public async Task ParseAsync_Ignores_unknown_types_and_missing_tool_metadataAsync()
     {
         var tempFile = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.jsonl");
         await File.WriteAllLinesAsync(
@@ -295,7 +295,7 @@ public sealed class StorageCoverageExpansionTests
     }
 
     [Fact]
-    public async Task ParseAsync_Ignores_non_string_json_properties_when_extracting_strings()
+    public async Task ParseAsync_Ignores_non_string_json_properties_when_extracting_stringsAsync()
     {
         var tempFile = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.jsonl");
         await File.WriteAllLinesAsync(
@@ -323,7 +323,7 @@ public sealed class StorageCoverageExpansionTests
     }
 
     [Fact]
-    public async Task RebuildAsync_IgnoresMalformedSessionIndexEntries()
+    public async Task RebuildAsync_IgnoresMalformedSessionIndexEntriesAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         var liveRoot = Path.Combine(root, ".codex");
@@ -372,7 +372,7 @@ public sealed class StorageCoverageExpansionTests
     }
 
     [Fact]
-    public async Task DiscoverAsync_UsesSessionsBackupRoot_AndFallsBackWhenThreadNameIsNotString()
+    public async Task DiscoverAsync_UsesSessionsBackupRoot_AndFallsBackWhenThreadNameIsNotStringAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         var backupRoot = Path.Combine(root, "sessions_backup");
@@ -412,7 +412,7 @@ public sealed class StorageCoverageExpansionTests
     }
 
     [Fact]
-    public async Task ParseAsync_HandlesMissingToolNames_AndNonTextPayloadBranches()
+    public async Task ParseAsync_HandlesMissingToolNames_AndNonTextPayloadBranchesAsync()
     {
         var tempFile = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.jsonl");
         await File.WriteAllLinesAsync(
@@ -443,7 +443,7 @@ public sealed class StorageCoverageExpansionTests
     }
 
     [Fact]
-    public async Task ParseAsync_Ignores_blank_text_invalid_timestamp_and_missing_cmd_property()
+    public async Task ParseAsync_Ignores_blank_text_invalid_timestamp_and_missing_cmd_propertyAsync()
     {
         var tempFile = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.jsonl");
         await File.WriteAllLinesAsync(
@@ -472,7 +472,7 @@ public sealed class StorageCoverageExpansionTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_ThrowsForMissingOrMismatchedTypedConfirmation()
+    public async Task ExecuteAsync_ThrowsForMissingOrMismatchedTypedConfirmationAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         var sourceDir = Path.Combine(root, "sessions_backup");
@@ -499,7 +499,7 @@ public sealed class StorageCoverageExpansionTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_ReconcileMovesTargetsIntoReconciledFolder()
+    public async Task ExecuteAsync_ReconcileMovesTargetsIntoReconciledFolderAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         var sourceDir = Path.Combine(root, "sessions_backup");
