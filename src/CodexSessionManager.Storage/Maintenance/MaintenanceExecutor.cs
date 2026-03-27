@@ -19,11 +19,11 @@ public sealed class MaintenanceExecutor
         string typedConfirmation,
         CancellationToken cancellationToken)
     {
-        var action = preview.Action; // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
-        var requiredTypedConfirmation = preview.RequiredTypedConfirmation; // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
-        var allowedTargets = preview.AllowedTargets; // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+        var action = preview.Action;
+        var requiredTypedConfirmation = preview.RequiredTypedConfirmation;
+        var allowedTargets = preview.AllowedTargets;
 
-        if (!preview.RequiresTypedConfirmation || string.IsNullOrWhiteSpace(typedConfirmation)) // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+        if (!preview.RequiresTypedConfirmation || string.IsNullOrWhiteSpace(typedConfirmation))
         {
             throw new InvalidOperationException("Typed confirmation is required.");
         }
@@ -40,7 +40,7 @@ public sealed class MaintenanceExecutor
         var movedTargets = new List<SessionPhysicalCopy>();
         foreach (var target in allowedTargets)
         {
-            cancellationToken.ThrowIfCancellationRequested(); // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+            cancellationToken.ThrowIfCancellationRequested();
             var fileName = Path.GetFileName(target.FilePath);
             var destinationPath = Path.Combine(effectiveDestinationRoot, fileName);
             if (File.Exists(destinationPath))
@@ -81,7 +81,7 @@ public sealed class MaintenanceExecutor
         action switch
         {
             MaintenanceAction.Delete => Path.Combine(_checkpointRoot, "deleted"),
-            MaintenanceAction.Reconcile => Path.Combine(destinationRoot, "reconciled"), // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+            MaintenanceAction.Reconcile => Path.Combine(destinationRoot, "reconciled"),
             _ => destinationRoot
         };
 }
