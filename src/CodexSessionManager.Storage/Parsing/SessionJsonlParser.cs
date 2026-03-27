@@ -53,19 +53,16 @@ public static partial class SessionJsonlParser
 
     private static void ParseLine(JsonElement root, ParseState state)
     {
-        if (state is null)
-        {
-            throw new ArgumentNullException(nameof(state));
-        }
+        var parseState = RequireState(state);
 
         var type = TryGetString(root, "type");
         switch (type)
         {
             case "session_meta" when root.TryGetProperty("payload", out var sessionMetaPayload):
-                ParseSessionMetadata(sessionMetaPayload, state);
+                ParseSessionMetadata(sessionMetaPayload, parseState);
                 break;
             case "response_item" when root.TryGetProperty("payload", out var responseItemPayload):
-                ParseResponseItem(responseItemPayload, state);
+                ParseResponseItem(responseItemPayload, parseState);
                 break;
             default:
                 return;
@@ -74,41 +71,35 @@ public static partial class SessionJsonlParser
 
     private static void ParseSessionMetadata(JsonElement payload, ParseState state)
     {
-        if (state is null)
-        {
-            throw new ArgumentNullException(nameof(state));
-        }
+        var parseState = RequireState(state);
 
-        state.SessionId ??= TryGetString(payload, "id");
-        state.ForkedFromId ??= TryGetString(payload, "forked_from_id");
-        state.Cwd ??= TryGetString(payload, "cwd");
+        parseState.SessionId ??= TryGetString(payload, "id");
+        parseState.ForkedFromId ??= TryGetString(payload, "forked_from_id");
+        parseState.Cwd ??= TryGetString(payload, "cwd");
 
-        if (state.StartedAtUtc == DateTimeOffset.MinValue
+        if (parseState.StartedAtUtc == DateTimeOffset.MinValue
             && payload.TryGetProperty("timestamp", out var timestampElement)
             && DateTimeOffset.TryParse(timestampElement.GetString() ?? string.Empty, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsedStartedAt))
         {
-            state.StartedAtUtc = parsedStartedAt;
+            parseState.StartedAtUtc = parsedStartedAt;
         }
     }
 
     private static void ParseResponseItem(JsonElement payload, ParseState state)
     {
-        if (state is null)
-        {
-            throw new ArgumentNullException(nameof(state));
-        }
+        var parseState = RequireState(state);
 
         var payloadType = TryGetString(payload, "type");
         switch (payloadType)
         {
             case "message":
-                ParseMessage(payload, state);
+                ParseMessage(payload, parseState);
                 break;
             case "function_call":
-                ParseFunctionCall(payload, state);
+                ParseFunctionCall(payload, parseState);
                 break;
             case "function_call_output":
-                ParseFunctionCallOutput(payload, state);
+                ParseFunctionCallOutput(payload, parseState);
                 break;
             default:
                 return;
@@ -117,10 +108,7 @@ public static partial class SessionJsonlParser
 
     private static void ParseMessage(JsonElement payload, ParseState state)
     {
-        if (state is null)
-        {
-            throw new ArgumentNullException(nameof(state));
-        }
+        var parseState = RequireState(state);
 
         if (!payload.TryGetProperty("content", out var contentElement)
             || contentElement.ValueKind is not JsonValueKind.Array)
@@ -129,6 +117,9 @@ public static partial class SessionJsonlParser
         }
 
         var actor = ResolveActor(TryGetString(payload, "role"));
+        var events = parseState.Events;
+        var filePaths = parseState.FilePaths;
+        var urls = parseState.Urls;
         foreach (var contentItem in contentElement.EnumerateArray())
         {
             if (!IsTextContentItem(contentItem))
@@ -137,48 +128,42 @@ public static partial class SessionJsonlParser
             }
 
             var text = contentItem.GetProperty("text").GetString()!;
-            state.Events.Add(NormalizedSessionEvent.CreateMessage(actor, text));
-            ExtractFilePathsAndUrls(text, state.FilePaths, state.Urls);
+            events.Add(NormalizedSessionEvent.CreateMessage(actor, text));
+            ExtractFilePathsAndUrls(text, filePaths, urls);
         }
     }
 
     private static void ParseFunctionCall(JsonElement payload, ParseState state)
     {
-        if (state is null)
-        {
-            throw new ArgumentNullException(nameof(state));
-        }
+        var parseState = RequireState(state);
 
         var toolName = TryGetString(payload, "name") ?? "unknown_tool";
         var rawArguments = TryGetString(payload, "arguments") ?? string.Empty;
-        state.Events.Add(NormalizedSessionEvent.CreateToolCall(toolName, rawArguments));
+        parseState.Events.Add(NormalizedSessionEvent.CreateToolCall(toolName, rawArguments));
 
         var command = TryExtractCommand(rawArguments);
         if (!string.IsNullOrWhiteSpace(command))
         {
-            state.Commands.Add(command!);
+            parseState.Commands.Add(command!);
         }
 
-        ExtractFilePathsAndUrls(rawArguments, state.FilePaths, state.Urls);
+        ExtractFilePathsAndUrls(rawArguments, parseState.FilePaths, parseState.Urls);
     }
 
     private static void ParseFunctionCallOutput(JsonElement payload, ParseState state)
     {
-        if (state is null)
-        {
-            throw new ArgumentNullException(nameof(state));
-        }
+        var parseState = RequireState(state);
 
         var outputText = TryGetString(payload, "output") ?? string.Empty;
         var toolName = TryGetString(payload, "name") ?? "tool";
-        state.Events.Add(NormalizedSessionEvent.CreateToolOutput(toolName, outputText));
+        parseState.Events.Add(NormalizedSessionEvent.CreateToolOutput(toolName, outputText));
 
         if (TryExtractExitCode(outputText, out var exitCode))
         {
-            state.ExitCodes.Add(exitCode);
+            parseState.ExitCodes.Add(exitCode);
         }
 
-        ExtractFilePathsAndUrls(outputText, state.FilePaths, state.Urls);
+        ExtractFilePathsAndUrls(outputText, parseState.FilePaths, parseState.Urls);
     }
 
     private static string? TryGetString(JsonElement element, string propertyName)
@@ -273,27 +258,28 @@ public static partial class SessionJsonlParser
 
     private static bool TryExtractExitCode(string text, out int exitCode)
     {
-        if (text is null)
-        {
-            throw new ArgumentNullException(nameof(text));
-        }
+        var nonNullText = text ?? throw new ArgumentNullException(nameof(text));
 
         exitCode = 0;
-        if (string.IsNullOrWhiteSpace(text))
+        if (string.IsNullOrWhiteSpace(nonNullText))
         {
             return false;
         }
+
         const string marker = "Process exited with code ";
-        var index = text.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        var index = nonNullText.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
         if (index < 0)
         {
             return false;
         }
 
-        var numberPortion = text[(index + marker.Length)..].Trim();
+        var numberPortion = nonNullText[(index + marker.Length)..].Trim();
         var numericValue = new string(numberPortion.TakeWhile(char.IsDigit).ToArray());
         return int.TryParse(numericValue, out exitCode);
     }
+
+    private static ParseState RequireState(ParseState? state) =>
+        state ?? throw new ArgumentNullException(nameof(state));
 
     [GeneratedRegex(@"https?://[^\s`""']+", RegexOptions.Compiled | RegexOptions.IgnoreCase)]
     private static partial Regex UrlRegexFactory();
