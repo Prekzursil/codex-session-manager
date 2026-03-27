@@ -155,7 +155,7 @@ public sealed class SessionCatalogRepository
         }
 
         await using var connection = await OpenConnectionAsync(cancellationToken);
-        await using var command = CreateSearchSessionsCommand(connection);
+        await using var command = CreateCommand(connection, SearchSessionsSql);
         command.Parameters.AddWithValue("$query", ToFtsQuery(query));
 
         var results = new List<SessionSearchHit>();
@@ -183,7 +183,7 @@ public sealed class SessionCatalogRepository
         ArgumentNullException.ThrowIfNull(tags);
 
         await using var connection = await OpenConnectionAsync(cancellationToken);
-        await using var command = CreateUpdateMetadataCommand(connection);
+        await using var command = CreateCommand(connection, UpdateMetadataSql);
         command.Parameters.AddWithValue(SessionIdParameterName, sessionId);
         command.Parameters.AddWithValue("$alias", alias);
         command.Parameters.AddWithValue("$tags", string.Join('\n', tags));
@@ -204,9 +204,9 @@ public sealed class SessionCatalogRepository
 
     private static async Task EnsureSchemaAsync(SqliteConnection connection, CancellationToken cancellationToken)
     {
-        await ExecuteNonQueryAsync(CreateCreateSessionsCommand(connection), cancellationToken);
-        await ExecuteNonQueryAsync(CreateCreateCopiesCommand(connection), cancellationToken);
-        await ExecuteNonQueryAsync(CreateCreateSearchCommand(connection), cancellationToken);
+        await ExecuteNonQueryAsync(connection, CreateSessionsSql, cancellationToken);
+        await ExecuteNonQueryAsync(connection, CreateCopiesSql, cancellationToken);
+        await ExecuteNonQueryAsync(connection, CreateSearchSql, cancellationToken);
     }
 
     private static SessionSnapshot CreateSnapshot(IndexedLogicalSession session, SessionSearchDocument searchDocument)
@@ -224,7 +224,7 @@ public sealed class SessionCatalogRepository
 
     private static async Task UpsertSessionRowAsync(SqliteConnection connection, SessionSnapshot snapshot, CancellationToken cancellationToken)
     {
-        await using var command = CreateUpsertSessionCommand(connection);
+        await using var command = CreateCommand(connection, UpsertSessionSql);
         command.Parameters.AddWithValue(SessionIdParameterName, snapshot.SessionId);
         command.Parameters.AddWithValue("$threadName", snapshot.ThreadName);
         command.Parameters.AddWithValue("$preferredPath", snapshot.PreferredCopy.FilePath);
@@ -244,7 +244,7 @@ public sealed class SessionCatalogRepository
 
     private static async Task ReplaceCopyRowsAsync(SqliteConnection connection, SessionSnapshot snapshot, CancellationToken cancellationToken)
     {
-        await using (var deleteCommand = CreateDeleteSessionCopiesCommand(connection))
+        await using (var deleteCommand = CreateCommand(connection, DeleteSessionCopiesSql))
         {
             deleteCommand.Parameters.AddWithValue(SessionIdParameterName, snapshot.SessionId);
             await deleteCommand.ExecuteNonQueryAsync(cancellationToken);
@@ -252,7 +252,7 @@ public sealed class SessionCatalogRepository
 
         foreach (var copy in snapshot.PhysicalCopies)
         {
-            await using var copyCommand = CreateInsertCopyCommand(connection);
+            await using var copyCommand = CreateCommand(connection, InsertCopySql);
             copyCommand.Parameters.AddWithValue(SessionIdParameterName, copy.SessionId);
             copyCommand.Parameters.AddWithValue("$filePath", copy.FilePath);
             copyCommand.Parameters.AddWithValue("$storeKind", (int)copy.StoreKind);
@@ -266,7 +266,7 @@ public sealed class SessionCatalogRepository
     private static async Task<Dictionary<string, List<SessionPhysicalCopy>>> LoadCopiesBySessionAsync(SqliteConnection connection, CancellationToken cancellationToken)
     {
         var copiesBySession = new Dictionary<string, List<SessionPhysicalCopy>>(StringComparer.Ordinal);
-        await using var command = CreateListCopiesCommand(connection);
+        await using var command = CreateCommand(connection, ListCopiesSql);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
@@ -296,7 +296,7 @@ public sealed class SessionCatalogRepository
         CancellationToken cancellationToken)
     {
         var sessions = new List<IndexedLogicalSession>();
-        await using var command = CreateListSessionsCommand(connection);
+        await using var command = CreateCommand(connection, ListSessionsSql);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
@@ -343,7 +343,7 @@ public sealed class SessionCatalogRepository
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(session);
 
-        await using var command = CreateSelectSessionMetadataCommand(connection);
+        await using var command = CreateCommand(connection, SelectSessionMetadataSql);
         command.Parameters.AddWithValue(SessionIdParameterName, session.SessionId);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))
@@ -362,8 +362,8 @@ public sealed class SessionCatalogRepository
 
     private static async Task RefreshSearchIndexAsync(SqliteConnection connection, CancellationToken cancellationToken)
     {
-        await ExecuteNonQueryAsync(CreateClearSearchIndexCommand(connection), cancellationToken);
-        await ExecuteNonQueryAsync(CreateRebuildSearchIndexCommand(connection), cancellationToken);
+        await ExecuteNonQueryAsync(connection, ClearSearchIndexSql, cancellationToken);
+        await ExecuteNonQueryAsync(connection, RebuildSearchIndexSql, cancellationToken);
     }
 
     private static async Task RefreshSearchRowAsync(SqliteConnection connection, string sessionId, CancellationToken cancellationToken)
@@ -374,13 +374,13 @@ public sealed class SessionCatalogRepository
             throw new ArgumentException("Value cannot be null or whitespace.", nameof(sessionId));
         }
 
-        await using (var deleteCommand = CreateDeleteSearchRowCommand(connection))
+        await using (var deleteCommand = CreateCommand(connection, DeleteSearchRowSql))
         {
             deleteCommand.Parameters.AddWithValue(SessionIdParameterName, sessionId);
             await deleteCommand.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        await using (var insertCommand = CreateInsertSearchRowCommand(connection))
+        await using (var insertCommand = CreateCommand(connection, InsertSearchRowSql))
         {
             insertCommand.Parameters.AddWithValue(SessionIdParameterName, sessionId);
             await insertCommand.ExecuteNonQueryAsync(cancellationToken);
@@ -396,121 +396,17 @@ public sealed class SessionCatalogRepository
         return connection;
     }
 
-    private static SqliteCommand CreateCommand(SqliteConnection connection)
+    private static SqliteCommand CreateCommand(SqliteConnection connection, string commandText)
     {
         ArgumentNullException.ThrowIfNull(connection);
-        return connection.CreateCommand();
+        ArgumentNullException.ThrowIfNull(commandText);
+        return new SqliteCommand(commandText, connection);
     }
 
-    private static SqliteCommand CreateCreateSessionsCommand(SqliteConnection connection)
+    private static async Task ExecuteNonQueryAsync(SqliteConnection connection, string commandText, CancellationToken cancellationToken)
     {
-        var command = CreateCommand(connection);
-        command.CommandText = CreateSessionsSql;
-        return command;
-    }
-
-    private static SqliteCommand CreateCreateCopiesCommand(SqliteConnection connection)
-    {
-        var command = CreateCommand(connection);
-        command.CommandText = CreateCopiesSql;
-        return command;
-    }
-
-    private static SqliteCommand CreateCreateSearchCommand(SqliteConnection connection)
-    {
-        var command = CreateCommand(connection);
-        command.CommandText = CreateSearchSql;
-        return command;
-    }
-
-    private static SqliteCommand CreateUpsertSessionCommand(SqliteConnection connection)
-    {
-        var command = CreateCommand(connection);
-        command.CommandText = UpsertSessionSql;
-        return command;
-    }
-
-    private static SqliteCommand CreateInsertCopyCommand(SqliteConnection connection)
-    {
-        var command = CreateCommand(connection);
-        command.CommandText = InsertCopySql;
-        return command;
-    }
-
-    private static SqliteCommand CreateSearchSessionsCommand(SqliteConnection connection)
-    {
-        var command = CreateCommand(connection);
-        command.CommandText = SearchSessionsSql;
-        return command;
-    }
-
-    private static SqliteCommand CreateUpdateMetadataCommand(SqliteConnection connection)
-    {
-        var command = CreateCommand(connection);
-        command.CommandText = UpdateMetadataSql;
-        return command;
-    }
-
-    private static SqliteCommand CreateListCopiesCommand(SqliteConnection connection)
-    {
-        var command = CreateCommand(connection);
-        command.CommandText = ListCopiesSql;
-        return command;
-    }
-
-    private static SqliteCommand CreateListSessionsCommand(SqliteConnection connection)
-    {
-        var command = CreateCommand(connection);
-        command.CommandText = ListSessionsSql;
-        return command;
-    }
-
-    private static SqliteCommand CreateSelectSessionMetadataCommand(SqliteConnection connection)
-    {
-        var command = CreateCommand(connection);
-        command.CommandText = SelectSessionMetadataSql;
-        return command;
-    }
-
-    private static SqliteCommand CreateClearSearchIndexCommand(SqliteConnection connection)
-    {
-        var command = CreateCommand(connection);
-        command.CommandText = ClearSearchIndexSql;
-        return command;
-    }
-
-    private static SqliteCommand CreateRebuildSearchIndexCommand(SqliteConnection connection)
-    {
-        var command = CreateCommand(connection);
-        command.CommandText = RebuildSearchIndexSql;
-        return command;
-    }
-
-    private static SqliteCommand CreateDeleteSearchRowCommand(SqliteConnection connection)
-    {
-        var command = CreateCommand(connection);
-        command.CommandText = DeleteSearchRowSql;
-        return command;
-    }
-
-    private static SqliteCommand CreateInsertSearchRowCommand(SqliteConnection connection)
-    {
-        var command = CreateCommand(connection);
-        command.CommandText = InsertSearchRowSql;
-        return command;
-    }
-
-    private static SqliteCommand CreateDeleteSessionCopiesCommand(SqliteConnection connection)
-    {
-        var command = CreateCommand(connection);
-        command.CommandText = DeleteSessionCopiesSql;
-        return command;
-    }
-
-    private static async Task ExecuteNonQueryAsync(SqliteCommand command, CancellationToken cancellationToken)
-    {
-        await using var disposableCommand = command;
-        await disposableCommand.ExecuteNonQueryAsync(cancellationToken);
+        await using var command = CreateCommand(connection, commandText);
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     private static IReadOnlyList<string> SplitLines(string value)
