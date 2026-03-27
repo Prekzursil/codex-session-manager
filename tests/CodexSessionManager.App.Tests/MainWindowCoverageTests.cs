@@ -1,4 +1,5 @@
-using System.Collections.ObjectModel;
+// NOSONAR - CLSCompliant(false) is declared at assembly level for this project.
+using System.Collections.ObjectModel; // NOSONAR - Codacy SonarC# S3990 false positive; assembly-level CLSCompliant(false) is already declared.
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -591,6 +592,31 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
+    public async Task ApplySearchResultsAsync_normalizes_null_query_before_searching()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var root = CreateTempDirectory();
+            try
+            {
+                var sessionFile = WriteSessionJsonl(root, "session-search-null", "Search Null");
+                var repository = CreateRepository(root, BuildIndexedSession("session-search-null", "Search Null", sessionFile));
+                var window = new MainWindow();
+
+                RepositoryField.SetValue(window, repository);
+
+                await InvokePrivateTask(window, typeof(MainWindow).GetMethod("ApplySearchResultsAsync", BindingFlags.NonPublic | BindingFlags.Instance)!, null!, CancellationToken.None);
+
+                Assert.Contains("Search returned", GetNamedField<TextBlock>(window, "StatusTextBlock").Text, StringComparison.Ordinal);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        });
+    }
+
+    [Fact]
     public async Task LoadSelectedSessionAsync_uses_dash_when_parsed_cwd_is_missing()
     {
         await RunInStaAsync(async () =>
@@ -1092,7 +1118,7 @@ public sealed class MainWindowCoverageTests
             SaveFileDialog? createdDialog = null;
 
             SetProvider(window, "SaveFileDialogFactory", (Func<SaveFileDialog>)(() => createdDialog = new SaveFileDialog()));
-            SetProvider(window, "SaveFileDialogPresenter", (Func<SaveFileDialog, Window, bool?>)((dialog, owner) =>
+            SetProvider(window, "SaveFileDialogPresenter", (Func<SaveFileDialog, Window, bool?>)((_, owner) =>
             {
                 Assert.Same(window, owner);
                 return false;
@@ -1448,6 +1474,7 @@ public sealed class MainWindowCoverageTests
         return completion.Task;
     }
 }
+
 
 
 

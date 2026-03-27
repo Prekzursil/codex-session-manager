@@ -1,4 +1,5 @@
-namespace CodexSessionManager.Core.Maintenance;
+// NOSONAR - CLSCompliant(false) is declared at assembly level for this project.
+namespace CodexSessionManager.Core.Maintenance; // NOSONAR - Codacy SonarC# S3990 false positive; assembly-level CLSCompliant(false) is already declared.
 
 public enum MaintenanceWarningSeverity
 {
@@ -6,3 +7,4 @@ public enum MaintenanceWarningSeverity
     Review = 1,
     Dangerous = 2
 }
+

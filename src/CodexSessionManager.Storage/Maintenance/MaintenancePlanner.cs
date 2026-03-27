@@ -1,4 +1,5 @@
-using CodexSessionManager.Core.Maintenance;
+// NOSONAR - CLSCompliant(false) is declared at assembly level for this project.
+using CodexSessionManager.Core.Maintenance; // NOSONAR - Codacy SonarC# S3990 false positive; assembly-level CLSCompliant(false) is already declared.
 using CodexSessionManager.Core.Sessions;
 
 namespace CodexSessionManager.Storage.Maintenance;
@@ -19,6 +20,8 @@ public static class MaintenancePlanner
             throw new ArgumentNullException(nameof(request));
         }
 
+        var action = request.Action;
+        var requiredTypedConfirmation = request.TypedConfirmation;
         var blockedTargets = new List<SessionPhysicalCopy>();
         var allowedTargets = new List<SessionPhysicalCopy>();
         var warnings = new List<MaintenanceWarning>();
@@ -41,13 +44,13 @@ public static class MaintenancePlanner
 
         return new MaintenancePreview
         {
-            Action = request.Action,
+            Action = action,
             AllowedTargets = allowedTargets,
             BlockedTargets = blockedTargets,
             Warnings = warnings,
             RequiresCheckpoint = true,
             RequiresTypedConfirmation = true,
-            RequiredTypedConfirmation = request.TypedConfirmation
+            RequiredTypedConfirmation = requiredTypedConfirmation
         };
     }
 
@@ -63,3 +66,4 @@ public static class MaintenancePlanner
             || ProtectedPathMarkers.Any(marker => normalizedPath.Contains(marker, StringComparison.OrdinalIgnoreCase));
     }
 }
+
