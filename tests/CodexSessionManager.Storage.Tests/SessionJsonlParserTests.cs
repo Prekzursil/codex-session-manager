@@ -1,10 +1,39 @@
 using CodexSessionManager.Core.Transcripts;
 using CodexSessionManager.Storage.Parsing;
+using System.Reflection;
+using System.Text.Json;
 
 namespace CodexSessionManager.Storage.Tests;
 
 public sealed class SessionJsonlParserTests
 {
+    private static readonly Type ParseStateType =
+        typeof(SessionJsonlParser).GetNestedType("ParseState", BindingFlags.NonPublic)!;
+
+    private static readonly MethodInfo ParseLineMethod =
+        typeof(SessionJsonlParser).GetMethod("ParseLine", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    private static readonly MethodInfo ParseSessionMetadataMethod =
+        typeof(SessionJsonlParser).GetMethod("ParseSessionMetadata", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    private static readonly MethodInfo ParseResponseItemMethod =
+        typeof(SessionJsonlParser).GetMethod("ParseResponseItem", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    private static readonly MethodInfo ParseMessageMethod =
+        typeof(SessionJsonlParser).GetMethod("ParseMessage", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    private static readonly MethodInfo ParseFunctionCallMethod =
+        typeof(SessionJsonlParser).GetMethod("ParseFunctionCall", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    private static readonly MethodInfo ParseFunctionCallOutputMethod =
+        typeof(SessionJsonlParser).GetMethod("ParseFunctionCallOutput", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    private static readonly MethodInfo TryGetStringMethod =
+        typeof(SessionJsonlParser).GetMethod("TryGetString", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    private static readonly MethodInfo IsTextContentItemMethod =
+        typeof(SessionJsonlParser).GetMethod("IsTextContentItem", BindingFlags.NonPublic | BindingFlags.Static)!;
+
     [Fact]
     public async Task ParseAsync_ExtractsSessionMetadata_Messages_AndTechnicalBreadcrumbsAsync()
     {
@@ -34,6 +63,27 @@ public sealed class SessionJsonlParserTests
         {
             File.Delete(tempFile);
         }
+    }
+
+    [Fact]
+    public void Parser_private_helpers_return_safely_for_non_object_json_elements()
+    {
+        var parseState = Activator.CreateInstance(ParseStateType)!;
+        using var arrayDocument = JsonDocument.Parse("[]");
+        var nonObjectElement = arrayDocument.RootElement;
+
+        ParseLineMethod.Invoke(null, [nonObjectElement, parseState]);
+        ParseSessionMetadataMethod.Invoke(null, [nonObjectElement, parseState]);
+        ParseResponseItemMethod.Invoke(null, [nonObjectElement, parseState]);
+        ParseMessageMethod.Invoke(null, [nonObjectElement, parseState]);
+        ParseFunctionCallMethod.Invoke(null, [nonObjectElement, parseState]);
+        ParseFunctionCallOutputMethod.Invoke(null, [nonObjectElement, parseState]);
+
+        var tryGetStringResult = TryGetStringMethod.Invoke(null, [nonObjectElement, "type"]);
+        var isTextContentItemResult = IsTextContentItemMethod.Invoke(null, [nonObjectElement]);
+
+        Assert.Null(tryGetStringResult);
+        Assert.False((bool)isTextContentItemResult!);
     }
 }
 
