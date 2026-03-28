@@ -19,41 +19,74 @@ public sealed class MaintenanceExecutor
         string typedConfirmation,
         CancellationToken cancellationToken)
     {
-        var action = preview.Action; // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
-        var requiredTypedConfirmation = preview.RequiredTypedConfirmation; // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
-        var allowedTargets = preview.AllowedTargets; // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+        ValidateTypedConfirmation(preview, typedConfirmation);
 
-        if (!preview.RequiresTypedConfirmation || string.IsNullOrWhiteSpace(typedConfirmation)) // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
-        {
-            throw new InvalidOperationException("Typed confirmation is required.");
-        }
-
-        if (!string.Equals(requiredTypedConfirmation, typedConfirmation, StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException("Typed confirmation does not match the preview.");
-        }
+        var action = preview.Action;
+        var allowedTargets = preview.AllowedTargets;
 
         Directory.CreateDirectory(_checkpointRoot);
         var effectiveDestinationRoot = GetEffectiveDestinationRoot(action, destinationRoot);
         Directory.CreateDirectory(effectiveDestinationRoot);
 
+        var movedTargets = MoveTargets(allowedTargets, effectiveDestinationRoot, cancellationToken);
+        var manifestPath = await WriteManifestAsync(action, movedTargets, cancellationToken);
+
+        return new MaintenanceExecutionResult(
+            Executed: true,
+            MovedTargets: movedTargets,
+            ManifestPath: manifestPath);
+    }
+
+    private void ValidateTypedConfirmation(MaintenancePreview preview, string typedConfirmation)
+    {
+        if (!preview.RequiresTypedConfirmation || string.IsNullOrWhiteSpace(typedConfirmation))
+        {
+            throw new InvalidOperationException("Typed confirmation is required.");
+        }
+
+        var requiredTypedConfirmation = preview.RequiredTypedConfirmation;
+        if (!string.Equals(requiredTypedConfirmation, typedConfirmation, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Typed confirmation does not match the preview.");
+        }
+    }
+
+    private List<SessionPhysicalCopy> MoveTargets(
+        IReadOnlyList<SessionPhysicalCopy> allowedTargets,
+        string effectiveDestinationRoot,
+        CancellationToken cancellationToken)
+    {
         var movedTargets = new List<SessionPhysicalCopy>();
         foreach (var target in allowedTargets)
         {
-            cancellationToken.ThrowIfCancellationRequested(); // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
-            var fileName = Path.GetFileName(target.FilePath);
-            var destinationPath = Path.Combine(effectiveDestinationRoot, fileName);
-            if (File.Exists(destinationPath))
-            {
-                var uniqueName = $"{Path.GetFileNameWithoutExtension(fileName)}-{Guid.NewGuid():N}{Path.GetExtension(fileName)}";
-                destinationPath = Path.Combine(effectiveDestinationRoot, uniqueName);
-            }
-
+            cancellationToken.ThrowIfCancellationRequested();
+            var destinationPath = BuildDestinationPath(effectiveDestinationRoot, target.FilePath);
             Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
             File.Move(target.FilePath, destinationPath);
             movedTargets.Add(target with { FilePath = destinationPath });
         }
 
+        return movedTargets;
+    }
+
+    private static string BuildDestinationPath(string effectiveDestinationRoot, string sourceFilePath)
+    {
+        var fileName = Path.GetFileName(sourceFilePath);
+        var destinationPath = Path.Combine(effectiveDestinationRoot, fileName);
+        if (!File.Exists(destinationPath))
+        {
+            return destinationPath;
+        }
+
+        var uniqueName = $"{Path.GetFileNameWithoutExtension(fileName)}-{Guid.NewGuid():N}{Path.GetExtension(fileName)}";
+        return Path.Combine(effectiveDestinationRoot, uniqueName);
+    }
+
+    private async Task<string> WriteManifestAsync(
+        MaintenanceAction action,
+        IReadOnlyList<SessionPhysicalCopy> movedTargets,
+        CancellationToken cancellationToken)
+    {
         var manifestPath = Path.Combine(_checkpointRoot, $"{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}-{action}.json");
         var payload = new
         {
@@ -71,10 +104,7 @@ public sealed class MaintenanceExecutor
             JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }),
             cancellationToken);
 
-        return new MaintenanceExecutionResult(
-            Executed: true,
-            MovedTargets: movedTargets,
-            ManifestPath: manifestPath);
+        return manifestPath;
     }
 
     private string GetEffectiveDestinationRoot(MaintenanceAction action, string destinationRoot) =>
