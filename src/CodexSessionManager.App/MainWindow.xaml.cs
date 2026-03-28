@@ -138,7 +138,8 @@ public partial class MainWindow : Window
 
         await RunOnUiThreadAsync(() => StatusTextBlock.Text = deepScan ? "Running deep scan…" : "Refreshing known stores…");
 
-        var knownStores = KnownStoresProvider(deepScan);
+        var knownStoresProvider = KnownStoresProvider;
+        var knownStores = knownStoresProvider(deepScan);
         await _workspaceIndexer.RebuildAsync(knownStores, CancellationToken.None);
         await LoadSessionsFromCatalogAsync();
 
@@ -163,7 +164,8 @@ public partial class MainWindow : Window
             return Task.FromResult(func());
         }
 
-        return Dispatcher.InvokeAsync(func).Task;
+        var dispatcher = Dispatcher;
+        return dispatcher.InvokeAsync(func).Task;
     }
 
     private string? SelectExportPath(string defaultFileName)
@@ -384,7 +386,8 @@ public partial class MainWindow : Window
     {
         try
         {
-            var info = (fileInfoFactory ?? (static filePath => new FileInfo(filePath)))(path);
+            var infoFactory = fileInfoFactory ?? (static filePath => new FileInfo(filePath));
+            var info = infoFactory(path);
             if (!info.Exists)
             {
                 return null;
