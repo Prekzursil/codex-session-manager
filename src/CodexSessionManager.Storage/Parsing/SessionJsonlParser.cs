@@ -1,8 +1,8 @@
+using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using CodexSessionManager.Core.Transcripts;
-using System.Globalization;
-using System.Diagnostics.CodeAnalysis;
 
 namespace CodexSessionManager.Storage.Parsing;
 
@@ -14,12 +14,10 @@ public static partial class SessionJsonlParser
 
     public static async Task<ParsedSessionFile> ParseAsync(string filePath, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(filePath))
-        {
-            throw new ArgumentException("Value cannot be null or whitespace.", nameof(filePath));
-        }
+        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
 
-        var lines = await File.ReadAllLinesAsync(filePath, cancellationToken);
+        var normalizedFilePath = filePath;
+        var lines = await File.ReadAllLinesAsync(normalizedFilePath, cancellationToken);
         var state = new ParseState();
 
         foreach (var line in lines.Where(static value => !string.IsNullOrWhiteSpace(value)))
@@ -28,13 +26,17 @@ public static partial class SessionJsonlParser
             ParseLine(document.RootElement, state);
         }
 
-        if (string.IsNullOrWhiteSpace(state.SessionId))
+        var sessionId = state.SessionId;
+        if (string.IsNullOrWhiteSpace(sessionId))
         {
-            throw new InvalidOperationException($"Session ID was not found in {filePath}.");
+            throw new InvalidOperationException($"Session ID was not found in {normalizedFilePath}.");
         }
 
+        var startedAtUtc = state.StartedAtUtc == DateTimeOffset.MinValue
+            ? DateTimeOffset.UtcNow
+            : state.StartedAtUtc;
         return new ParsedSessionFile(
-            SessionId: state.SessionId,
+            SessionId: sessionId,
             ForkedFromId: state.ForkedFromId,
             Cwd: state.Cwd,
             TechnicalBreadcrumbs: new TechnicalBreadcrumbs(
@@ -43,9 +45,9 @@ public static partial class SessionJsonlParser
                 state.FilePaths.ToArray(),
                 state.Urls.ToArray()),
             Document: new NormalizedSessionDocument(
-                state.SessionId,
+                sessionId,
                 ThreadName: null,
-                StartedAtUtc: state.StartedAtUtc == DateTimeOffset.MinValue ? DateTimeOffset.UtcNow : state.StartedAtUtc,
+                StartedAtUtc: startedAtUtc,
                 ForkedFromId: state.ForkedFromId,
                 Cwd: state.Cwd,
                 Events: state.Events));
@@ -54,18 +56,16 @@ public static partial class SessionJsonlParser
     private static void ParseLine(JsonElement root, ParseState state)
     {
         var parseState = RequireState(state);
-
         var type = TryGetString(root, "type");
-        switch (type)
+        if (type == "session_meta" && root.TryGetProperty("payload", out var sessionMetaPayload))
         {
-            case "session_meta" when root.TryGetProperty("payload", out var sessionMetaPayload):
-                ParseSessionMetadata(sessionMetaPayload, parseState);
-                break;
-            case "response_item" when root.TryGetProperty("payload", out var responseItemPayload):
-                ParseResponseItem(responseItemPayload, parseState);
-                break;
-            default:
-                return;
+            ParseSessionMetadata(sessionMetaPayload, parseState);
+            return;
+        }
+
+        if (type == "response_item" && root.TryGetProperty("payload", out var responseItemPayload))
+        {
+            ParseResponseItem(responseItemPayload, parseState);
         }
     }
 
@@ -88,7 +88,6 @@ public static partial class SessionJsonlParser
     private static void ParseResponseItem(JsonElement payload, ParseState state)
     {
         var parseState = RequireState(state);
-
         var payloadType = TryGetString(payload, "type");
         switch (payloadType)
         {
@@ -122,12 +121,11 @@ public static partial class SessionJsonlParser
         var urls = parseState.Urls;
         foreach (var contentItem in contentElement.EnumerateArray())
         {
-            if (!IsTextContentItem(contentItem))
+            if (!TryGetTextContent(contentItem, out var text))
             {
                 continue;
             }
 
-            var text = contentItem.GetProperty("text").GetString()!;
             events.Add(NormalizedSessionEvent.CreateMessage(actor, text));
             ExtractFilePathsAndUrls(text, filePaths, urls);
         }
@@ -136,7 +134,6 @@ public static partial class SessionJsonlParser
     private static void ParseFunctionCall(JsonElement payload, ParseState state)
     {
         var parseState = RequireState(state);
-
         var toolName = TryGetString(payload, "name") ?? "unknown_tool";
         var rawArguments = TryGetString(payload, "arguments") ?? string.Empty;
         parseState.Events.Add(NormalizedSessionEvent.CreateToolCall(toolName, rawArguments));
@@ -144,7 +141,7 @@ public static partial class SessionJsonlParser
         var command = TryExtractCommand(rawArguments);
         if (!string.IsNullOrWhiteSpace(command))
         {
-            parseState.Commands.Add(command!);
+            parseState.Commands.Add(command);
         }
 
         ExtractFilePathsAndUrls(rawArguments, parseState.FilePaths, parseState.Urls);
@@ -153,7 +150,6 @@ public static partial class SessionJsonlParser
     private static void ParseFunctionCallOutput(JsonElement payload, ParseState state)
     {
         var parseState = RequireState(state);
-
         var outputText = TryGetString(payload, "output") ?? string.Empty;
         var toolName = TryGetString(payload, "name") ?? "tool";
         parseState.Events.Add(NormalizedSessionEvent.CreateToolOutput(toolName, outputText));
@@ -206,12 +202,27 @@ public static partial class SessionJsonlParser
             && !string.IsNullOrWhiteSpace(textElement.GetString());
     }
 
+    private static bool TryGetTextContent(JsonElement contentItem, out string text)
+    {
+        text = string.Empty;
+        if (!IsTextContentItem(contentItem))
+        {
+            return false;
+        }
+
+        var contentText = contentItem.GetProperty("text").GetString();
+        if (string.IsNullOrWhiteSpace(contentText))
+        {
+            return false;
+        }
+
+        text = contentText;
+        return true;
+    }
+
     private static string? TryExtractCommand(string rawArguments)
     {
-        if (rawArguments is null)
-        {
-            throw new ArgumentNullException(nameof(rawArguments));
-        }
+        ArgumentNullException.ThrowIfNull(rawArguments);
 
         if (string.IsNullOrWhiteSpace(rawArguments))
         {
@@ -230,20 +241,9 @@ public static partial class SessionJsonlParser
 
     private static void ExtractFilePathsAndUrls(string value, ISet<string> filePaths, ISet<string> urls)
     {
-        if (value is null)
-        {
-            throw new ArgumentNullException(nameof(value));
-        }
-
-        if (filePaths is null)
-        {
-            throw new ArgumentNullException(nameof(filePaths));
-        }
-
-        if (urls is null)
-        {
-            throw new ArgumentNullException(nameof(urls));
-        }
+        ArgumentNullException.ThrowIfNull(value);
+        ArgumentNullException.ThrowIfNull(filePaths);
+        ArgumentNullException.ThrowIfNull(urls);
 
         foreach (Match match in UrlRegex.Matches(value))
         {
@@ -258,22 +258,22 @@ public static partial class SessionJsonlParser
 
     private static bool TryExtractExitCode(string text, out int exitCode)
     {
-        var nonNullText = text ?? throw new ArgumentNullException(nameof(text));
+        ArgumentNullException.ThrowIfNull(text);
 
         exitCode = 0;
-        if (string.IsNullOrWhiteSpace(nonNullText))
+        if (string.IsNullOrWhiteSpace(text))
         {
             return false;
         }
 
         const string marker = "Process exited with code ";
-        var index = nonNullText.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        var index = text.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
         if (index < 0)
         {
             return false;
         }
 
-        var numberPortion = nonNullText[(index + marker.Length)..].Trim();
+        var numberPortion = text[(index + marker.Length)..].Trim();
         var numericValue = new string(numberPortion.TakeWhile(char.IsDigit).ToArray());
         return int.TryParse(numericValue, out exitCode);
     }

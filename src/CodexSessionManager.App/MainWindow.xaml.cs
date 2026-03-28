@@ -68,7 +68,11 @@ public partial class MainWindow : Window
         ExportPathSelector = SelectExportPath;
         TextFileWriter = (fileName, content) => File.WriteAllText(fileName, content, Encoding.UTF8);
         MaintenanceRunner = (preview, destinationRoot, typedConfirmation, cancellationToken) =>
-            _maintenanceExecutor!.ExecuteAsync(preview, destinationRoot, typedConfirmation, cancellationToken);
+        {
+            var maintenanceExecutor = _maintenanceExecutor
+                ?? throw new InvalidOperationException("Maintenance executor has not been initialized.");
+            return maintenanceExecutor.ExecuteAsync(preview, destinationRoot, typedConfirmation, cancellationToken);
+        };
         Loaded += async (_, _) => await InitializeAsync();
         Closed += (_, _) => DisposeSearchCancellation();
     }
@@ -129,6 +133,187 @@ public partial class MainWindow : Window
         });
     }
 
+    private async Task LoadSelectedSessionAsync()
+    {
+        var selected = await RunOnUiThreadValueAsync(GetSelectedSession);
+        if (selected is null)
+        {
+            return;
+        }
+
+        var selectedSessionId = GetSessionId(selected);
+        await PopulateSelectedSessionHeaderAsync(selected, selectedSessionId);
+        await LoadSelectedSessionBodyAsync(selected, selectedSessionId);
+    }
+
+    private async Task PopulateSelectedSessionHeaderAsync(IndexedLogicalSession selected, string selectedSessionId)
+    {
+        var preferredCopy = selected.PreferredCopy;
+        var searchDocument = selected.SearchDocument;
+        var physicalCopies = selected.PhysicalCopies;
+
+        await RunOnUiThreadAsync(() =>
+        {
+            var currentSelection = GetSelectedSession();
+            if (currentSelection is null || !string.Equals(currentSelection.SessionId, selectedSessionId, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            ThreadNameTextBlock.Text = GetThreadName(selected);
+            SessionIdTextBlock.Text = GetSessionId(selected);
+            PreferredPathTextBlock.Text = preferredCopy.FilePath;
+            AliasTextBox.Text = searchDocument.Alias;
+            TagsTextBox.Text = string.Join(", ", searchDocument.Tags);
+            NotesTextBox.Text = searchDocument.Notes;
+            CopiesListBox.ItemsSource = physicalCopies;
+            ReadableTranscriptTextBox.Text = searchDocument.ReadableTranscript;
+            DialogueTranscriptTextBox.Text = searchDocument.DialogueTranscript;
+        });
+    }
+
+    private async Task LoadSelectedSessionBodyAsync(IndexedLogicalSession selected, string selectedSessionId)
+    {
+        try
+        {
+            var preferredCopy = selected.PreferredCopy;
+            var preferredPath = preferredCopy.FilePath;
+            var parsed = await SessionParser(preferredPath, CancellationToken.None);
+            var rawContent = FileTextReader(preferredPath);
+            var readableTranscript = SessionTranscriptFormatter.Format(parsed.Document, TranscriptMode.Readable).RenderedMarkdown;
+            var dialogueTranscript = SessionTranscriptFormatter.Format(parsed.Document, TranscriptMode.Dialogue).RenderedMarkdown;
+            var auditTranscript = SessionTranscriptFormatter.Format(parsed.Document, TranscriptMode.Audit).RenderedMarkdown;
+            var sqliteStatus = LiveSqliteStatusProvider();
+
+            if (await IsSessionStillSelectedAsync(selectedSessionId))
+            {
+                await RunOnUiThreadAsync(() =>
+                {
+                    SQLiteStatusTextBlock.Text = sqliteStatus;
+                    CwdTextBlock.Text = parsed.Cwd ?? "-";
+                    RawTranscriptTextBox.Text = rawContent;
+                    ReadableTranscriptTextBox.Text = readableTranscript;
+                    DialogueTranscriptTextBox.Text = dialogueTranscript;
+                    AuditTranscriptTextBox.Text = auditTranscript;
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            if (await IsSessionStillSelectedAsync(selectedSessionId))
+            {
+                await RunOnUiThreadAsync(() =>
+                {
+                    CwdTextBlock.Text = "-";
+                    SQLiteStatusTextBlock.Text = "Live SQLite status unavailable.";
+                    AuditTranscriptTextBox.Text = string.Empty;
+                    RawTranscriptTextBox.Text = $"Unable to load raw session content.{Environment.NewLine}{ex.Message}";
+                });
+            }
+        }
+    }
+
+    private async Task SearchSessionsAsync()
+    {
+        if (_repository is null)
+        {
+            return;
+        }
+
+        var searchToken = BeginSearchToken();
+        var query = await RunOnUiThreadValueAsync(() => SearchTextBox.Text);
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            await ReloadSessionsForSearchAsync(searchToken);
+        }
+        else
+        {
+            await ApplySearchResultsAsync(query, searchToken);
+        }
+    }
+
+    private async Task ReloadSessionsForSearchAsync(CancellationToken searchToken)
+    {
+        var repository = _repository;
+        if (repository is null)
+        {
+            return;
+        }
+
+        var sessions = await repository.ListSessionsAsync(CancellationToken.None);
+        var searchCanceled = searchToken.IsCancellationRequested;
+        await RunOnUiThreadAsync(() =>
+        {
+            if (searchCanceled)
+            {
+                return;
+            }
+
+            _sessions.Clear();
+            foreach (var session in sessions)
+            {
+                _sessions.Add(session);
+            }
+
+            StatusTextBlock.Text = $"Loaded {_sessions.Count} sessions from cached index.";
+        });
+    }
+
+    private async Task ApplySearchResultsAsync(string query, CancellationToken searchToken)
+    {
+        var repository = _repository ?? throw new InvalidOperationException("Repository has not been initialized.");
+        var hits = await repository.SearchAsync(query, CancellationToken.None);
+        var hitIds = hits.Select(hit => hit.SessionId).ToHashSet(StringComparer.Ordinal);
+        var allSessions = await repository.ListSessionsAsync(CancellationToken.None);
+        var visibleSessions = allSessions.Where(session => hitIds.Contains(session.SessionId)).ToArray();
+        var searchCanceled = searchToken.IsCancellationRequested;
+
+        await RunOnUiThreadAsync(() =>
+        {
+            if (searchCanceled)
+            {
+                return;
+            }
+
+            _sessions.Clear();
+            foreach (var session in visibleSessions)
+            {
+                _sessions.Add(session);
+            }
+
+            StatusTextBlock.Text = $"Search returned {_sessions.Count} sessions.";
+        });
+    }
+
+    private CancellationToken BeginSearchToken()
+    {
+        var replacement = new CancellationTokenSource();
+        var previous = Interlocked.Exchange(ref _searchCts, replacement);
+        previous?.Cancel();
+        previous?.Dispose();
+        return replacement.Token;
+    }
+
+    private async Task<bool> IsSessionStillSelectedAsync(string sessionId)
+    {
+        return await RunOnUiThreadValueAsync(() =>
+        {
+            var selected = GetSelectedSession();
+            return selected is not null && string.Equals(selected.SessionId, sessionId, StringComparison.Ordinal);
+        });
+    }
+
+    private void DisposeSearchCancellation()
+    {
+        var current = Interlocked.Exchange(ref _searchCts, null);
+        current?.Cancel();
+        current?.Dispose();
+    }
+
+    private static string GetSessionId(IndexedLogicalSession session) => session.SessionId;
+
+    private static string GetThreadName(IndexedLogicalSession session) => session.ThreadName;
+
     private async Task RefreshAsync(bool deepScan)
     {
         if (_repository is null || _workspaceIndexer is null)
@@ -138,7 +323,8 @@ public partial class MainWindow : Window
 
         await RunOnUiThreadAsync(() => StatusTextBlock.Text = deepScan ? "Running deep scan…" : "Refreshing known stores…");
 
-        var knownStores = KnownStoresProvider(deepScan);
+        var knownStoresProvider = KnownStoresProvider;
+        var knownStores = knownStoresProvider(deepScan);
         await _workspaceIndexer.RebuildAsync(knownStores, CancellationToken.None);
         await LoadSessionsFromCatalogAsync();
 
@@ -147,23 +333,29 @@ public partial class MainWindow : Window
 
     private Task RunOnUiThreadAsync(Action action)
     {
-        if (Dispatcher.CheckAccess())
+        ArgumentNullException.ThrowIfNull(action);
+
+        var dispatcher = Dispatcher;
+        if (dispatcher.CheckAccess())
         {
             action();
             return Task.CompletedTask;
         }
 
-        return Dispatcher.InvokeAsync(action).Task;
+        return dispatcher.InvokeAsync(action).Task;
     }
 
     private Task<T> RunOnUiThreadValueAsync<T>(Func<T> func)
     {
-        if (Dispatcher.CheckAccess())
+        ArgumentNullException.ThrowIfNull(func);
+
+        var dispatcher = Dispatcher;
+        if (dispatcher.CheckAccess())
         {
             return Task.FromResult(func());
         }
 
-        return Dispatcher.InvokeAsync(func).Task;
+        return dispatcher.InvokeAsync(func).Task;
     }
 
     private string? SelectExportPath(string defaultFileName)
@@ -255,7 +447,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        var folder = Path.GetDirectoryName(selected.PreferredCopy.FilePath);
+        var preferredPath = selected.PreferredCopy.FilePath;
+        var folder = Path.GetDirectoryName(preferredPath);
         if (!string.IsNullOrWhiteSpace(folder))
         {
             ProcessStarter("explorer.exe", $"\"{folder}\"");
@@ -270,7 +463,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        ProcessStarter("notepad.exe", $"\"{selected.PreferredCopy.FilePath}\"");
+        var preferredPath = selected.PreferredCopy.FilePath;
+        ProcessStarter("notepad.exe", $"\"{preferredPath}\"");
     }
 
     private void CopyPathButton_OnClick(object _, RoutedEventArgs __)
@@ -281,7 +475,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        ClipboardSetter(selected.PreferredCopy.FilePath);
+        var preferredPath = selected.PreferredCopy.FilePath;
+        ClipboardSetter(preferredPath);
         StatusTextBlock.Text = "Copied preferred path to clipboard.";
     }
 
@@ -326,7 +521,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var targets = selectedSessions.SelectMany(session => session.PhysicalCopies).ToArray();
+        var targets = selectedSessions.SelectMany(static session => session.PhysicalCopies).ToArray();
         var action = MaintenanceActionComboBox.SelectedItem is MaintenanceAction selectedAction
             ? selectedAction
             : MaintenanceAction.Archive;
@@ -384,7 +579,8 @@ public partial class MainWindow : Window
     {
         try
         {
-            var info = (fileInfoFactory ?? (static filePath => new FileInfo(filePath)))(path);
+            var resolvedFileInfoFactory = fileInfoFactory ?? (static filePath => new FileInfo(filePath));
+            var info = resolvedFileInfoFactory(path);
             if (!info.Exists)
             {
                 return null;
