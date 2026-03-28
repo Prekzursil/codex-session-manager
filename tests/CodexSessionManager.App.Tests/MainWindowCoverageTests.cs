@@ -782,6 +782,36 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
+    public async Task ReloadSessionsForSearchAsync_uses_non_cancelable_token_without_skipping_refreshAsync()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var root = CreateTempDirectory();
+            try
+            {
+                var sessions = new[]
+                {
+                    BuildIndexedSession("session-reload", "Reload Thread", WriteSessionJsonl(root, "session-reload", "Reload Thread"))
+                };
+                var repository = CreateRepository(root, sessions);
+                var window = new MainWindow();
+                RepositoryField.SetValue(window, repository);
+                await InvokePrivateTaskAsync(
+                    window,
+                    typeof(MainWindow).GetMethod("ReloadSessionsForSearchAsync", BindingFlags.NonPublic | BindingFlags.Instance)!,
+                    CancellationToken.None);
+
+                Assert.Single(GetNamedField<ListBox>(window, "SessionsListBox").Items);
+                Assert.Equal("Loaded 1 sessions from cached index.", GetNamedField<TextBlock>(window, "StatusTextBlock").Text);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        });
+    }
+
+    [Fact]
     public async Task RepositoryBackedAsyncMethods_return_early_without_repositoryAsync()
     {
         await RunInStaAsync(async () =>

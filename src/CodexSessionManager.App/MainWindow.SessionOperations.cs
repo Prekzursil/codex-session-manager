@@ -1,8 +1,10 @@
 using CodexSessionManager.Core.Sessions;
 using CodexSessionManager.Core.Transcripts;
+using System.Diagnostics.CodeAnalysis;
 
 namespace CodexSessionManager.App;
 
+[SuppressMessage("Code Smell", "S2333", Justification = "The class is split across XAML-generated and hand-authored partial files.")]
 public partial class MainWindow
 {
     private async Task LoadSelectedSessionAsync()
@@ -20,16 +22,26 @@ public partial class MainWindow
 
     private async Task PopulateSelectedSessionHeaderAsync(IndexedLogicalSession selected, string selectedSessionId)
     {
-        var preferredCopy = selected.PreferredCopy ?? throw new InvalidOperationException("Selected session is missing a preferred copy."); // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
-        var searchDocument = selected.SearchDocument ?? throw new InvalidOperationException("Selected session is missing search metadata."); // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
-        var physicalCopies = selected.PhysicalCopies ?? []; // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+        var preferredCopy = selected.PreferredCopy;
+        if (preferredCopy is null)
+        {
+            throw new InvalidOperationException("Selected session is missing a preferred copy.");
+        }
+
+        var searchDocument = selected.SearchDocument;
+        if (searchDocument is null)
+        {
+            throw new InvalidOperationException("Selected session is missing search metadata.");
+        }
+
+        var physicalCopies = selected.PhysicalCopies ?? [];
 
         await RunOnUiThreadAsync(() =>
         {
             if (string.Equals(GetSelectedSession()?.SessionId, selectedSessionId, StringComparison.Ordinal))
             {
-                ThreadNameTextBlock.Text = GetThreadName(selected); // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
-                SessionIdTextBlock.Text = GetSessionId(selected); // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+                ThreadNameTextBlock.Text = GetThreadName(selected);
+                SessionIdTextBlock.Text = GetSessionId(selected);
                 PreferredPathTextBlock.Text = preferredCopy.FilePath;
                 AliasTextBox.Text = searchDocument.Alias;
                 TagsTextBox.Text = string.Join(", ", searchDocument.Tags);
@@ -103,7 +115,7 @@ public partial class MainWindow
     private async Task ReloadSessionsForSearchAsync(CancellationToken searchToken)
     {
         var sessions = await _repository!.ListSessionsAsync(CancellationToken.None);
-        var searchCanceled = searchToken.IsCancellationRequested; // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+        var searchCanceled = searchToken.CanBeCanceled && searchToken.IsCancellationRequested;
         await RunOnUiThreadAsync(() =>
         {
             if (!searchCanceled)
@@ -168,6 +180,6 @@ public partial class MainWindow
 
     private static string GetSessionId(IndexedLogicalSession session) => session.SessionId; // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
 
-    private static string GetThreadName(IndexedLogicalSession session) => session.ThreadName; // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+    private static string GetThreadName(IndexedLogicalSession session) => session.ThreadName;
 }
 
