@@ -196,6 +196,10 @@ public sealed partial class MainWindowCoverageTests
                     InvokePrivateTaskAsync(window, PopulateSelectedSessionHeaderAsyncMethod, session, " "));
                 Assert.Equal("selectedSessionId", blankSessionIdException.ParamName);
 
+                GetNamedField<TextBlock>(window, "ThreadNameTextBlock").Text = "unchanged";
+                await InvokePrivateTaskAsync(window, PopulateSelectedSessionHeaderAsyncMethod, session, session.SessionId);
+                Assert.Equal("unchanged", GetNamedField<TextBlock>(window, "ThreadNameTextBlock").Text);
+
                 sessions.Add(session);
                 SelectSingleSession(window, session);
                 GetNamedField<TextBlock>(window, "CwdTextBlock").Text = "cwd";

@@ -17,6 +17,26 @@ namespace CodexSessionManager.App.Tests;
 public sealed partial class MainWindowCoverageTests
 {
     [Fact]
+    public async Task InitializeComponent_can_be_called_again_after_constructor_loads_xaml_async()
+    {
+        await RunInStaAsync(() =>
+        {
+            var window = new MainWindow();
+            try
+            {
+                window.InitializeComponent();
+                Assert.NotNull(GetNamedField<TextBlock>(window, "StatusTextBlock"));
+            }
+            finally
+            {
+                window.Close();
+            }
+
+            return Task.CompletedTask;
+        });
+    }
+
+    [Fact]
     public async Task RunOnUiThread_helpers_cover_inline_and_background_dispatchAsync()
     {
         await RunInStaAsync(async () =>
@@ -180,6 +200,35 @@ public sealed partial class MainWindowCoverageTests
                 await InvokePrivateTaskAsync(window, RunBackgroundRefreshAsyncMethod);
 
                 Assert.Contains("Background refresh failed: refresh blocked", GetNamedField<TextBlock>(window, "StatusTextBlock").Text, StringComparison.Ordinal);
+                window.Close();
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task RunBackgroundRefreshAsync_refreshes_successfully_async()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var root = CreateTempDirectory();
+            try
+            {
+                var sessionFile = WriteSessionJsonl(root, "session-refresh", "Refresh Thread");
+                var session = BuildIndexedSession("session-refresh", "Refresh Thread", sessionFile);
+                var repository = CreateRepository(root, session);
+                var window = new MainWindow();
+
+                RepositoryField.SetValue(window, repository);
+                WorkspaceIndexerField.SetValue(window, new SessionWorkspaceIndexer(repository));
+                SetProvider(window, "KnownStoresProvider", (Func<bool, IReadOnlyList<KnownSessionStore>>)(_ => []));
+
+                await InvokePrivateTaskAsync(window, RunBackgroundRefreshAsyncMethod);
+
+                Assert.Contains("Indexed 0 deduped sessions", GetNamedField<TextBlock>(window, "StatusTextBlock").Text, StringComparison.Ordinal);
                 window.Close();
             }
             finally
