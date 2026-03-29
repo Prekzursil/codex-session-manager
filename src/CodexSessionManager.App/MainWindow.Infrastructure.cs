@@ -124,7 +124,7 @@ public partial class MainWindow
         Func<string, FileInfo>? fileInfoFactory)
     {
         var sqlitePath = path ?? throw new ArgumentNullException(nameof(path));
-        var createFileInfo = fileInfoFactory ?? static candidate => new FileInfo(candidate);
+        var createFileInfo = fileInfoFactory ?? (static candidate => new FileInfo(candidate));
         try
         {
             var info = createFileInfo(sqlitePath);

@@ -33,7 +33,7 @@ public sealed class MaintenanceExecutor
             ManifestPath: manifestPath);
     }
 
-    private void ValidateTypedConfirmation(MaintenancePreview preview, string typedConfirmation)
+    private static void ValidateTypedConfirmation(MaintenancePreview preview, string typedConfirmation)
     {
         if (!preview.RequiresTypedConfirmation || string.IsNullOrWhiteSpace(typedConfirmation))
         {
