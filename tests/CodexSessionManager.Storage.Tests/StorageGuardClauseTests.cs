@@ -250,10 +250,11 @@ public sealed class StorageGuardClauseTests
         await AssertInnerAsync<ArgumentNullException>(() =>
             (Task)ReplaceCopyRowsMethod.Invoke(null, [connection, null!, Array.Empty<SessionPhysicalCopy>(), CancellationToken.None])!);
         await AssertInnerAsync<InvalidOperationException>(() => (Task<SessionSearchDocument>)MergeExistingMetadataMethod.Invoke(null, [connection, WithNullIndexedSessionProperty(session, nameof(IndexedLogicalSession.SearchDocument)), CancellationToken.None])!);
+        SessionPhysicalCopy[] missingCopyEntry = [null!];
         await AssertInnerAsync<ArgumentNullException>(() =>
             (Task)ReplaceCopyRowsMethod.Invoke(
                 null,
-                [connection, session.SessionId, [null!], CancellationToken.None])!);
+                [connection, session.SessionId, missingCopyEntry, CancellationToken.None])!);
         await AssertInnerAsync<ArgumentNullException>(() =>
             (Task<IReadOnlyList<IndexedLogicalSession>>)LoadSessionsMethod.Invoke(null, [connection, null!, CancellationToken.None])!);
         await AssertInnerAsync<ArgumentNullException>(() =>
@@ -339,18 +340,21 @@ public sealed class StorageGuardClauseTests
 
     private static void AssertInvalidMoveTargetPath()
     {
+        SessionPhysicalCopy[] invalidPathCopies =
+        [
+            new SessionPhysicalCopy(
+                "session-1",
+                Path.GetPathRoot(Path.GetTempPath())!,
+                SessionStoreKind.Backup,
+                new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false)),
+        ];
+
         AssertInner<InvalidOperationException>(() =>
             MoveTargetsMethod.Invoke(
                 null,
                 new object[]
                 {
-                    [
-                        new SessionPhysicalCopy(
-                            "session-1",
-                            Path.GetPathRoot(Path.GetTempPath())!,
-                            SessionStoreKind.Backup,
-                            new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false)),
-                    ],
+                    invalidPathCopies,
                     Path.GetPathRoot(Path.GetTempPath())!,
                     CancellationToken.None,
                 }));

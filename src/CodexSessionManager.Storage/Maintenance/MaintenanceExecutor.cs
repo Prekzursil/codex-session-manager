@@ -7,13 +7,14 @@ namespace CodexSessionManager.Storage.Maintenance;
 
 public sealed class MaintenanceExecutor
 {
+    private const string NullOrWhitespaceMessage = "Value cannot be null or whitespace.";
     private readonly string _checkpointRoot;
 
     public MaintenanceExecutor(string checkpointRoot)
     {
         if (string.IsNullOrWhiteSpace(checkpointRoot))
         {
-            throw new ArgumentException("Value cannot be null or whitespace.", nameof(checkpointRoot));
+            throw new ArgumentException(NullOrWhitespaceMessage, nameof(checkpointRoot));
         }
 
         _checkpointRoot = checkpointRoot;
@@ -79,7 +80,7 @@ public sealed class MaintenanceExecutor
         var targets = allowedTargets ?? throw new ArgumentNullException(nameof(allowedTargets));
         if (string.IsNullOrWhiteSpace(effectiveDestinationRoot))
         {
-            throw new ArgumentException("Value cannot be null or whitespace.", nameof(effectiveDestinationRoot));
+            throw new ArgumentException(NullOrWhitespaceMessage, nameof(effectiveDestinationRoot));
         }
 
         var movedTargets = new List<SessionPhysicalCopy>();
@@ -104,12 +105,12 @@ public sealed class MaintenanceExecutor
     {
         if (string.IsNullOrWhiteSpace(effectiveDestinationRoot))
         {
-            throw new ArgumentException("Value cannot be null or whitespace.", nameof(effectiveDestinationRoot));
+            throw new ArgumentException(NullOrWhitespaceMessage, nameof(effectiveDestinationRoot));
         }
 
         if (string.IsNullOrWhiteSpace(fileName))
         {
-            throw new ArgumentException("Value cannot be null or whitespace.", nameof(fileName));
+            throw new ArgumentException(NullOrWhitespaceMessage, nameof(fileName));
         }
 
         var destinationPath = Path.Combine(effectiveDestinationRoot, fileName);
