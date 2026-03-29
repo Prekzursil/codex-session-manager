@@ -425,10 +425,17 @@ public sealed class SessionCatalogRepositoryTests
         {
             var repository = new SessionCatalogRepository(databasePath);
             await repository.InitializeAsync(CancellationToken.None);
+            var hotCopy = new SessionPhysicalCopy(
+                "session-hot-copy",
+                @"C:\Users\Prekzursil\.codex\sessions\session-hot-copy.jsonl",
+                SessionStoreKind.Live,
+                new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1000, true));
 
-            var session = CreateIndexedSession(
+            var session = new IndexedLogicalSession(
                 "session-hot-copy",
                 "Hot Copy",
+                hotCopy,
+                [hotCopy],
                 new SessionSearchDocument
                 {
                     ReadableTranscript = "hot transcript",
@@ -441,8 +448,7 @@ public sealed class SessionCatalogRepositoryTests
                     Alias = "",
                     Tags = [],
                     Notes = ""
-                },
-                isHot: true);
+                });
 
             await repository.UpsertAsync(session, CancellationToken.None);
 
@@ -469,15 +475,13 @@ public sealed class SessionCatalogRepositoryTests
         string threadName,
         SessionSearchDocument searchDocument,
         DateTimeOffset? lastWriteTimeUtc = null,
-        long fileSizeBytes = 1000,
-        bool isHot = false)
+        long fileSizeBytes = 1000)
     {
         var preferredCopy = CreateLiveCopy(
             sessionId,
             $@"C:\Users\Prekzursil\.codex\sessions\{sessionId}.jsonl",
             lastWriteTimeUtc ?? DateTimeOffset.UtcNow,
-            fileSizeBytes,
-            isHot);
+            fileSizeBytes);
 
         return new IndexedLogicalSession(
             sessionId,
@@ -491,14 +495,13 @@ public sealed class SessionCatalogRepositoryTests
         string sessionId,
         string filePath,
         DateTimeOffset lastWriteTimeUtc,
-        long fileSizeBytes,
-        bool isHot)
+        long fileSizeBytes)
     {
         return new SessionPhysicalCopy(
             sessionId,
             filePath,
             SessionStoreKind.Live,
-            new SessionPhysicalCopyState(lastWriteTimeUtc, fileSizeBytes, isHot));
+            new SessionPhysicalCopyState(lastWriteTimeUtc, fileSizeBytes, false));
     }
 }
 

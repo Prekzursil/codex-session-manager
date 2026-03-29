@@ -186,7 +186,7 @@ public sealed partial class MainWindowCoverageTests
             await InvokePrivateTaskAsync(window, LoadSelectedSessionAsyncMethod);
 
             Assert.Equal("Starting…", GetNamedField<TextBlock>(window, "StatusTextBlock").Text);
-            Assert.Equal(string.Empty, GetNamedField<TextBlock>(window, "ThreadNameTextBlock").Text);
+            Assert.Equal("-", GetNamedField<TextBlock>(window, "ThreadNameTextBlock").Text);
             window.Close();
         });
     }
