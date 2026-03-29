@@ -1,3 +1,4 @@
+#pragma warning disable S3990 // Codacy false positive: the containing assembly declares CLSCompliant(true).
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -19,11 +20,11 @@ namespace CodexSessionManager.App;
 public partial class MainWindow : Window
 {
     private readonly ObservableCollection<IndexedLogicalSession> _sessions = [];
+    private readonly SearchCancellationState _searchCancellation = new();
     private SessionCatalogRepository? _repository;
     private SessionWorkspaceIndexer? _workspaceIndexer;
     private MaintenanceExecutor? _maintenanceExecutor;
     private MaintenancePreview? _currentMaintenancePreview;
-    private CancellationTokenSource? _searchCts;
 
     internal Func<string> LocalDataRootProvider { get; set; }
     internal Func<string, SessionCatalogRepository> RepositoryFactory { get; set; }
@@ -34,13 +35,14 @@ public partial class MainWindow : Window
     internal Func<string> LiveSqliteStatusProvider { get; set; }
     internal Func<string, CancellationToken, Task<ParsedSessionFile>> SessionParser { get; set; }
     internal Func<string, string> FileTextReader { get; set; }
-    internal Action<string, string> ProcessStarter { get; set; }
+    internal Action<string, IReadOnlyList<string>> ProcessStarter { get; set; }
     internal Action<string> ClipboardSetter { get; set; }
     internal Func<SaveFileDialog> SaveFileDialogFactory { get; set; }
     internal Func<SaveFileDialog, Window, bool?> SaveFileDialogPresenter { get; set; }
     internal Func<string, string?> ExportPathSelector { get; set; }
     internal Action<string, string> TextFileWriter { get; set; }
     internal Func<MaintenancePreview, string, string, CancellationToken, Task<MaintenanceExecutionResult>> MaintenanceRunner { get; set; }
+    internal CancellationTokenSource? CurrentSearchCancellationTokenSource => _searchCancellation.Snapshot();
 
     public MainWindow()
     {
@@ -60,17 +62,41 @@ public partial class MainWindow : Window
         LiveSqliteStatusProvider = GetLiveSqliteStatus;
         SessionParser = (filePath, cancellationToken) => SessionJsonlParser.ParseAsync(filePath, cancellationToken);
         FileTextReader = File.ReadAllText;
-        ProcessStarter = (fileName, arguments) =>
-            Process.Start(new ProcessStartInfo(fileName, arguments) { UseShellExecute = true });
+        ProcessStarter = static (fileName, arguments) => StartExternalProcess(fileName, arguments);
         ClipboardSetter = Clipboard.SetText;
         SaveFileDialogFactory = () => new SaveFileDialog();
         SaveFileDialogPresenter = (dialog, owner) => dialog.ShowDialog(owner);
         ExportPathSelector = SelectExportPath;
         TextFileWriter = (fileName, content) => File.WriteAllText(fileName, content, Encoding.UTF8);
         MaintenanceRunner = (preview, destinationRoot, typedConfirmation, cancellationToken) =>
-            _maintenanceExecutor!.ExecuteAsync(preview, destinationRoot, typedConfirmation, cancellationToken);
+        {
+            var maintenanceExecutor = _maintenanceExecutor
+                ?? throw new InvalidOperationException("Maintenance executor has not been initialized.");
+            return maintenanceExecutor.ExecuteAsync(preview, destinationRoot, typedConfirmation, cancellationToken);
+        };
         Loaded += async (_, _) => await InitializeAsync();
-        Closed += (_, _) => DisposeSearchCancellation();
+        Closed += (_, _) => ReleaseSearchCancellationState();
+    }
+
+    private static void StartExternalProcess(string fileName, IReadOnlyList<string> arguments)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            throw new ArgumentException("Value cannot be null or whitespace.", nameof(fileName));
+        }
+
+        var processArguments = arguments ?? throw new ArgumentNullException(nameof(arguments));
+        var startInfo = new ProcessStartInfo(fileName)
+        {
+            UseShellExecute = false,
+        };
+
+        foreach (var argument in processArguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
+        _ = Process.Start(startInfo);
     }
 
     private async Task InitializeAsync()
@@ -138,32 +164,12 @@ public partial class MainWindow : Window
 
         await RunOnUiThreadAsync(() => StatusTextBlock.Text = deepScan ? "Running deep scan…" : "Refreshing known stores…");
 
-        var knownStores = KnownStoresProvider(deepScan);
-        await _workspaceIndexer.RebuildAsync(knownStores, CancellationToken.None);
+        var workspaceIndexer = _workspaceIndexer;
+        var knownStores = GetKnownStores(KnownStoresProvider, deepScan);
+        await workspaceIndexer.RebuildAsync(knownStores, CancellationToken.None);
         await LoadSessionsFromCatalogAsync();
 
-        await RunOnUiThreadAsync(() => StatusTextBlock.Text = $"Indexed {_sessions.Count} deduped sessions at {DateTime.Now:t}.");
-    }
-
-    private Task RunOnUiThreadAsync(Action action)
-    {
-        if (Dispatcher.CheckAccess())
-        {
-            action();
-            return Task.CompletedTask;
-        }
-
-        return Dispatcher.InvokeAsync(action).Task;
-    }
-
-    private Task<T> RunOnUiThreadValueAsync<T>(Func<T> func)
-    {
-        if (Dispatcher.CheckAccess())
-        {
-            return Task.FromResult(func());
-        }
-
-        return Dispatcher.InvokeAsync(func).Task;
+        await RunOnUiThreadAsync(() => StatusTextBlock.Text = $"Indexed {_sessions.Count} deduped sessions at {DateTime.UtcNow.ToLocalTime():t}.");
     }
 
     private string? SelectExportPath(string defaultFileName)
@@ -175,50 +181,29 @@ public partial class MainWindow : Window
         return SaveFileDialogPresenter(dialog, this) == true ? dialog.FileName : null;
     }
 
-    private static IReadOnlyList<KnownSessionStore> BuildKnownStores(bool deepScan)
-    {
-        var codexHome = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex");
-        var stores = new List<KnownSessionStore>(KnownStoreLocator.GetKnownStores(codexHome));
-
-        if (!deepScan)
-        {
-            return stores;
-        }
-
-        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        foreach (var directory in Directory.EnumerateDirectories(userProfile, ".codex*", SearchOption.TopDirectoryOnly))
-        {
-            foreach (var store in KnownStoreLocator.GetKnownStores(directory)
-                         .Where(store => stores.All(existing =>
-                             !string.Equals(existing.SessionsPath, store.SessionsPath, StringComparison.OrdinalIgnoreCase))))
-            {
-                stores.Add(store);
-            }
-        }
-
-        return stores;
-    }
-
     private IndexedLogicalSession? GetSelectedSession() => SessionsListBox.SelectedItem as IndexedLogicalSession;
 
     private IReadOnlyList<IndexedLogicalSession> GetSelectedSessions() =>
         SessionsListBox.SelectedItems.Cast<IndexedLogicalSession>().ToArray();
 
-    private async void SessionsListBox_OnSelectionChanged(object _, System.Windows.Controls.SelectionChangedEventArgs __) =>
-        await LoadSelectedSessionAsync();
+    private void SessionsListBox_OnSelectionChanged(object _, System.Windows.Controls.SelectionChangedEventArgs __) =>
+        RunEventTask(LoadSelectedSessionAsync, "Failed to load session");
 
-    private async void SearchTextBox_OnTextChanged(object _, System.Windows.Controls.TextChangedEventArgs __) =>
-        await SearchSessionsAsync();
-
-    [ExcludeFromCodeCoverage]
-    private async void RefreshButton_OnClick(object _, RoutedEventArgs __) => await RefreshAsync(deepScan: false);
+    private void SearchTextBox_OnTextChanged(object _, System.Windows.Controls.TextChangedEventArgs __) =>
+        RunEventTask(SearchSessionsAsync, "Failed to search sessions");
 
     [ExcludeFromCodeCoverage]
-    private async void DeepScanButton_OnClick(object _, RoutedEventArgs __) => await RefreshAsync(deepScan: true);
+    private void RefreshButton_OnClick(object _, RoutedEventArgs __) =>
+        RunEventTask(() => RefreshAsync(deepScan: false), "Refresh failed");
+
+    [ExcludeFromCodeCoverage]
+    private void DeepScanButton_OnClick(object _, RoutedEventArgs __) =>
+        RunEventTask(() => RefreshAsync(deepScan: true), "Deep scan failed");
 
     private async Task SaveSelectedMetadataAsync()
     {
-        if (_repository is null)
+        var repository = _repository;
+        if (repository is null)
         {
             return;
         }
@@ -238,14 +223,14 @@ public partial class MainWindow : Window
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .ToArray();
 
-        await _repository.UpdateMetadataAsync(selected.SessionId, metadata.Alias, tags, metadata.Notes, CancellationToken.None);
+        await repository.UpdateMetadataAsync(selected.SessionId, metadata.Alias, tags, metadata.Notes, CancellationToken.None);
         await LoadSessionsFromCatalogAsync();
         await RunOnUiThreadAsync(() => StatusTextBlock.Text = $"Saved metadata for {selected.SessionId}.");
     }
 
     [ExcludeFromCodeCoverage]
-    private async void SaveMetadataButton_OnClick(object _, RoutedEventArgs __) =>
-        await SaveSelectedMetadataAsync();
+    private void SaveMetadataButton_OnClick(object _, RoutedEventArgs __) =>
+        RunEventTask(SaveSelectedMetadataAsync, "Failed to save metadata");
 
     private void OpenFolderButton_OnClick(object _, RoutedEventArgs __)
     {
@@ -255,10 +240,11 @@ public partial class MainWindow : Window
             return;
         }
 
-        var folder = Path.GetDirectoryName(selected.PreferredCopy.FilePath);
+        var preferredPath = GetRequiredPreferredCopy(selected).FilePath;
+        var folder = Path.GetDirectoryName(preferredPath);
         if (!string.IsNullOrWhiteSpace(folder))
         {
-            ProcessStarter("explorer.exe", $"\"{folder}\"");
+            ProcessStarter("explorer.exe", [folder]);
         }
     }
 
@@ -270,7 +256,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        ProcessStarter("notepad.exe", $"\"{selected.PreferredCopy.FilePath}\"");
+        var preferredPath = GetRequiredPreferredCopy(selected).FilePath;
+        ProcessStarter("notepad.exe", [preferredPath]);
     }
 
     private void CopyPathButton_OnClick(object _, RoutedEventArgs __)
@@ -281,7 +268,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        ClipboardSetter(selected.PreferredCopy.FilePath);
+        var preferredPath = GetRequiredPreferredCopy(selected).FilePath;
+        ClipboardSetter(preferredPath);
         StatusTextBlock.Text = "Copied preferred path to clipboard.";
     }
 
@@ -294,9 +282,8 @@ public partial class MainWindow : Window
         }
 
         var cwd = !string.IsNullOrWhiteSpace(CwdTextBlock.Text) && CwdTextBlock.Text != "-" ? CwdTextBlock.Text : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var command = $"codex resume {selected.SessionId} -C \"{cwd}\"";
 
-        ProcessStarter("pwsh.exe", $"-NoExit -Command \"{command}\"");
+        ProcessStarter("codex", ["resume", selected.SessionId, "-C", cwd]);
         StatusTextBlock.Text = $"Opened Codex resume command for {selected.SessionId}.";
     }
 
@@ -326,7 +313,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var targets = selectedSessions.SelectMany(session => session.PhysicalCopies).ToArray();
+        var targets = selectedSessions.SelectMany(static session => session.PhysicalCopies ?? []).ToArray();
         var action = MaintenanceActionComboBox.SelectedItem is MaintenanceAction selectedAction
             ? selectedAction
             : MaintenanceAction.Archive;
@@ -377,54 +364,6 @@ public partial class MainWindow : Window
     }
 
     [ExcludeFromCodeCoverage]
-    private async void ExecuteMaintenanceButton_OnClick(object _, RoutedEventArgs __) =>
-        await ExecuteMaintenanceAsync();
-
-    internal static string? DescribeSqlitePath(string path, Func<string, FileInfo>? fileInfoFactory = null)
-    {
-        try
-        {
-            var info = (fileInfoFactory ?? (static filePath => new FileInfo(filePath)))(path);
-            if (!info.Exists)
-            {
-                return null;
-            }
-
-            return $"{path} | {Math.Round(info.Length / 1024.0 / 1024.0, 1)} MB | {info.LastWriteTime}";
-        }
-        catch (IOException)
-        {
-            return null;
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return null;
-        }
-    }
-
-    private static string GetLiveSqliteStatus()
-    {
-        var codexHome = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex");
-        return GetLiveSqliteStatus(
-            new[]
-            {
-                Path.Combine(codexHome, "state_5.sqlite"),
-                Path.Combine(codexHome, "codex-sqlite", "canonical", "state_5.sqlite")
-            },
-            path => DescribeSqlitePath(path, fileInfoFactory: null));
-    }
-
-    private static string GetLiveSqliteStatus(IEnumerable<string> sqlitePaths, Func<string, string?> describeSqlitePath)
-    {
-        var details = sqlitePaths
-            .Select(describeSqlitePath)
-            .Where(detail => detail is not null)
-            .Cast<string>()
-            .ToArray();
-
-        return details.Length == 0
-            ? "No live SQLite store detected."
-            : string.Join(Environment.NewLine, details);
-    }
+    private void ExecuteMaintenanceButton_OnClick(object _, RoutedEventArgs __) =>
+        RunEventTask(ExecuteMaintenanceAsync, "Maintenance failed");
 }
-
