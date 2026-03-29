@@ -239,6 +239,22 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
+    public void GetLiveSqliteStatus_rejects_null_inputs()
+    {
+        var pathsException = Assert.Throws<TargetInvocationException>(() =>
+            GetLiveSqliteStatusWithInputsMethod.Invoke(
+                null,
+                [null!, (Func<string, string?>)(_ => null)]));
+        Assert.IsType<ArgumentNullException>(pathsException.InnerException);
+
+        var formatterException = Assert.Throws<TargetInvocationException>(() =>
+            GetLiveSqliteStatusWithInputsMethod.Invoke(
+                null,
+                [SqliteStatusPaths, null!]));
+        Assert.IsType<ArgumentNullException>(formatterException.InnerException);
+    }
+
+    [Fact]
     public void DescribeSqlitePath_handles_missing_and_exceptions()
     {
         Assert.Null(DescribeSqlitePathMethod.Invoke(null, [Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.sqlite"), null]));
@@ -340,10 +356,12 @@ public sealed class MainWindowCoverageTests
         {
             var window = new MainWindow();
 
-            var actionTask = Assert.IsAssignableFrom<Task>(RunOnUiThreadAsyncMethod.Invoke(window, [null!]));
+            var actionTask = (Task)(RunOnUiThreadAsyncMethod.Invoke(window, [null!])
+                ?? throw new InvalidOperationException("Expected Task return from RunOnUiThreadAsync."));
             await Assert.ThrowsAsync<ArgumentNullException>(async () => await actionTask);
 
-            var valueTask = Assert.IsAssignableFrom<Task>(RunOnUiThreadValueAsyncMethod.Invoke(window, [null!]));
+            var valueTask = (Task)(RunOnUiThreadValueAsyncMethod.Invoke(window, [null!])
+                ?? throw new InvalidOperationException("Expected Task return from RunOnUiThreadValueAsync."));
             await Assert.ThrowsAsync<ArgumentNullException>(async () => await valueTask);
 
             window.Close();
@@ -534,6 +552,33 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
+    public async Task RefreshAsync_throws_when_known_stores_provider_returns_nullAsync()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var root = CreateTempDirectory();
+            try
+            {
+                var repository = CreateRepository(root);
+                var window = new MainWindow();
+                RepositoryField.SetValue(window, repository);
+                WorkspaceIndexerField.SetValue(window, new SessionWorkspaceIndexer(repository));
+                SetProvider(
+                    window,
+                    "KnownStoresProvider",
+                    (Func<bool, IReadOnlyList<KnownSessionStore>>)(_ => null!));
+
+                await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                    InvokePrivateTaskAsync(window, RefreshAsyncMethod, false));
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        });
+    }
+
+    [Fact]
     public async Task RunBackgroundRefreshAsync_sets_status_when_refresh_throwsAsync()
     {
         await RunInStaAsync(async () =>
@@ -636,6 +681,34 @@ public sealed class MainWindowCoverageTests
                 await Assert.ThrowsAsync<InvalidOperationException>(() => InvokePrivateTaskAsync(window, PopulateSelectedSessionHeaderAsyncMethod, WithNullIndexedSessionProperty(session, nameof(IndexedLogicalSession.PreferredCopy)), session.SessionId));
                 await Assert.ThrowsAsync<InvalidOperationException>(() => InvokePrivateTaskAsync(window, PopulateSelectedSessionHeaderAsyncMethod, WithNullIndexedSessionProperty(session, nameof(IndexedLogicalSession.SearchDocument)), session.SessionId));
                 await InvokePrivateTaskAsync(window, PopulateSelectedSessionHeaderAsyncMethod, WithNullIndexedSessionProperty(session, nameof(IndexedLogicalSession.PhysicalCopies)), session.SessionId);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task Session_detail_helpers_reject_null_inputsAsync()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var root = CreateTempDirectory();
+            try
+            {
+                var sessionFile = WriteSessionJsonl(root, "session-detail-null", "Detail Null");
+                var session = BuildIndexedSession("session-detail-null", "Detail Null", sessionFile);
+                var window = new MainWindow();
+
+                await Assert.ThrowsAsync<ArgumentNullException>(() =>
+                    InvokePrivateTaskAsync(window, PopulateSelectedSessionHeaderAsyncMethod, null!, session.SessionId));
+                await Assert.ThrowsAsync<ArgumentNullException>(() =>
+                    InvokePrivateTaskAsync(window, PopulateSelectedSessionHeaderAsyncMethod, session, null!));
+                await Assert.ThrowsAsync<ArgumentNullException>(() =>
+                    InvokePrivateTaskAsync(window, LoadSelectedSessionBodyAsyncMethod, null!, session.SessionId));
+                await Assert.ThrowsAsync<ArgumentNullException>(() =>
+                    InvokePrivateTaskAsync(window, LoadSelectedSessionBodyAsyncMethod, session, null!));
             }
             finally
             {

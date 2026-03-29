@@ -224,7 +224,10 @@ public static partial class SessionJsonlParser
 
     private static string? TryExtractCommand(string rawArguments)
     {
-        ArgumentNullException.ThrowIfNull(rawArguments);
+        if (rawArguments is null)
+        {
+            throw new ArgumentNullException(nameof(rawArguments));
+        }
 
         if (string.IsNullOrWhiteSpace(rawArguments))
         {
@@ -243,9 +246,20 @@ public static partial class SessionJsonlParser
 
     private static void ExtractFilePathsAndUrls(string value, ISet<string> filePaths, ISet<string> urls)
     {
-        ArgumentNullException.ThrowIfNull(value);
-        ArgumentNullException.ThrowIfNull(filePaths);
-        ArgumentNullException.ThrowIfNull(urls);
+        if (value is null)
+        {
+            throw new ArgumentNullException(nameof(value));
+        }
+
+        if (filePaths is null)
+        {
+            throw new ArgumentNullException(nameof(filePaths));
+        }
+
+        if (urls is null)
+        {
+            throw new ArgumentNullException(nameof(urls));
+        }
 
         foreach (Match match in UrlRegex.Matches(value))
         {
@@ -260,24 +274,25 @@ public static partial class SessionJsonlParser
 
     private static bool TryExtractExitCode(string text, out int exitCode)
     {
-        var requiredText = text
-            ?? throw new ArgumentNullException(nameof(text));
+        if (text is null)
+        {
+            throw new ArgumentNullException(nameof(text));
+        }
 
         exitCode = 0;
-        if (string.IsNullOrWhiteSpace(requiredText))
+        if (string.IsNullOrWhiteSpace(text))
         {
             return false;
         }
 
         const string marker = "Process exited with code ";
-        var searchableText = requiredText;
-        var index = searchableText.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        var index = text.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
         if (index < 0)
         {
             return false;
         }
 
-        var numberPortion = searchableText[(index + marker.Length)..].Trim();
+        var numberPortion = text[(index + marker.Length)..].Trim();
         var numericValue = new string(numberPortion.TakeWhile(char.IsDigit).ToArray());
         return int.TryParse(numericValue, out exitCode);
     }
@@ -288,18 +303,28 @@ public static partial class SessionJsonlParser
         out JsonElement propertyElement)
     {
         propertyElement = default;
-        var requiredPropertyName = propertyName
-            ?? throw new ArgumentNullException(nameof(propertyName));
+        if (propertyName is null)
+        {
+            throw new ArgumentNullException(nameof(propertyName));
+        }
+
         if (element.ValueKind != JsonValueKind.Object)
         {
             return false;
         }
 
-        return element.TryGetProperty(requiredPropertyName, out propertyElement);
+        return element.TryGetProperty(propertyName, out propertyElement);
     }
 
-    private static ParseState RequireState(ParseState? state) =>
-        state ?? throw new ArgumentNullException(nameof(state));
+    private static ParseState RequireState(ParseState? state)
+    {
+        if (state is null)
+        {
+            throw new ArgumentNullException(nameof(state));
+        }
+
+        return state;
+    }
 
     [GeneratedRegex(@"https?://[^\s`""']+", RegexOptions.Compiled | RegexOptions.IgnoreCase)]
     private static partial Regex UrlRegexFactory();

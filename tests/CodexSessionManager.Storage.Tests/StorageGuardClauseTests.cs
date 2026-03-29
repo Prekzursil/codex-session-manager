@@ -37,6 +37,9 @@ public sealed class StorageGuardClauseTests
     private static readonly MethodInfo TryGetStringMethod =
         typeof(SessionJsonlParser).GetMethod("TryGetString", BindingFlags.NonPublic | BindingFlags.Static)!;
 
+    private static readonly MethodInfo TryGetPropertyValueMethod =
+        typeof(SessionJsonlParser).GetMethod("TryGetPropertyValue", BindingFlags.NonPublic | BindingFlags.Static)!;
+
     private static readonly MethodInfo TryExtractCommandMethod =
         typeof(SessionJsonlParser).GetMethod("TryExtractCommand", BindingFlags.NonPublic | BindingFlags.Static)!;
 
@@ -58,6 +61,12 @@ public sealed class StorageGuardClauseTests
     private static readonly MethodInfo RefreshSearchRowMethod =
         typeof(SessionCatalogRepository).GetMethod("RefreshSearchRowAsync", BindingFlags.NonPublic | BindingFlags.Static)!;
 
+    private static readonly MethodInfo ReplaceCopyRowsMethod =
+        typeof(SessionCatalogRepository).GetMethod("ReplaceCopyRowsAsync", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    private static readonly MethodInfo ExecuteReaderMethod =
+        typeof(SessionCatalogRepository).GetMethod("ExecuteReaderAsync", BindingFlags.NonPublic | BindingFlags.Static)!;
+
     private static readonly MethodInfo ExecuteNonQueryMethod =
         typeof(SessionCatalogRepository).GetMethod("ExecuteNonQueryAsync", BindingFlags.NonPublic | BindingFlags.Static)!;
 
@@ -74,7 +83,7 @@ public sealed class StorageGuardClauseTests
         typeof(SessionCatalogRepository).GetMethod("ReadRequiredString", BindingFlags.NonPublic | BindingFlags.Static)!;
 
     private static readonly MethodInfo OpenConnectionMethod =
-        typeof(SessionCatalogRepository).GetMethod("OpenConnectionAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        typeof(SessionCatalogRepository).GetMethod("OpenConnection", BindingFlags.NonPublic | BindingFlags.Instance)!;
 
     private static readonly FieldInfo DatabasePathField =
         typeof(SessionCatalogRepository).GetField("_databasePath", BindingFlags.NonPublic | BindingFlags.Instance)!;
@@ -97,6 +106,8 @@ public sealed class StorageGuardClauseTests
         Assert.Throws<ArgumentException>(() => new SessionCatalogRepository(null!));
         await Assert.ThrowsAsync<ArgumentException>(() => SessionJsonlParser.ParseAsync(null!, CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentNullException>(() => SessionDiscoveryService.DiscoverAsync(null!, CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentNullException>(() =>
+            SessionDiscoveryService.DiscoverAsync(new SessionStoreRoot[] { null! }, CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentNullException>(() => repository.UpsertAsync(null!, CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentNullException>(() => repository.SearchAsync(null!, CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentException>(() => repository.SaveMetadataAsync(null!, string.Empty, [], string.Empty, CancellationToken.None));
@@ -122,6 +133,8 @@ public sealed class StorageGuardClauseTests
         AssertInner<ArgumentNullException>(() => ParseFunctionCallMethod.Invoke(null, [emptyElement, null!]));
         AssertInner<ArgumentNullException>(() => ParseFunctionCallOutputMethod.Invoke(null, [emptyElement, null!]));
         AssertInner<ArgumentNullException>(() => TryGetStringMethod.Invoke(null, [emptyElement, null!]));
+        AssertInner<ArgumentNullException>(() =>
+            TryGetPropertyValueMethod.Invoke(null, [emptyElement, null!, default(JsonElement)]));
         AssertInner<ArgumentNullException>(() => TryExtractCommandMethod.Invoke(null, [null!]));
         AssertInner<ArgumentNullException>(() => ExtractFilePathsAndUrlsMethod.Invoke(null, [string.Empty, null!, urls]));
         AssertInner<ArgumentNullException>(() => ExtractFilePathsAndUrlsMethod.Invoke(null, [string.Empty, filePaths, null!]));
@@ -129,6 +142,18 @@ public sealed class StorageGuardClauseTests
         AssertInner<ArgumentNullException>(() => TryExtractExitCodeMethod.Invoke(null, [null!, 0]));
         await AssertInnerAsync<ArgumentException>(() => (Task)RefreshSearchRowMethod.Invoke(null, [connection, null!, CancellationToken.None])!);
         AssertInner<ArgumentNullException>(() => ToFtsQueryMethod.Invoke(null, [null!]));
+        AssertInner<ArgumentNullException>(() => ToFtsTokenMethod.Invoke(null, [null!]));
+        AssertInner<ArgumentNullException>(() => ReadRequiredStringMethod.Invoke(null, [null!, 0]));
+        await AssertInnerAsync<ArgumentNullException>(() =>
+            (Task<SqliteDataReader>)ExecuteReaderMethod.Invoke(null, [null!, CancellationToken.None])!);
+        await AssertInnerAsync<ArgumentNullException>(() =>
+            (Task)ExecuteNonQueryMethod.Invoke(null, [null!, CancellationToken.None])!);
+        await AssertInnerAsync<ArgumentNullException>(() =>
+            (Task)ReplaceCopyRowsMethod.Invoke(
+                null,
+                [null!, "session-1", Array.Empty<SessionPhysicalCopy>(), CancellationToken.None])!);
+        await AssertInnerAsync<ArgumentNullException>(() =>
+            (Task)ReplaceCopyRowsMethod.Invoke(null, [connection, "session-1", null!, CancellationToken.None])!);
         var splitLines = (IReadOnlyList<string>)SplitLinesMethod.Invoke(null, [null!])!;
         Assert.Empty(splitLines);
         AssertInner<ArgumentNullException>(() => CreateKnownSessionStoreMethod.Invoke(null, [null!]));
@@ -203,7 +228,19 @@ public sealed class StorageGuardClauseTests
 
         await using var connection = new SqliteConnection($"Data Source={databasePath}");
         await connection.OpenAsync();
+        await AssertInnerAsync<ArgumentNullException>(() =>
+            (Task<SessionSearchDocument>)MergeExistingMetadataMethod.Invoke(
+                null,
+                [null!, session, CancellationToken.None])!);
+        await AssertInnerAsync<ArgumentNullException>(() =>
+            (Task<SessionSearchDocument>)MergeExistingMetadataMethod.Invoke(
+                null,
+                [connection, null!, CancellationToken.None])!);
         await AssertInnerAsync<InvalidOperationException>(() => (Task<SessionSearchDocument>)MergeExistingMetadataMethod.Invoke(null, [connection, WithNullIndexedSessionProperty(session, nameof(IndexedLogicalSession.SearchDocument)), CancellationToken.None])!);
+        await AssertInnerAsync<ArgumentNullException>(() =>
+            (Task)ReplaceCopyRowsMethod.Invoke(
+                null,
+                [connection, session.SessionId, new SessionPhysicalCopy[] { null! }, CancellationToken.None])!);
 
         DatabasePathField.SetValue(repository, string.Empty);
         AssertInner<InvalidOperationException>(() => OpenConnectionMethod.Invoke(repository, [CancellationToken.None]));
