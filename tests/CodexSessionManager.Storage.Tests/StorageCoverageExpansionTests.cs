@@ -76,53 +76,21 @@ public sealed partial class StorageCoverageExpansionTests
     [Fact]
     public async Task DiscoverAsync_UsesMirrorStoreKinds_ForNonBackupRootsAsync()
     {
-        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
-        var mirrorRoot = Path.Combine(root, "mirror-store");
-        await WriteAssistantSessionAsync(
-            Path.Combine(mirrorRoot, "2026", "03", "26"),
-            "session-mirror",
-            "mirror session");
-
-        try
-        {
-            var catalog = await SessionDiscoveryService.DiscoverAsync(
-                [new SessionStoreRoot(mirrorRoot.Replace('\\', '/'), SessionStoreKind.Mirror)],
-                CancellationToken.None);
-
-            var logical = Assert.Single(catalog.LogicalSessions);
-            Assert.Equal("session-mirror", logical.SessionId);
-            Assert.Equal(SessionStoreKind.Mirror, logical.PreferredCopy.StoreKind);
-        }
-        finally
-        {
-            Directory.Delete(root, recursive: true);
-        }
+        await AssertDiscoveryUsesExpectedStoreKindAsync(
+            storeDirectoryName: "mirror-store",
+            sessionId: "session-mirror",
+            assistantText: "mirror session",
+            storeKind: SessionStoreKind.Mirror);
     }
 
     [Fact]
     public async Task DiscoverAsync_Normalizes_sessions_backup_rootsAsync()
     {
-        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
-        var backupRoot = Path.Combine(root, "sessions_backup");
-        await WriteAssistantSessionAsync(
-            Path.Combine(backupRoot, "2026", "03", "26"),
-            "session-backup",
-            "backup session");
-
-        try
-        {
-            var catalog = await SessionDiscoveryService.DiscoverAsync(
-                [new SessionStoreRoot(backupRoot.Replace('\\', '/'), SessionStoreKind.Backup)],
-                CancellationToken.None);
-
-            var logical = Assert.Single(catalog.LogicalSessions);
-            Assert.Equal("session-backup", logical.SessionId);
-            Assert.Equal(SessionStoreKind.Backup, logical.PreferredCopy.StoreKind);
-        }
-        finally
-        {
-            Directory.Delete(root, recursive: true);
-        }
+        await AssertDiscoveryUsesExpectedStoreKindAsync(
+            storeDirectoryName: "sessions_backup",
+            sessionId: "session-backup",
+            assistantText: "backup session",
+            storeKind: SessionStoreKind.Backup);
     }
 
     [Fact]
@@ -478,6 +446,35 @@ public sealed partial class StorageCoverageExpansionTests
                 $"{{\"timestamp\":\"2026-03-26T10:00:00Z\",\"type\":\"session_meta\",\"payload\":{{\"id\":\"{sessionId}\",\"timestamp\":\"2026-03-26T10:00:00Z\",\"cwd\":\"C:\\\\repo\"}}}}",
                 $"{{\"timestamp\":\"2026-03-26T10:00:01Z\",\"type\":\"response_item\",\"payload\":{{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{{\"type\":\"output_text\",\"text\":\"{assistantText}\"}}]}}}}"
             ]);
+    }
+
+    private static async Task AssertDiscoveryUsesExpectedStoreKindAsync(
+        string storeDirectoryName,
+        string sessionId,
+        string assistantText,
+        SessionStoreKind storeKind)
+    {
+        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var storeRoot = Path.Combine(root, storeDirectoryName);
+        await WriteAssistantSessionAsync(
+            Path.Combine(storeRoot, "2026", "03", "26"),
+            sessionId,
+            assistantText);
+
+        try
+        {
+            var catalog = await SessionDiscoveryService.DiscoverAsync(
+                [new SessionStoreRoot(storeRoot.Replace('\\', '/'), storeKind)],
+                CancellationToken.None);
+
+            var logical = Assert.Single(catalog.LogicalSessions);
+            Assert.Equal(sessionId, logical.SessionId);
+            Assert.Equal(storeKind, logical.PreferredCopy.StoreKind);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 }
 
