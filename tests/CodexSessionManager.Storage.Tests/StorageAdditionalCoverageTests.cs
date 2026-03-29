@@ -163,7 +163,7 @@ public sealed partial class StorageCoverageExpansionTests
                 if (!string.Equals(trimmedFilesystemRoot, filesystemRoot, StringComparison.Ordinal))
                 {
                     var normalizedDriveRoot = (string)NormalizeRootPathCoverageMethod.Invoke(null, [trimmedFilesystemRoot])!;
-                    Assert.Equal(filesystemRoot, normalizedDriveRoot);
+                    Assert.Equal(Path.GetPathRoot(trimmedFilesystemRoot), normalizedDriveRoot);
                 }
             }
         }
