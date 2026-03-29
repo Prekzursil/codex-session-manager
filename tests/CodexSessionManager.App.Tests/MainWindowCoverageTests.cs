@@ -167,6 +167,12 @@ public sealed partial class MainWindowCoverageTests
     private static readonly MethodInfo SaveMetadataButtonMethod =
         typeof(MainWindow).GetMethod("SaveMetadataButton_OnClick", BindingFlags.NonPublic | BindingFlags.Instance)!;
 
+    private static readonly MethodInfo RefreshButtonMethod =
+        typeof(MainWindow).GetMethod("RefreshButton_OnClick", BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+    private static readonly MethodInfo DeepScanButtonMethod =
+        typeof(MainWindow).GetMethod("DeepScanButton_OnClick", BindingFlags.NonPublic | BindingFlags.Instance)!;
+
     private static readonly MethodInfo ExecuteMaintenanceButtonMethod =
         typeof(MainWindow).GetMethod("ExecuteMaintenanceButton_OnClick", BindingFlags.NonPublic | BindingFlags.Instance)!;
 

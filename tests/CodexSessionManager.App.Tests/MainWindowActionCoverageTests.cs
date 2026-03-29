@@ -25,6 +25,8 @@ namespace CodexSessionManager.App.Tests;
 [SuppressMessage("Code Smell", "S2333", Justification = "The coverage tests are intentionally split across partial files.")]
 public sealed partial class MainWindowCoverageTests
 {
+    private static readonly string[] SuccessfulExitArguments = ["/c", "exit", "0"];
+
     [Fact]
     public void ExternalActionButtons_use_wrappers()
     {
@@ -490,9 +492,12 @@ public sealed partial class MainWindowCoverageTests
     {
         var fileName = Path.Combine(Environment.SystemDirectory, "cmd.exe");
 
-        StartExternalProcessMethod.Invoke(
-            null,
-            [fileName, new[] { "/c", "exit", "0" }]);
+        var exception = Record.Exception(() =>
+            StartExternalProcessMethod.Invoke(
+                null,
+                [fileName, SuccessfulExitArguments]));
+
+        Assert.Null(exception);
     }
 
     [Fact]
@@ -500,9 +505,105 @@ public sealed partial class MainWindowCoverageTests
     {
         var fileName = Path.Combine(Environment.SystemDirectory, "whoami.exe");
 
-        StartExternalProcessMethod.Invoke(
-            null,
-            [fileName, Array.Empty<string>()]);
+        var exception = Record.Exception(() =>
+            StartExternalProcessMethod.Invoke(
+                null,
+                [fileName, Array.Empty<string>()]));
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public async Task Refresh_buttons_invoke_background_refresh_with_expected_modesAsync()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var root = CreateTempDirectory();
+            try
+            {
+                var window = new MainWindow();
+                var repository = CreateRepository(root);
+                var observedModes = new List<bool>();
+
+                RepositoryField.SetValue(window, repository);
+                WorkspaceIndexerField.SetValue(window, new SessionWorkspaceIndexer(repository));
+                SetProvider(
+                    window,
+                    "KnownStoresProvider",
+                    (Func<bool, IReadOnlyList<KnownSessionStore>>)(deepScan =>
+                    {
+                        observedModes.Add(deepScan);
+                        return Array.Empty<KnownSessionStore>();
+                    }));
+
+                RefreshButtonMethod.Invoke(window, [window, new RoutedEventArgs()]);
+                DeepScanButtonMethod.Invoke(window, [window, new RoutedEventArgs()]);
+
+                for (var attempt = 0; attempt < 50 && observedModes.Count < 2; attempt++)
+                {
+                    await Task.Delay(10);
+                }
+
+                Assert.Equal(2, observedModes.Count);
+                Assert.Contains(false, observedModes);
+                Assert.Contains(true, observedModes);
+                Assert.Contains(
+                    "Indexed 0 deduped sessions",
+                    GetNamedField<TextBlock>(window, "StatusTextBlock").Text,
+                    StringComparison.Ordinal);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        });
+    }
+
+    [Fact]
+    public void BuildPreview_ignores_selected_sessions_without_physical_copies()
+    {
+        RunInSta(() =>
+        {
+            var root = CreateTempDirectory();
+            try
+            {
+                var firstSessionFile = WriteSessionJsonl(root, "session-preview-available", "Preview Available");
+                var secondSessionFile = WriteSessionJsonl(root, "session-preview-empty", "Preview Empty");
+                var window = new MainWindow();
+                var availableSession = BuildIndexedSession(
+                    "session-preview-available",
+                    "Preview Available",
+                    firstSessionFile);
+                var emptySession = WithNullIndexedSessionProperty(
+                    BuildIndexedSession(
+                        "session-preview-empty",
+                        "Preview Empty",
+                        secondSessionFile),
+                    nameof(IndexedLogicalSession.PhysicalCopies));
+                var listBox = GetNamedField<ListBox>(window, "SessionsListBox");
+
+                AddSession(window, availableSession);
+                AddSession(window, emptySession);
+                listBox.SelectedItems.Clear();
+                listBox.SelectedItems.Add(availableSession);
+                listBox.SelectedItems.Add(emptySession);
+
+                BuildPreviewMethod.Invoke(window, [window, new RoutedEventArgs()]);
+
+                Assert.Contains(
+                    "Confirm with: ARCHIVE 1 FILE",
+                    GetNamedField<TextBlock>(window, "MaintenanceSummaryTextBlock").Text,
+                    StringComparison.Ordinal);
+                Assert.Equal(
+                    "ARCHIVE 1 FILE",
+                    GetNamedField<TextBox>(window, "TypedConfirmationTextBox").Text);
+                window.Close();
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        });
     }
 
     [Fact]

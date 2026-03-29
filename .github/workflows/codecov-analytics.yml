@@ -16,13 +16,13 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: Prekzursil/quality-zero-platform/.github/workflows/reusable-codecov-analytics.yml@codex/strict-zero-airline-csm-v2-restack
+    uses: Prekzursil/quality-zero-platform/.github/workflows/reusable-codecov-analytics.yml@8ad2ccf93ee4d4aed5ee9be9723e1047c3bd5261
     with:
       repo_slug: ${{ github.repository }}
       event_name: ${{ github.event_name }}
       sha: ${{ github.event.pull_request.head.sha || github.sha }}
       runner: windows-latest
       platform_repository: Prekzursil/quality-zero-platform
-      platform_ref: codex/strict-zero-airline-csm-v2-restack
+      platform_ref: 8ad2ccf93ee4d4aed5ee9be9723e1047c3bd5261
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
