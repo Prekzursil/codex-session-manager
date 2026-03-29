@@ -58,6 +58,20 @@ public sealed class MainWindowCoverageTests
                     && parameters[1].ParameterType == typeof(Func<string, FileInfo>);
             });
 
+    private static readonly MethodInfo DescribeSqlitePathSingleArgumentMethod =
+        typeof(MainWindow).GetMethods(BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Public)
+            .Single(method =>
+            {
+                if (method.Name != "DescribeSqlitePath")
+                {
+                    return false;
+                }
+
+                var parameters = method.GetParameters();
+                return parameters.Length == 1
+                    && parameters[0].ParameterType == typeof(string);
+            });
+
     private static readonly MethodInfo InitializeAsyncMethod =
         typeof(MainWindow).GetMethod("InitializeAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
 
@@ -101,6 +115,12 @@ public sealed class MainWindowCoverageTests
 
     private static readonly MethodInfo SaveSelectedMetadataAsyncMethod =
         typeof(MainWindow).GetMethod("SaveSelectedMetadataAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+    private static readonly MethodInfo BeginSearchTokenMethod =
+        typeof(MainWindow).GetMethod("BeginSearchToken", BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+    private static readonly MethodInfo ReleaseSearchCancellationStateMethod =
+        typeof(MainWindow).GetMethod("ReleaseSearchCancellationState", BindingFlags.NonPublic | BindingFlags.Instance)!;
 
     private static readonly MethodInfo ExecuteMaintenanceUiAsyncMethod =
         typeof(MainWindow).GetMethod(
@@ -1573,6 +1593,54 @@ public sealed class MainWindowCoverageTests
         {
             DeleteDirectory(root);
         }
+    }
+
+    [Fact]
+    public void DescribeSqlitePath_single_argument_overload_returns_summary_for_existing_file()
+    {
+        var root = CreateTempDirectory();
+        try
+        {
+            var sqlitePath = Path.Combine(root, "state_5.sqlite");
+            File.WriteAllText(sqlitePath, "sqlite");
+
+            var description = (string?)DescribeSqlitePathSingleArgumentMethod.Invoke(null, [sqlitePath]);
+
+            Assert.NotNull(description);
+            Assert.Contains(sqlitePath, description, StringComparison.Ordinal);
+        }
+        finally
+        {
+            DeleteDirectory(root);
+        }
+    }
+
+    [Fact]
+    public void SearchCancellation_helpers_replace_and_release_current_source()
+    {
+        RunInSta(() =>
+        {
+            var window = new MainWindow();
+
+            var firstToken = (CancellationToken)BeginSearchTokenMethod.Invoke(window, [])!;
+            var firstSource = Assert.IsType<CancellationTokenSource>(
+                CurrentSearchCancellationTokenSourceProperty.GetValue(window));
+
+            var secondToken = (CancellationToken)BeginSearchTokenMethod.Invoke(window, [])!;
+            var secondSource = Assert.IsType<CancellationTokenSource>(
+                CurrentSearchCancellationTokenSourceProperty.GetValue(window));
+
+            Assert.True(firstToken.IsCancellationRequested);
+            Assert.NotSame(firstSource, secondSource);
+            Assert.Throws<ObjectDisposedException>(() => _ = firstSource.Token.WaitHandle);
+
+            ReleaseSearchCancellationStateMethod.Invoke(window, []);
+
+            Assert.True(secondToken.IsCancellationRequested);
+            Assert.Null(CurrentSearchCancellationTokenSourceProperty.GetValue(window));
+
+            window.Close();
+        });
     }
 
     [Fact]
