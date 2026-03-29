@@ -60,7 +60,7 @@ public static partial class SessionJsonlParser
 
     private static void ParseLine(JsonElement root, ParseState state)
     {
-        var parseState = state;
+        var parseState = state ?? throw new ArgumentNullException(nameof(state));
         var type = TryGetString(root, "type");
         if (type == "session_meta")
         {
@@ -81,7 +81,7 @@ public static partial class SessionJsonlParser
 
     private static void ParseSessionMetadata(JsonElement payload, ParseState state)
     {
-        var parseState = state;
+        var parseState = state ?? throw new ArgumentNullException(nameof(state));
 
         parseState.SessionId ??= TryGetString(payload, "id");
         parseState.ForkedFromId ??= TryGetString(payload, "forked_from_id");
@@ -97,7 +97,7 @@ public static partial class SessionJsonlParser
 
     private static void ParseResponseItem(JsonElement payload, ParseState state)
     {
-        var parseState = state;
+        var parseState = state ?? throw new ArgumentNullException(nameof(state));
         var payloadType = TryGetString(payload, "type");
         switch (payloadType)
         {
@@ -117,7 +117,7 @@ public static partial class SessionJsonlParser
 
     private static void ParseMessage(JsonElement payload, ParseState state)
     {
-        var parseState = state;
+        var parseState = state ?? throw new ArgumentNullException(nameof(state));
 
         if (!TryGetPropertyValue(payload, "content", out var contentElement)
             || contentElement.ValueKind is not JsonValueKind.Array)
@@ -143,7 +143,7 @@ public static partial class SessionJsonlParser
 
     private static void ParseFunctionCall(JsonElement payload, ParseState state)
     {
-        var parseState = state;
+        var parseState = state ?? throw new ArgumentNullException(nameof(state));
         var toolName = TryGetString(payload, "name") ?? "unknown_tool";
         var rawArguments = TryGetString(payload, "arguments") ?? string.Empty;
         parseState.Events.Add(NormalizedSessionEvent.CreateToolCall(toolName, rawArguments));
@@ -159,7 +159,7 @@ public static partial class SessionJsonlParser
 
     private static void ParseFunctionCallOutput(JsonElement payload, ParseState state)
     {
-        var parseState = state;
+        var parseState = state ?? throw new ArgumentNullException(nameof(state));
         var outputText = TryGetString(payload, "output") ?? string.Empty;
         var toolName = TryGetString(payload, "name") ?? "tool";
         parseState.Events.Add(NormalizedSessionEvent.CreateToolOutput(toolName, outputText));
