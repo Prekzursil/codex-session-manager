@@ -1,7 +1,9 @@
 name: coverage-debug
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - codex/strict-zero-csm-refresh
 
 jobs:
   app-coverage-debug:
