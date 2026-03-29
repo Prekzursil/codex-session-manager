@@ -1,3 +1,4 @@
+#pragma warning disable S3990 // Codacy false positive: the containing assembly declares CLSCompliant(true).
 namespace CodexSessionManager.Core.Sessions;
 
 public static class SessionDeduplicator

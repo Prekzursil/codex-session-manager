@@ -1,8 +1,11 @@
+#pragma warning disable S3990 // Codacy false positive: the containing assembly declares CLSCompliant(true).
+using System.Diagnostics.CodeAnalysis;
 using CodexSessionManager.Core.Sessions;
 using CodexSessionManager.Core.Transcripts;
 
 namespace CodexSessionManager.App;
 
+[SuppressMessage("Code Smell", "S2333", Justification = "The class is split across XAML-generated and hand-authored partial files.")]
 public partial class MainWindow
 {
     private async Task LoadSelectedSessionAsync()
@@ -20,24 +23,27 @@ public partial class MainWindow
 
     private async Task PopulateSelectedSessionHeaderAsync(IndexedLogicalSession selected, string selectedSessionId)
     {
-        ArgumentNullException.ThrowIfNull(selected);
-        ArgumentNullException.ThrowIfNull(selectedSessionId);
+        var selectedSession = selected ?? throw new ArgumentNullException(nameof(selected));
+        if (string.IsNullOrWhiteSpace(selectedSessionId))
+        {
+            throw new ArgumentException("Value cannot be null or whitespace.", nameof(selectedSessionId));
+        }
 
-        var preferredCopy = selected.PreferredCopy;
+        var preferredCopy = selectedSession.PreferredCopy;
         if (preferredCopy is null)
         {
             throw new InvalidOperationException("Selected session is missing a preferred copy.");
         }
 
-        var searchDocument = selected.SearchDocument;
+        var searchDocument = selectedSession.SearchDocument;
         if (searchDocument is null)
         {
             throw new InvalidOperationException("Selected session is missing search metadata.");
         }
 
-        var physicalCopies = selected.PhysicalCopies ?? Array.Empty<SessionPhysicalCopy>();
-        var threadName = selected.ThreadName;
-        var sessionId = selected.SessionId;
+        var physicalCopies = selectedSession.PhysicalCopies ?? Array.Empty<SessionPhysicalCopy>();
+        var threadName = selectedSession.ThreadName;
+        var sessionId = selectedSession.SessionId;
 
         await RunOnUiThreadAsync(() =>
         {
@@ -60,12 +66,15 @@ public partial class MainWindow
 
     private async Task LoadSelectedSessionBodyAsync(IndexedLogicalSession selected, string selectedSessionId)
     {
-        ArgumentNullException.ThrowIfNull(selected);
-        ArgumentNullException.ThrowIfNull(selectedSessionId);
+        var selectedSession = selected ?? throw new ArgumentNullException(nameof(selected));
+        if (string.IsNullOrWhiteSpace(selectedSessionId))
+        {
+            throw new ArgumentException("Value cannot be null or whitespace.", nameof(selectedSessionId));
+        }
 
         try
         {
-            var preferredCopy = selected.PreferredCopy;
+            var preferredCopy = selectedSession.PreferredCopy;
             if (preferredCopy is null)
             {
                 throw new InvalidOperationException("Selected session is missing a preferred copy.");
@@ -135,7 +144,7 @@ public partial class MainWindow
         }
 
         var sessions = await repository.ListSessionsAsync(CancellationToken.None);
-        var searchCanceled = searchToken.IsCancellationRequested;
+        var searchCanceled = IsSearchCanceled(searchToken);
         await RunOnUiThreadAsync(() =>
         {
             if (searchCanceled)
@@ -171,7 +180,7 @@ public partial class MainWindow
         var hitIds = hits.Select(hit => hit.SessionId).ToHashSet(StringComparer.Ordinal);
         var allSessions = await repository.ListSessionsAsync(CancellationToken.None);
         var visibleSessions = allSessions.Where(session => hitIds.Contains(session.SessionId)).ToArray();
-        var searchCanceled = searchToken.IsCancellationRequested;
+        var searchCanceled = IsSearchCanceled(searchToken);
 
         await RunOnUiThreadAsync(() =>
         {
@@ -194,6 +203,8 @@ public partial class MainWindow
     {
         return _searchCancellation.Begin();
     }
+
+    private static bool IsSearchCanceled(CancellationToken searchToken) => searchToken.IsCancellationRequested;
 
     private Task<bool> IsSessionStillSelectedAsync(string sessionId) =>
         RunOnUiThreadValueAsync(() =>

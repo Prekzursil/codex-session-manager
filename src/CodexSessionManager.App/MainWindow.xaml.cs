@@ -1,3 +1,4 @@
+#pragma warning disable S3990 // Codacy false positive: the containing assembly declares CLSCompliant(true).
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -34,7 +35,7 @@ public partial class MainWindow : Window
     internal Func<string> LiveSqliteStatusProvider { get; set; }
     internal Func<string, CancellationToken, Task<ParsedSessionFile>> SessionParser { get; set; }
     internal Func<string, string> FileTextReader { get; set; }
-    internal Action<string, string> ProcessStarter { get; set; }
+    internal Action<string, IReadOnlyList<string>> ProcessStarter { get; set; }
     internal Action<string> ClipboardSetter { get; set; }
     internal Func<SaveFileDialog> SaveFileDialogFactory { get; set; }
     internal Func<SaveFileDialog, Window, bool?> SaveFileDialogPresenter { get; set; }
@@ -61,8 +62,7 @@ public partial class MainWindow : Window
         LiveSqliteStatusProvider = GetLiveSqliteStatus;
         SessionParser = (filePath, cancellationToken) => SessionJsonlParser.ParseAsync(filePath, cancellationToken);
         FileTextReader = File.ReadAllText;
-        ProcessStarter = (fileName, arguments) =>
-            Process.Start(new ProcessStartInfo(fileName, arguments) { UseShellExecute = true });
+        ProcessStarter = static (fileName, arguments) => StartExternalProcess(fileName, arguments);
         ClipboardSetter = Clipboard.SetText;
         SaveFileDialogFactory = () => new SaveFileDialog();
         SaveFileDialogPresenter = (dialog, owner) => dialog.ShowDialog(owner);
@@ -76,6 +76,27 @@ public partial class MainWindow : Window
         };
         Loaded += async (_, _) => await InitializeAsync();
         Closed += (_, _) => ReleaseSearchCancellationState();
+    }
+
+    private static void StartExternalProcess(string fileName, IReadOnlyList<string> arguments)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            throw new ArgumentException("Value cannot be null or whitespace.", nameof(fileName));
+        }
+
+        var processArguments = arguments ?? throw new ArgumentNullException(nameof(arguments));
+        var startInfo = new ProcessStartInfo(fileName)
+        {
+            UseShellExecute = false,
+        };
+
+        foreach (var argument in processArguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
+        _ = Process.Start(startInfo);
     }
 
     private async Task InitializeAsync()
@@ -223,7 +244,7 @@ public partial class MainWindow : Window
         var folder = Path.GetDirectoryName(preferredPath);
         if (!string.IsNullOrWhiteSpace(folder))
         {
-            ProcessStarter("explorer.exe", $"\"{folder}\"");
+            ProcessStarter("explorer.exe", [folder]);
         }
     }
 
@@ -236,7 +257,7 @@ public partial class MainWindow : Window
         }
 
         var preferredPath = GetRequiredPreferredCopy(selected).FilePath;
-        ProcessStarter("notepad.exe", $"\"{preferredPath}\"");
+        ProcessStarter("notepad.exe", [preferredPath]);
     }
 
     private void CopyPathButton_OnClick(object _, RoutedEventArgs __)
@@ -261,9 +282,8 @@ public partial class MainWindow : Window
         }
 
         var cwd = !string.IsNullOrWhiteSpace(CwdTextBlock.Text) && CwdTextBlock.Text != "-" ? CwdTextBlock.Text : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var command = $"codex resume {selected.SessionId} -C \"{cwd}\"";
 
-        ProcessStarter("pwsh.exe", $"-NoExit -Command \"{command}\"");
+        ProcessStarter("codex", ["resume", selected.SessionId, "-C", cwd]);
         StatusTextBlock.Text = $"Opened Codex resume command for {selected.SessionId}.";
     }
 

@@ -1,3 +1,4 @@
+#pragma warning disable S3990 // Codacy false positive: the containing assembly declares CLSCompliant(true).
 using System.Text.Json;
 using CodexSessionManager.Core.Maintenance;
 using CodexSessionManager.Core.Sessions;

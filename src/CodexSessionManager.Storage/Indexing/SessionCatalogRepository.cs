@@ -1,3 +1,4 @@
+#pragma warning disable S3990 // Codacy false positive: the containing assembly declares CLSCompliant(true).
 using CodexSessionManager.Core.Sessions;
 using Microsoft.Data.Sqlite;
 using System.Globalization;
@@ -133,27 +134,21 @@ public sealed class SessionCatalogRepository
 
     public async Task InitializeAsync(CancellationToken cancellationToken)
     {
-        var connection = OpenConnection(cancellationToken);
-        using var _ = connection;
+        using var connection = OpenConnection(cancellationToken);
         await EnsureSchemaAsync(connection, cancellationToken);
         await RefreshSearchIndexAsync(connection, cancellationToken);
     }
 
     public async Task UpsertAsync(IndexedLogicalSession session, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(session);
+        var indexedSession = RequireSession(session);
 
         using var connection = OpenConnection(cancellationToken);
-        var searchDocument = await MergeExistingMetadataAsync(connection, session, cancellationToken);
-        var sessionId = session.SessionId;
-        var threadName = session.ThreadName;
-        var preferredCopy = session.PreferredCopy;
-        if (preferredCopy is null)
-        {
-            throw new InvalidOperationException("Session is missing a preferred copy.");
-        }
-
-        var physicalCopies = session.PhysicalCopies ?? [];
+        var searchDocument = await MergeExistingMetadataAsync(connection, indexedSession, cancellationToken);
+        var sessionId = indexedSession.SessionId;
+        var threadName = indexedSession.ThreadName;
+        var preferredCopy = GetRequiredPreferredCopy(indexedSession);
+        var physicalCopies = GetPhysicalCopies(indexedSession);
 
         await using var command = new SqliteCommand(UpsertSessionSql, connection);
         command.Parameters.AddWithValue(SessionIdParameterName, sessionId);
@@ -170,7 +165,7 @@ public sealed class SessionCatalogRepository
         command.Parameters.AddWithValue("$tags", string.Join('\n', searchDocument.Tags));
         command.Parameters.AddWithValue("$notes", searchDocument.Notes);
         command.Parameters.AddWithValue("$combinedText", searchDocument.CombinedText);
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        await ExecuteCommandAsync(command, cancellationToken);
 
         await ReplaceCopyRowsAsync(connection, sessionId, physicalCopies, cancellationToken);
         await RefreshSearchRowAsync(connection, sessionId, cancellationToken);
@@ -178,19 +173,18 @@ public sealed class SessionCatalogRepository
 
     public async Task<IReadOnlyList<SessionSearchHit>> SearchAsync(string query, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(query);
+        var searchQuery = query ?? throw new ArgumentNullException(nameof(query));
 
-        if (string.IsNullOrWhiteSpace(query))
+        if (string.IsNullOrWhiteSpace(searchQuery))
         {
             return [];
         }
 
         using var connection = OpenConnection(cancellationToken);
         await using var command = new SqliteCommand(SearchSql, connection);
-        command.Parameters.AddWithValue("$query", BuildFtsQuery(query));
+        command.Parameters.AddWithValue("$query", BuildFtsQuery(searchQuery));
 
         var results = new List<SessionSearchHit>();
-        cancellationToken.ThrowIfCancellationRequested();
         await using var reader = await ExecuteReaderAsync(
             command,
             cancellationToken);
@@ -210,22 +204,23 @@ public sealed class SessionCatalogRepository
             throw new ArgumentException(NullOrWhitespaceMessage, nameof(sessionId));
         }
 
-        ArgumentNullException.ThrowIfNull(tags);
+        var metadataTags = tags ?? throw new ArgumentNullException(nameof(tags));
 
         var normalizedSessionId = sessionId;
-        var metadataTags = tags;
         using var connection = OpenConnection(cancellationToken);
         await using var command = new SqliteCommand(UpdateMetadataSql, connection);
         command.Parameters.AddWithValue(SessionIdParameterName, normalizedSessionId);
         command.Parameters.AddWithValue("$alias", alias);
         command.Parameters.AddWithValue("$tags", string.Join('\n', metadataTags));
         command.Parameters.AddWithValue("$notes", notes);
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        await ExecuteCommandAsync(command, cancellationToken);
         await RefreshSearchRowAsync(connection, normalizedSessionId, cancellationToken);
     }
 
-    public Task UpdateMetadataAsync(string sessionId, string alias, IReadOnlyList<string> tags, string notes, CancellationToken cancellationToken) =>
-        SaveMetadataAsync(sessionId, alias, tags, notes, cancellationToken);
+    public Task UpdateMetadataAsync(string sessionId, string alias, IReadOnlyList<string> tags, string notes, CancellationToken cancellationToken)
+    {
+        return SaveMetadataAsync(sessionId, alias, tags, notes, cancellationToken);
+    }
 
     public async Task<IReadOnlyList<IndexedLogicalSession>> ListSessionsAsync(CancellationToken cancellationToken)
     {
@@ -236,19 +231,14 @@ public sealed class SessionCatalogRepository
 
     private static async Task<SessionSearchDocument> MergeExistingMetadataAsync(SqliteConnection connection, IndexedLogicalSession session, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(connection);
-        ArgumentNullException.ThrowIfNull(session);
+        var openConnection = RequireConnection(connection);
+        var indexedSession = RequireSession(session);
 
-        var currentSearchDocument = session.SearchDocument;
-        if (currentSearchDocument is null)
-        {
-            throw new InvalidOperationException("Session is missing search metadata.");
-        }
+        var currentSearchDocument = GetRequiredSearchDocument(indexedSession);
 
-        await using var command = new SqliteCommand(SelectMetadataSql, connection);
-        var sessionId = session.SessionId;
+        await using var command = new SqliteCommand(SelectMetadataSql, openConnection);
+        var sessionId = indexedSession.SessionId;
         command.Parameters.AddWithValue(SessionIdParameterName, sessionId);
-        cancellationToken.ThrowIfCancellationRequested();
         await using var reader = await ExecuteReaderAsync(
             command,
             cancellationToken);
@@ -319,20 +309,20 @@ public sealed class SessionCatalogRepository
 
     private static string BuildFtsQuery(string query)
     {
-        ArgumentNullException.ThrowIfNull(query);
+        var searchQuery = query ?? throw new ArgumentNullException(nameof(query));
 
         return string.Join(
             " AND ",
-            query
+            searchQuery
                 .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Select(ToFtsToken));
     }
 
     private static string ToFtsToken(string token)
     {
-        ArgumentNullException.ThrowIfNull(token);
+        var searchToken = token ?? throw new ArgumentNullException(nameof(token));
 
-        var escaped = token.Replace("\"", "\"\"");
+        var escaped = searchToken.Replace("\"", "\"\"");
         return escaped.All(static ch => char.IsLetterOrDigit(ch) || ch == '_')
             ? $"{escaped}*"
             : $"\"{escaped}\"*";
@@ -340,9 +330,9 @@ public sealed class SessionCatalogRepository
 
     private static string ReadRequiredString(SqliteDataReader reader, int ordinal)
     {
-        ArgumentNullException.ThrowIfNull(reader);
+        var dataReader = reader ?? throw new ArgumentNullException(nameof(reader));
 
-        return reader.GetString(ordinal);
+        return dataReader.GetString(ordinal);
     }
 
     private static async Task ReplaceCopyRowsAsync(
@@ -351,19 +341,19 @@ public sealed class SessionCatalogRepository
         IReadOnlyList<SessionPhysicalCopy> physicalCopies,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(connection);
-        ArgumentNullException.ThrowIfNull(physicalCopies);
+        var openConnection = RequireConnection(connection);
+        var normalizedSessionId = sessionId ?? throw new ArgumentNullException(nameof(sessionId));
+        var copies = physicalCopies ?? throw new ArgumentNullException(nameof(physicalCopies));
 
-        var deleteCopies = new SqliteCommand(DeleteSessionCopiesSql, connection);
-        deleteCopies.Parameters.AddWithValue(SessionIdParameterName, sessionId);
-        cancellationToken.ThrowIfCancellationRequested();
+        var deleteCopies = new SqliteCommand(DeleteSessionCopiesSql, openConnection);
+        deleteCopies.Parameters.AddWithValue(SessionIdParameterName, normalizedSessionId);
         await ExecuteNonQueryAsync(deleteCopies, cancellationToken);
 
-        foreach (var copy in physicalCopies)
+        foreach (var copy in copies)
         {
             ArgumentNullException.ThrowIfNull(copy);
 
-            var copyCommand = new SqliteCommand(InsertCopySql, connection);
+            var copyCommand = new SqliteCommand(InsertCopySql, openConnection);
             var copySessionId = copy.SessionId;
             var copyFilePath = copy.FilePath;
             var copyStoreKind = copy.StoreKind;
@@ -383,8 +373,9 @@ public sealed class SessionCatalogRepository
 
     private static async Task<Dictionary<string, List<SessionPhysicalCopy>>> LoadCopiesBySessionAsync(SqliteConnection connection, CancellationToken cancellationToken)
     {
+        var openConnection = RequireConnection(connection);
         var copiesBySession = new Dictionary<string, List<SessionPhysicalCopy>>(StringComparer.Ordinal);
-        await using var copiesCommand = new SqliteCommand(ListCopiesSql, connection);
+        await using var copiesCommand = new SqliteCommand(ListCopiesSql, openConnection);
         await using var reader = await ExecuteReaderAsync(
             copiesCommand,
             cancellationToken);
@@ -415,8 +406,10 @@ public sealed class SessionCatalogRepository
         IReadOnlyDictionary<string, List<SessionPhysicalCopy>> copiesBySession,
         CancellationToken cancellationToken)
     {
+        var openConnection = RequireConnection(connection);
+        var sessionCopiesById = copiesBySession ?? throw new ArgumentNullException(nameof(copiesBySession));
         var sessions = new List<IndexedLogicalSession>();
-        await using var sessionCommand = new SqliteCommand(ListSessionsSql, connection);
+        await using var sessionCommand = new SqliteCommand(ListSessionsSql, openConnection);
         await using var reader = await ExecuteReaderAsync(
             sessionCommand,
             cancellationToken);
@@ -425,7 +418,7 @@ public sealed class SessionCatalogRepository
             var sessionId = ReadRequiredString(reader, 0);
             var preferredPath = ReadRequiredString(reader, 2);
             List<SessionPhysicalCopy> existingCopies = [];
-            if (copiesBySession.TryGetValue(sessionId, out var sessionCopies)
+            if (sessionCopiesById.TryGetValue(sessionId, out var sessionCopies)
                 && sessionCopies is not null)
             {
                 existingCopies = sessionCopies;
@@ -471,20 +464,59 @@ public sealed class SessionCatalogRepository
         SqliteCommand command,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(command);
+        var sqliteCommand = command ?? throw new ArgumentNullException(nameof(command));
 
         cancellationToken.ThrowIfCancellationRequested();
-        return await command.ExecuteReaderAsync(cancellationToken);
+        return await sqliteCommand.ExecuteReaderAsync(cancellationToken);
+    }
+
+    private static async Task ExecuteCommandAsync(SqliteCommand command, CancellationToken cancellationToken)
+    {
+        var sqliteCommand = command ?? throw new ArgumentNullException(nameof(command));
+
+        cancellationToken.ThrowIfCancellationRequested();
+        await sqliteCommand.ExecuteNonQueryAsync(cancellationToken);
     }
 
     private static async Task ExecuteNonQueryAsync(SqliteCommand command, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(command);
+        var sqliteCommand = command ?? throw new ArgumentNullException(nameof(command));
 
-        await using (command)
+        await using (sqliteCommand)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await command.ExecuteNonQueryAsync(cancellationToken);
+            await sqliteCommand.ExecuteNonQueryAsync(cancellationToken);
         }
     }
+
+    private static SqliteConnection RequireConnection(SqliteConnection? connection) =>
+        connection ?? throw new ArgumentNullException(nameof(connection));
+
+    private static IndexedLogicalSession RequireSession(IndexedLogicalSession? session) =>
+        session ?? throw new ArgumentNullException(nameof(session));
+
+    private static SessionSearchDocument GetRequiredSearchDocument(IndexedLogicalSession session)
+    {
+        var searchDocument = session.SearchDocument;
+        if (searchDocument is null)
+        {
+            throw new InvalidOperationException("Session is missing search metadata.");
+        }
+
+        return searchDocument;
+    }
+
+    private static SessionPhysicalCopy GetRequiredPreferredCopy(IndexedLogicalSession session)
+    {
+        var preferredCopy = session.PreferredCopy;
+        if (preferredCopy is null)
+        {
+            throw new InvalidOperationException("Session is missing a preferred copy.");
+        }
+
+        return preferredCopy;
+    }
+
+    private static IReadOnlyList<SessionPhysicalCopy> GetPhysicalCopies(IndexedLogicalSession session) =>
+        session.PhysicalCopies ?? Array.Empty<SessionPhysicalCopy>();
 }

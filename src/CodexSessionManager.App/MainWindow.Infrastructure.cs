@@ -1,3 +1,5 @@
+#pragma warning disable S3990 // Codacy false positive: the containing assembly declares CLSCompliant(true).
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using CodexSessionManager.Core.Sessions;
@@ -5,42 +7,47 @@ using CodexSessionManager.Storage.Discovery;
 
 namespace CodexSessionManager.App;
 
+[SuppressMessage("Code Smell", "S2333", Justification = "The class is split across XAML-generated and hand-authored partial files.")]
 public partial class MainWindow
 {
     private async Task RunOnUiThreadAsync(Action action)
     {
-        ArgumentNullException.ThrowIfNull(action);
+        var uiAction = action ?? throw new ArgumentNullException(nameof(action));
 
-        var dispatcher = Dispatcher
-            ?? throw new InvalidOperationException("Dispatcher is unavailable.");
+        if (Dispatcher is not { } dispatcher)
+        {
+            throw new InvalidOperationException("Dispatcher is unavailable.");
+        }
 
         if (dispatcher.CheckAccess())
         {
-            action();
+            uiAction();
             return;
         }
 
-        await dispatcher.InvokeAsync(action);
+        await dispatcher.InvokeAsync(uiAction);
     }
 
     private async Task<T> RunOnUiThreadValueAsync<T>(Func<T> func)
     {
-        ArgumentNullException.ThrowIfNull(func);
+        var uiFunc = func ?? throw new ArgumentNullException(nameof(func));
 
-        var dispatcher = Dispatcher
-            ?? throw new InvalidOperationException("Dispatcher is unavailable.");
+        if (Dispatcher is not { } dispatcher)
+        {
+            throw new InvalidOperationException("Dispatcher is unavailable.");
+        }
 
         if (dispatcher.CheckAccess())
         {
-            return func();
+            return uiFunc();
         }
 
-        return await dispatcher.InvokeAsync(func);
+        return await dispatcher.InvokeAsync(uiFunc);
     }
 
     private void RunEventTask(Func<Task> action, string failurePrefix)
     {
-        ArgumentNullException.ThrowIfNull(action);
+        var eventAction = action ?? throw new ArgumentNullException(nameof(action));
 
         if (string.IsNullOrWhiteSpace(failurePrefix))
         {
@@ -53,7 +60,7 @@ public partial class MainWindow
         {
             try
             {
-                await action();
+                await eventAction();
             }
             catch (Exception ex)
             {
@@ -95,9 +102,9 @@ public partial class MainWindow
 
     private static SessionPhysicalCopy GetRequiredPreferredCopy(IndexedLogicalSession? session)
     {
-        ArgumentNullException.ThrowIfNull(session);
+        var selectedSession = session ?? throw new ArgumentNullException(nameof(session));
 
-        var preferredCopy = session.PreferredCopy;
+        var preferredCopy = selectedSession.PreferredCopy;
         if (preferredCopy is null)
         {
             throw new InvalidOperationException("Selected session is missing a preferred copy.");
@@ -108,25 +115,25 @@ public partial class MainWindow
 
     internal static string? DescribeSqlitePath(string path)
     {
-        return DescribeSqlitePath(path, fileInfoFactory: null);
+        var sqlitePath = path ?? throw new ArgumentNullException(nameof(path));
+        return DescribeSqlitePath(sqlitePath, static candidate => new FileInfo(candidate));
     }
 
     internal static string? DescribeSqlitePath(
         string path,
         Func<string, FileInfo>? fileInfoFactory)
     {
-        ArgumentNullException.ThrowIfNull(path);
+        var sqlitePath = path ?? throw new ArgumentNullException(nameof(path));
+        var createFileInfo = fileInfoFactory ?? static candidate => new FileInfo(candidate);
         try
         {
-            var info = fileInfoFactory is null
-                ? new FileInfo(path)
-                : fileInfoFactory(path);
+            var info = createFileInfo(sqlitePath);
             if (!info.Exists)
             {
                 return null;
             }
 
-            return $"{path} | {Math.Round(info.Length / 1024.0 / 1024.0, 1)} MB | {info.LastWriteTime}";
+            return $"{sqlitePath} | {Math.Round(info.Length / 1024.0 / 1024.0, 1)} MB | {info.LastWriteTime}";
         }
         catch (IOException)
         {
@@ -155,11 +162,11 @@ public partial class MainWindow
         IEnumerable<string> sqlitePaths,
         Func<string, string?> describeSqlitePath)
     {
-        ArgumentNullException.ThrowIfNull(sqlitePaths);
-        ArgumentNullException.ThrowIfNull(describeSqlitePath);
+        var candidatePaths = sqlitePaths ?? throw new ArgumentNullException(nameof(sqlitePaths));
+        var describePath = describeSqlitePath ?? throw new ArgumentNullException(nameof(describeSqlitePath));
 
-        var details = sqlitePaths
-            .Select(describeSqlitePath)
+        var details = candidatePaths
+            .Select(describePath)
             .Where(detail => detail is not null)
             .Cast<string>()
             .ToArray();
@@ -170,12 +177,12 @@ public partial class MainWindow
     }
 
     private static IReadOnlyList<KnownSessionStore> GetKnownStores(
-        Func<bool, IReadOnlyList<KnownSessionStore>>? knownStoresProvider,
+        Func<bool, IReadOnlyList<KnownSessionStore>> knownStoresProvider,
         bool deepScan)
     {
-        ArgumentNullException.ThrowIfNull(knownStoresProvider);
+        var provideKnownStores = knownStoresProvider ?? throw new ArgumentNullException(nameof(knownStoresProvider));
 
-        var knownStores = knownStoresProvider(deepScan);
+        var knownStores = provideKnownStores(deepScan);
         if (knownStores is null)
         {
             throw new InvalidOperationException("Known stores provider returned no stores.");
