@@ -23,6 +23,7 @@ public partial class MainWindow : Window
 {
     private enum AllowedProcess
     {
+        Unknown,
         Explorer,
         Notepad,
         Codex,
@@ -166,7 +167,7 @@ public partial class MainWindow : Window
             _ when string.Equals(candidate, "explorer.exe", StringComparison.OrdinalIgnoreCase) => AllowedProcess.Explorer,
             _ when string.Equals(candidate, "notepad.exe", StringComparison.OrdinalIgnoreCase) => AllowedProcess.Notepad,
             _ when string.Equals(candidate, "codex", StringComparison.OrdinalIgnoreCase) => AllowedProcess.Codex,
-            _ => default,
+            _ => AllowedProcess.Unknown,
         };
 
         return allowedProcess is AllowedProcess.Explorer or AllowedProcess.Notepad or AllowedProcess.Codex;
