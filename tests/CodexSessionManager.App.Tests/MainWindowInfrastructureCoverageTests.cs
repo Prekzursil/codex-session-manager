@@ -109,13 +109,11 @@ public sealed partial class MainWindowCoverageTests
             var window = new MainWindow();
             try
             {
-                var nullUiActionException = Assert.Throws<TargetInvocationException>(() =>
-                    RunOnUiThreadAsyncMethod.Invoke(window, new object?[] { null }));
-                Assert.IsType<ArgumentNullException>(nullUiActionException.InnerException);
+                var nullUiTask = (Task)RunOnUiThreadAsyncMethod.Invoke(window, new object?[] { null })!;
+                await Assert.ThrowsAsync<ArgumentNullException>(async () => await nullUiTask);
 
-                var nullValueException = Assert.Throws<TargetInvocationException>(() =>
-                    RunOnUiThreadValueAsyncMethod.Invoke(window, new object?[] { null }));
-                Assert.IsType<ArgumentNullException>(nullValueException.InnerException);
+                var nullValueTask = (Task<string>)RunOnUiThreadValueAsyncMethod.Invoke(window, new object?[] { null })!;
+                await Assert.ThrowsAsync<ArgumentNullException>(async () => await nullValueTask);
 
                 var nullActionException = Assert.Throws<TargetInvocationException>(() =>
                     RunEventTaskMethod.Invoke(window, new object?[] { null, "Failure" }));
