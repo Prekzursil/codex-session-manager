@@ -109,9 +109,12 @@ public sealed partial class MainWindowCoverageTests
                 SetProvider(window, "ProcessStarter", (Action<string, IReadOnlyList<string>>)((fileName, arguments) => started.Add((fileName, arguments))));
 
                 ResumeMethod.Invoke(window, [window, new RoutedEventArgs()]);
+                GetNamedField<TextBlock>(window, "CwdTextBlock").Text = "   ";
+                ResumeMethod.Invoke(window, [window, new RoutedEventArgs()]);
 
-                Assert.Single(started);
+                Assert.Equal(2, started.Count);
                 Assert.Contains(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), started[0].arguments, StringComparer.OrdinalIgnoreCase);
+                Assert.Contains(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), started[1].arguments, StringComparer.OrdinalIgnoreCase);
             }
             finally
             {

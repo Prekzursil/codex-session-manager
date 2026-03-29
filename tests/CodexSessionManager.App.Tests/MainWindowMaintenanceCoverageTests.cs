@@ -176,6 +176,10 @@ public sealed partial class MainWindowCoverageTests
         var invalidCommandException = Assert.Throws<TargetInvocationException>(() =>
             StartExternalProcessMethod.Invoke(null, ["powershell.exe", Array.Empty<string>()]));
         Assert.IsType<InvalidOperationException>(invalidCommandException.InnerException);
+
+        var invalidSystemCommandException = Assert.Throws<TargetInvocationException>(() =>
+            NormalizeAllowedProcessFileNameMethod.Invoke(null, [Path.Combine(Environment.SystemDirectory, "calc.exe")]));
+        Assert.IsType<InvalidOperationException>(invalidSystemCommandException.InnerException);
     }
 
     [Fact]

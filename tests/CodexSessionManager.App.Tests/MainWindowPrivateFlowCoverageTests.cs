@@ -278,6 +278,10 @@ public sealed partial class MainWindowCoverageTests
                         session.SessionId));
                 Assert.Equal("Selected session is missing search metadata.", missingSearchDocumentException.Message);
 
+                var nullSessionException = Assert.Throws<TargetInvocationException>(() =>
+                    GetRequiredPreferredCopyMethod.Invoke(null, [null!]));
+                Assert.IsType<ArgumentNullException>(nullSessionException.InnerException);
+
                 var missingSessionIdException = Assert.Throws<TargetInvocationException>(() =>
                     GetRequiredPreferredCopyMethod.Invoke(null, [WithNullIndexedSessionProperty(session, nameof(IndexedLogicalSession.PreferredCopy))]));
                 Assert.IsType<InvalidOperationException>(missingSessionIdException.InnerException);
