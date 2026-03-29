@@ -171,7 +171,10 @@ public sealed partial class StorageCoverageExpansionTests
 
             var storedSession = Assert.Single(await repository.ListSessionsAsync(CancellationToken.None));
             Assert.Equal("saved alias", storedSession.SearchDocument.Alias);
-            Assert.Equal(new[] { "one", "two" }, storedSession.SearchDocument.Tags);
+            Assert.Collection(
+                storedSession.SearchDocument.Tags,
+                tag => Assert.Equal("one", tag),
+                tag => Assert.Equal("two", tag));
             Assert.Equal("saved notes", storedSession.SearchDocument.Notes);
         }
         finally

@@ -235,7 +235,10 @@ public sealed partial class MainWindowCoverageTests
 
                 var reloadedSession = Assert.Single(await repository.ListSessionsAsync(CancellationToken.None));
                 Assert.Equal("alias", reloadedSession.SearchDocument.Alias);
-                Assert.Equal(new[] { "one", "two" }, reloadedSession.SearchDocument.Tags);
+                Assert.Collection(
+                    reloadedSession.SearchDocument.Tags,
+                    tag => Assert.Equal("one", tag),
+                    tag => Assert.Equal("two", tag));
                 Assert.Equal("notes", reloadedSession.SearchDocument.Notes);
                 Assert.Contains("Saved metadata for session-selection.", GetNamedField<TextBlock>(window, "StatusTextBlock").Text, StringComparison.Ordinal);
                 window.Close();

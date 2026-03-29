@@ -25,8 +25,6 @@ namespace CodexSessionManager.App.Tests;
 [SuppressMessage("Code Smell", "S2333", Justification = "The coverage tests are intentionally split across partial files.")]
 public sealed partial class MainWindowCoverageTests
 {
-    private int InstanceMarker => 0;
-
     private static readonly MethodInfo BuildKnownStoresMethod =
         typeof(MainWindow).GetMethod("BuildKnownStores", BindingFlags.NonPublic | BindingFlags.Static)!;
 
