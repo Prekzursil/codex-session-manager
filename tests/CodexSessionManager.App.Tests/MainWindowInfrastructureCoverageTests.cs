@@ -109,14 +109,16 @@ public sealed partial class MainWindowCoverageTests
             var window = new MainWindow();
             try
             {
-                await Assert.ThrowsAsync<ArgumentNullException>(() =>
-                    InvokePrivateTaskAsync(window, RunOnUiThreadAsyncMethod, null!));
+                var nullUiActionException = Assert.Throws<TargetInvocationException>(() =>
+                    RunOnUiThreadAsyncMethod.Invoke(window, new object?[] { null }));
+                Assert.IsType<ArgumentNullException>(nullUiActionException.InnerException);
 
-                var nullValueTask = (Task<string>)RunOnUiThreadValueAsyncMethod.Invoke(window, [null!])!;
-                await Assert.ThrowsAsync<ArgumentNullException>(async () => await nullValueTask);
+                var nullValueException = Assert.Throws<TargetInvocationException>(() =>
+                    RunOnUiThreadValueAsyncMethod.Invoke(window, new object?[] { null }));
+                Assert.IsType<ArgumentNullException>(nullValueException.InnerException);
 
                 var nullActionException = Assert.Throws<TargetInvocationException>(() =>
-                    RunEventTaskMethod.Invoke(window, [null!, "Failure"]));
+                    RunEventTaskMethod.Invoke(window, new object?[] { null, "Failure" }));
                 Assert.IsType<ArgumentNullException>(nullActionException.InnerException);
 
                 var ran = false;
@@ -168,13 +170,22 @@ public sealed partial class MainWindowCoverageTests
                     InvokePrivateTaskAsync(window, PopulateSelectedSessionHeaderAsyncMethod, session, " "));
                 Assert.Equal("selectedSessionId", blankSessionIdException.ParamName);
 
-                var missingPreferredCopyException = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                    InvokePrivateTaskAsync(
-                        window,
-                        LoadSelectedSessionBodyAsyncMethod,
-                        WithNullIndexedSessionProperty(session, nameof(IndexedLogicalSession.PreferredCopy)),
-                        session.SessionId));
-                Assert.Equal("Selected session is missing a preferred copy.", missingPreferredCopyException.Message);
+                sessions.Add(session);
+                SelectSingleSession(window, session);
+                GetNamedField<TextBlock>(window, "CwdTextBlock").Text = "cwd";
+                GetNamedField<TextBlock>(window, "SQLiteStatusTextBlock").Text = "sqlite";
+                GetNamedField<TextBox>(window, "AuditTranscriptTextBox").Text = "audit";
+                GetNamedField<TextBox>(window, "RawTranscriptTextBox").Text = "raw";
+
+                await InvokePrivateTaskAsync(
+                    window,
+                    LoadSelectedSessionBodyAsyncMethod,
+                    WithNullIndexedSessionProperty(session, nameof(IndexedLogicalSession.PreferredCopy)),
+                    session.SessionId);
+                Assert.Equal("-", GetNamedField<TextBlock>(window, "CwdTextBlock").Text);
+                Assert.Equal("Live SQLite status unavailable.", GetNamedField<TextBlock>(window, "SQLiteStatusTextBlock").Text);
+                Assert.Equal(string.Empty, GetNamedField<TextBox>(window, "AuditTranscriptTextBox").Text);
+                Assert.Contains("Unable to load raw session content.", GetNamedField<TextBox>(window, "RawTranscriptTextBox").Text, StringComparison.Ordinal);
 
                 RepositoryField.SetValue(window, repository);
                 sessions.Clear();
