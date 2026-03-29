@@ -524,7 +524,7 @@ public sealed class MainWindowCoverageTests
                 WorkspaceIndexerField.SetValue(window, new SessionWorkspaceIndexer(repository));
                 SetProvider(window, "KnownStoresProvider", null!);
 
-                await Assert.ThrowsAsync<InvalidOperationException>(() => InvokePrivateTaskAsync(window, RefreshAsyncMethod, false));
+                await Assert.ThrowsAsync<ArgumentNullException>(() => InvokePrivateTaskAsync(window, RefreshAsyncMethod, false));
             }
             finally
             {

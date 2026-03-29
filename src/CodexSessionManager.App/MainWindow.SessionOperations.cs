@@ -20,20 +20,22 @@ public partial class MainWindow
 
     private async Task PopulateSelectedSessionHeaderAsync(IndexedLogicalSession selected, string selectedSessionId)
     {
-        ArgumentNullException.ThrowIfNull(selected);
-        ArgumentNullException.ThrowIfNull(selectedSessionId);
+        var requiredSelected = selected
+            ?? throw new ArgumentNullException(nameof(selected));
+        var requiredSessionId = selectedSessionId
+            ?? throw new ArgumentNullException(nameof(selectedSessionId));
 
-        var preferredCopy = selected.PreferredCopy
+        var preferredCopy = requiredSelected.PreferredCopy
             ?? throw new InvalidOperationException("Selected session is missing a preferred copy.");
-        var searchDocument = selected.SearchDocument
+        var searchDocument = requiredSelected.SearchDocument
             ?? throw new InvalidOperationException("Selected session is missing search metadata.");
-        var physicalCopies = selected.PhysicalCopies ?? Array.Empty<SessionPhysicalCopy>();
-        var threadName = selected.ThreadName;
-        var sessionId = selected.SessionId;
+        var physicalCopies = requiredSelected.PhysicalCopies ?? Array.Empty<SessionPhysicalCopy>();
+        var threadName = requiredSelected.ThreadName;
+        var sessionId = requiredSelected.SessionId;
 
         await RunOnUiThreadAsync(() =>
         {
-            if (!string.Equals(GetSelectedSession()?.SessionId, selectedSessionId, StringComparison.Ordinal))
+            if (!string.Equals(GetSelectedSession()?.SessionId, requiredSessionId, StringComparison.Ordinal))
             {
                 return;
             }
@@ -52,12 +54,14 @@ public partial class MainWindow
 
     private async Task LoadSelectedSessionBodyAsync(IndexedLogicalSession selected, string selectedSessionId)
     {
-        ArgumentNullException.ThrowIfNull(selected);
-        ArgumentNullException.ThrowIfNull(selectedSessionId);
+        var requiredSelected = selected
+            ?? throw new ArgumentNullException(nameof(selected));
+        var requiredSessionId = selectedSessionId
+            ?? throw new ArgumentNullException(nameof(selectedSessionId));
 
         try
         {
-            var preferredCopy = selected.PreferredCopy
+            var preferredCopy = requiredSelected.PreferredCopy
                 ?? throw new InvalidOperationException("Selected session is missing a preferred copy.");
             var preferredPath = preferredCopy.FilePath;
             var parsed = await SessionParser(preferredPath, CancellationToken.None);
@@ -67,7 +71,7 @@ public partial class MainWindow
             var auditTranscript = SessionTranscriptFormatter.Format(parsed.Document, TranscriptMode.Audit).RenderedMarkdown;
             var sqliteStatus = LiveSqliteStatusProvider();
 
-            if (await IsSessionStillSelectedAsync(selectedSessionId))
+            if (await IsSessionStillSelectedAsync(requiredSessionId))
             {
                 await RunOnUiThreadAsync(() =>
                 {
@@ -82,7 +86,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            if (await IsSessionStillSelectedAsync(selectedSessionId))
+            if (await IsSessionStillSelectedAsync(requiredSessionId))
             {
                 await RunOnUiThreadAsync(() =>
                 {
@@ -182,7 +186,7 @@ public partial class MainWindow
         RunOnUiThreadValueAsync(() =>
             string.Equals(GetSelectedSession()?.SessionId, sessionId, StringComparison.Ordinal));
 
-    private void DisposeSearchCancellation()
+    private void ReleaseSearchCancellationState()
     {
         _searchCancellation.Dispose();
     }

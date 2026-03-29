@@ -75,7 +75,7 @@ public partial class MainWindow : Window
             return maintenanceExecutor.ExecuteAsync(preview, destinationRoot, typedConfirmation, cancellationToken);
         };
         Loaded += async (_, _) => await InitializeAsync();
-        Closed += (_, _) => DisposeSearchCancellation();
+        Closed += (_, _) => ReleaseSearchCancellationState();
     }
 
     private async Task InitializeAsync()

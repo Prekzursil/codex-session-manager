@@ -224,10 +224,7 @@ public static partial class SessionJsonlParser
 
     private static string? TryExtractCommand(string rawArguments)
     {
-        if (rawArguments is null)
-        {
-            throw new ArgumentNullException(nameof(rawArguments));
-        }
+        ArgumentNullException.ThrowIfNull(rawArguments);
 
         if (string.IsNullOrWhiteSpace(rawArguments))
         {
@@ -246,20 +243,9 @@ public static partial class SessionJsonlParser
 
     private static void ExtractFilePathsAndUrls(string value, ISet<string> filePaths, ISet<string> urls)
     {
-        if (value is null)
-        {
-            throw new ArgumentNullException(nameof(value));
-        }
-
-        if (filePaths is null)
-        {
-            throw new ArgumentNullException(nameof(filePaths));
-        }
-
-        if (urls is null)
-        {
-            throw new ArgumentNullException(nameof(urls));
-        }
+        ArgumentNullException.ThrowIfNull(value);
+        ArgumentNullException.ThrowIfNull(filePaths);
+        ArgumentNullException.ThrowIfNull(urls);
 
         foreach (Match match in UrlRegex.Matches(value))
         {
@@ -274,16 +260,17 @@ public static partial class SessionJsonlParser
 
     private static bool TryExtractExitCode(string text, out int exitCode)
     {
-        ArgumentNullException.ThrowIfNull(text);
+        var requiredText = text
+            ?? throw new ArgumentNullException(nameof(text));
 
         exitCode = 0;
-        if (string.IsNullOrWhiteSpace(text))
+        if (string.IsNullOrWhiteSpace(requiredText))
         {
             return false;
         }
 
         const string marker = "Process exited with code ";
-        var searchableText = text;
+        var searchableText = requiredText;
         var index = searchableText.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
         if (index < 0)
         {
@@ -300,16 +287,15 @@ public static partial class SessionJsonlParser
         string propertyName,
         out JsonElement propertyElement)
     {
-        ArgumentNullException.ThrowIfNull(propertyName);
-
         propertyElement = default;
-        var candidateElement = element;
-        if (candidateElement.ValueKind != JsonValueKind.Object)
+        var requiredPropertyName = propertyName
+            ?? throw new ArgumentNullException(nameof(propertyName));
+        if (element.ValueKind != JsonValueKind.Object)
         {
             return false;
         }
 
-        return candidateElement.TryGetProperty(propertyName, out propertyElement);
+        return element.TryGetProperty(requiredPropertyName, out propertyElement);
     }
 
     private static ParseState RequireState(ParseState? state) =>

@@ -10,30 +10,30 @@ public partial class MainWindow
     private async Task RunOnUiThreadAsync(Action action)
     {
         ArgumentNullException.ThrowIfNull(action);
-
-        var dispatcher = Dispatcher;
-        ArgumentNullException.ThrowIfNull(dispatcher);
+        var requiredAction = action;
+        var dispatcher = Dispatcher
+            ?? throw new InvalidOperationException("Dispatcher is unavailable.");
         if (dispatcher.CheckAccess())
         {
-            action();
+            requiredAction();
             return;
         }
 
-        await dispatcher.InvokeAsync(action);
+        await dispatcher.InvokeAsync(requiredAction);
     }
 
     private async Task<T> RunOnUiThreadValueAsync<T>(Func<T> func)
     {
         ArgumentNullException.ThrowIfNull(func);
-
-        var dispatcher = Dispatcher;
-        ArgumentNullException.ThrowIfNull(dispatcher);
+        var requiredFunc = func;
+        var dispatcher = Dispatcher
+            ?? throw new InvalidOperationException("Dispatcher is unavailable.");
         if (dispatcher.CheckAccess())
         {
-            return func();
+            return requiredFunc();
         }
 
-        return await dispatcher.InvokeAsync(func);
+        return await dispatcher.InvokeAsync(requiredFunc);
     }
 
     private void RunEventTask(Func<Task> action, string failurePrefix)
@@ -92,9 +92,9 @@ public partial class MainWindow
 
     private static SessionPhysicalCopy GetRequiredPreferredCopy(IndexedLogicalSession? session)
     {
-        ArgumentNullException.ThrowIfNull(session);
-
-        var preferredCopy = session.PreferredCopy;
+        var requiredSession = session
+            ?? throw new ArgumentNullException(nameof(session));
+        var preferredCopy = requiredSession.PreferredCopy;
         if (preferredCopy is null)
         {
             throw new InvalidOperationException("Selected session is missing a preferred copy.");
@@ -112,18 +112,19 @@ public partial class MainWindow
         string path,
         Func<string, FileInfo>? fileInfoFactory)
     {
-        ArgumentNullException.ThrowIfNull(path);
-
-        var resolvedFileInfoFactory = fileInfoFactory ?? (static filePath => new FileInfo(filePath));
+        var requiredPath = path
+            ?? throw new ArgumentNullException(nameof(path));
+        Func<string, FileInfo> resolvedFileInfoFactory = fileInfoFactory
+            ?? (static filePath => new FileInfo(filePath));
         try
         {
-            var info = resolvedFileInfoFactory(path);
-            if (info is null || !info.Exists)
+            FileInfo info = resolvedFileInfoFactory(requiredPath);
+            if (!info.Exists)
             {
                 return null;
             }
 
-            return $"{path} | {Math.Round(info.Length / 1024.0 / 1024.0, 1)} MB | {info.LastWriteTime}";
+            return $"{requiredPath} | {Math.Round(info.Length / 1024.0 / 1024.0, 1)} MB | {info.LastWriteTime}";
         }
         catch (IOException)
         {
@@ -152,11 +153,13 @@ public partial class MainWindow
         IEnumerable<string> sqlitePaths,
         Func<string, string?> describeSqlitePath)
     {
-        ArgumentNullException.ThrowIfNull(sqlitePaths);
-        ArgumentNullException.ThrowIfNull(describeSqlitePath);
+        var requiredSqlitePaths = sqlitePaths
+            ?? throw new ArgumentNullException(nameof(sqlitePaths));
+        var requiredDescribeSqlitePath = describeSqlitePath
+            ?? throw new ArgumentNullException(nameof(describeSqlitePath));
 
-        var details = sqlitePaths
-            .Select(describeSqlitePath)
+        var details = requiredSqlitePaths
+            .Select(requiredDescribeSqlitePath)
             .Where(detail => detail is not null)
             .Cast<string>()
             .ToArray();
@@ -170,9 +173,9 @@ public partial class MainWindow
         Func<bool, IReadOnlyList<KnownSessionStore>>? knownStoresProvider,
         bool deepScan)
     {
-        ArgumentNullException.ThrowIfNull(knownStoresProvider);
-
-        var knownStores = knownStoresProvider(deepScan);
+        var requiredKnownStoresProvider = knownStoresProvider
+            ?? throw new ArgumentNullException(nameof(knownStoresProvider));
+        var knownStores = requiredKnownStoresProvider(deepScan);
         return knownStores
             ?? throw new InvalidOperationException("Known stores provider returned no stores.");
     }

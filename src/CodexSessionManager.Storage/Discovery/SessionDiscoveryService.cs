@@ -7,13 +7,14 @@ public static class SessionDiscoveryService
 {
     public static async Task<DiscoveredSessionCatalog> DiscoverAsync(IEnumerable<SessionStoreRoot> roots, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(roots);
-
+        var requiredRoots = roots
+            ?? throw new ArgumentNullException(nameof(roots));
         var stores = new List<KnownSessionStore>();
-        foreach (var root in roots)
+        foreach (var root in requiredRoots)
         {
-            ArgumentNullException.ThrowIfNull(root);
-            stores.Add(CreateKnownSessionStore(root));
+            var requiredRoot = root
+                ?? throw new ArgumentNullException(nameof(roots));
+            stores.Add(CreateKnownSessionStore(requiredRoot));
         }
 
         var sessions = await SessionWorkspaceIndexer.LoadSessionsAsync(stores.ToArray(), cancellationToken);
@@ -22,14 +23,14 @@ public static class SessionDiscoveryService
 
     private static KnownSessionStore CreateKnownSessionStore(SessionStoreRoot root)
     {
-        ArgumentNullException.ThrowIfNull(root);
-
-        var rootPath = root.RootPath;
+        var requiredRoot = root
+            ?? throw new ArgumentNullException(nameof(root));
+        var rootPath = requiredRoot.RootPath;
         if (string.IsNullOrWhiteSpace(rootPath))
         {
             throw new ArgumentException("Session store root path cannot be empty.", nameof(root));
         }
-        var storeKind = root.StoreKind;
+        var storeKind = requiredRoot.StoreKind;
         var normalizedRoot = NormalizeRootPath(rootPath);
         var backupWorkspaceRoot = Path.GetDirectoryName(normalizedRoot);
         var normalizedBackupWorkspaceRoot = string.IsNullOrWhiteSpace(backupWorkspaceRoot) ? normalizedRoot : backupWorkspaceRoot;
@@ -64,9 +65,8 @@ public static class SessionDiscoveryService
 
     private static string NormalizeRootPath(string rootPath)
     {
-        ArgumentNullException.ThrowIfNull(rootPath);
-
-        var normalizedRootPath = rootPath;
+        var normalizedRootPath = rootPath
+            ?? throw new ArgumentNullException(nameof(rootPath));
         normalizedRootPath = normalizedRootPath.Replace('\\', Path.DirectorySeparatorChar);
         normalizedRootPath = normalizedRootPath.Replace('/', Path.DirectorySeparatorChar);
         return normalizedRootPath.TrimEnd(Path.DirectorySeparatorChar);
