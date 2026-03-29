@@ -103,9 +103,14 @@ public partial class MainWindow
         return preferredCopy;
     }
 
+    internal static string? DescribeSqlitePath(string path)
+    {
+        return DescribeSqlitePath(path, fileInfoFactory: null);
+    }
+
     internal static string? DescribeSqlitePath(
         string path,
-        Func<string, FileInfo>? fileInfoFactory = null)
+        Func<string, FileInfo>? fileInfoFactory)
     {
         ArgumentNullException.ThrowIfNull(path);
 
@@ -140,7 +145,7 @@ public partial class MainWindow
                 Path.Combine(codexHome, "state_5.sqlite"),
                 Path.Combine(codexHome, "codex-sqlite", "canonical", "state_5.sqlite"),
             ],
-            path => DescribeSqlitePath(path));
+            DescribeSqlitePath);
     }
 
     private static string GetLiveSqliteStatus(
