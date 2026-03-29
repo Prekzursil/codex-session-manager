@@ -372,4 +372,5 @@ public sealed partial class MainWindowCoverageTests
 
             window.Close();
         });
+    }
 }

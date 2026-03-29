@@ -447,4 +447,5 @@ public sealed partial class MainWindowCoverageTests
                 DeleteDirectory(root);
             }
         });
+    }
 }

@@ -185,8 +185,6 @@ public sealed partial class MainWindowCoverageTests
     private static readonly PropertyInfo CurrentSearchCancellationTokenSourceProperty =
         typeof(MainWindow).GetProperty("CurrentSearchCancellationTokenSource", BindingFlags.Instance | BindingFlags.NonPublic)!;
 
-    }
-
     private static IReadOnlyList<KnownSessionStore> InvokeBuildKnownStores(bool deepScan) =>
         (IReadOnlyList<KnownSessionStore>)BuildKnownStoresMethod.Invoke(null, [deepScan])!;
 
