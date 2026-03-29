@@ -77,7 +77,8 @@ public sealed class MaintenanceExecutor
         string effectiveDestinationRoot,
         CancellationToken cancellationToken)
     {
-        var targets = allowedTargets ?? throw new ArgumentNullException(nameof(allowedTargets));
+        ArgumentNullException.ThrowIfNull(allowedTargets);
+        var targets = allowedTargets;
         if (string.IsNullOrWhiteSpace(effectiveDestinationRoot))
         {
             throw new ArgumentException(NullOrWhitespaceMessage, nameof(effectiveDestinationRoot));
@@ -90,10 +91,7 @@ public sealed class MaintenanceExecutor
             cancellationToken.ThrowIfCancellationRequested();
             var fileName = Path.GetFileName(target.FilePath);
             var destinationPath = BuildDestinationPath(effectiveDestinationRoot, fileName);
-            var destinationDirectory = Path.GetDirectoryName(destinationPath)
-                ?? throw new InvalidOperationException("Destination path does not include a directory.");
-
-            Directory.CreateDirectory(destinationDirectory);
+            Directory.CreateDirectory(effectiveDestinationRoot);
             File.Move(target.FilePath, destinationPath);
             movedTargets.Add(target with { FilePath = destinationPath });
         }
@@ -128,7 +126,9 @@ public sealed class MaintenanceExecutor
         IReadOnlyList<SessionPhysicalCopy> movedTargets,
         CancellationToken cancellationToken)
     {
-        var targets = movedTargets ?? throw new ArgumentNullException(nameof(movedTargets));
+        ArgumentNullException.ThrowIfNull(movedTargets);
+
+        var targets = movedTargets;
         var manifestPath = Path.Combine(_checkpointRoot, $"{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}-{action}.json");
         var payload = new
         {
