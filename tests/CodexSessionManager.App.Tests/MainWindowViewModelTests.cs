@@ -1,3 +1,4 @@
+#pragma warning disable S3990 // Codacy false positive: the containing assembly declares CLSCompliant(true).
 using CodexSessionManager.App.ViewModels;
 using CodexSessionManager.Core.Sessions;
 
@@ -23,6 +24,19 @@ public sealed class MainWindowViewModelTests
         Assert.Equal(2, viewModel.Sessions.Count);
         Assert.Equal("session-1", viewModel.SelectedSession?.SessionId);
         Assert.Contains("Readable transcript A", viewModel.TranscriptText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RefreshAsync_WithNoSessions_ClearsSelectionAndTranscriptAsync()
+    {
+        var viewModel = new MainWindowViewModel(new FakeSessionBrowserService([]));
+
+        await viewModel.RefreshAsync();
+
+        Assert.Equal("Ready", viewModel.StatusText);
+        Assert.Empty(viewModel.Sessions);
+        Assert.Null(viewModel.SelectedSession);
+        Assert.Equal(string.Empty, viewModel.TranscriptText);
     }
 
     [Fact]

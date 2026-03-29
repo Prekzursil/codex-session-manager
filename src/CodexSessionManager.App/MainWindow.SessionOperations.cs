@@ -1,8 +1,11 @@
+#pragma warning disable S3990 // Codacy false positive: the containing assembly declares CLSCompliant(true).
+using System.Diagnostics.CodeAnalysis;
 using CodexSessionManager.Core.Sessions;
 using CodexSessionManager.Core.Transcripts;
 
 namespace CodexSessionManager.App;
 
+[SuppressMessage("Code Smell", "S2333", Justification = "The class is split across XAML-generated and hand-authored partial files.")]
 public partial class MainWindow
 {
     private async Task LoadSelectedSessionAsync()
@@ -13,47 +16,73 @@ public partial class MainWindow
             return;
         }
 
-        var selectedSessionId = GetSessionId(selected);
+        var selectedSessionId = selected.SessionId;
         await PopulateSelectedSessionHeaderAsync(selected, selectedSessionId);
         await LoadSelectedSessionBodyAsync(selected, selectedSessionId);
     }
 
-    private async Task PopulateSelectedSessionHeaderAsync(IndexedLogicalSession selected, string selectedSessionId)
+    private async Task PopulateSelectedSessionHeaderAsync(IndexedLogicalSession selected, string? selectedSessionId)
     {
-        var preferredCopy = selected.PreferredCopy ?? throw new InvalidOperationException("Selected session is missing a preferred copy."); // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
-        var searchDocument = selected.SearchDocument ?? throw new InvalidOperationException("Selected session is missing search metadata."); // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
-        var physicalCopies = selected.PhysicalCopies ?? []; // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+        var selectedSession = selected ?? throw new ArgumentNullException(nameof(selected));
+        var requestedSessionId = RequireSelectedSessionId(selectedSessionId);
+
+        var preferredCopy = selectedSession.PreferredCopy;
+        if (preferredCopy is null)
+        {
+            throw new InvalidOperationException("Selected session is missing a preferred copy.");
+        }
+
+        var searchDocument = selectedSession.SearchDocument;
+        if (searchDocument is null)
+        {
+            throw new InvalidOperationException("Selected session is missing search metadata.");
+        }
+
+        var physicalCopies = selectedSession.PhysicalCopies ?? Array.Empty<SessionPhysicalCopy>();
+        var threadName = selectedSession.ThreadName;
+        var sessionId = selectedSession.SessionId;
 
         await RunOnUiThreadAsync(() =>
         {
-            if (string.Equals(GetSelectedSession()?.SessionId, selectedSessionId, StringComparison.Ordinal))
+            if (!string.Equals(GetSelectedSession()?.SessionId, requestedSessionId, StringComparison.Ordinal))
             {
-                ThreadNameTextBlock.Text = GetThreadName(selected); // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
-                SessionIdTextBlock.Text = GetSessionId(selected); // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
-                PreferredPathTextBlock.Text = preferredCopy.FilePath;
-                AliasTextBox.Text = searchDocument.Alias;
-                TagsTextBox.Text = string.Join(", ", searchDocument.Tags);
-                NotesTextBox.Text = searchDocument.Notes;
-                CopiesListBox.ItemsSource = physicalCopies;
-                ReadableTranscriptTextBox.Text = searchDocument.ReadableTranscript;
-                DialogueTranscriptTextBox.Text = searchDocument.DialogueTranscript;
+                return;
             }
+
+            ThreadNameTextBlock.Text = threadName;
+            SessionIdTextBlock.Text = sessionId;
+            PreferredPathTextBlock.Text = preferredCopy.FilePath;
+            AliasTextBox.Text = searchDocument.Alias;
+            TagsTextBox.Text = string.Join(", ", searchDocument.Tags);
+            NotesTextBox.Text = searchDocument.Notes;
+            CopiesListBox.ItemsSource = physicalCopies;
+            ReadableTranscriptTextBox.Text = searchDocument.ReadableTranscript;
+            DialogueTranscriptTextBox.Text = searchDocument.DialogueTranscript;
         });
     }
 
-    private async Task LoadSelectedSessionBodyAsync(IndexedLogicalSession selected, string selectedSessionId)
+    private async Task LoadSelectedSessionBodyAsync(IndexedLogicalSession selected, string? selectedSessionId)
     {
+        var selectedSession = selected ?? throw new ArgumentNullException(nameof(selected));
+        var sessionId = RequireSelectedSessionId(selectedSessionId);
+
         try
         {
-            var preferredCopy = selected.PreferredCopy ?? throw new InvalidOperationException("Selected session is missing a preferred copy.");
-            var parsed = await SessionParser(preferredCopy.FilePath, CancellationToken.None);
-            var rawContent = FileTextReader(preferredCopy.FilePath);
+            var preferredCopy = selectedSession.PreferredCopy;
+            if (preferredCopy is null)
+            {
+                throw new InvalidOperationException("Selected session is missing a preferred copy.");
+            }
+
+            var preferredPath = preferredCopy.FilePath;
+            var parsed = await SessionParser(preferredPath, CancellationToken.None);
+            var rawContent = FileTextReader(preferredPath);
             var readableTranscript = SessionTranscriptFormatter.Format(parsed.Document, TranscriptMode.Readable).RenderedMarkdown;
             var dialogueTranscript = SessionTranscriptFormatter.Format(parsed.Document, TranscriptMode.Dialogue).RenderedMarkdown;
             var auditTranscript = SessionTranscriptFormatter.Format(parsed.Document, TranscriptMode.Audit).RenderedMarkdown;
             var sqliteStatus = LiveSqliteStatusProvider();
 
-            if (await IsSessionStillSelectedAsync(selectedSessionId))
+            if (await IsSessionStillSelectedAsync(sessionId))
             {
                 await RunOnUiThreadAsync(() =>
                 {
@@ -68,7 +97,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            if (await IsSessionStillSelectedAsync(selectedSessionId))
+            if (await IsSessionStillSelectedAsync(sessionId))
             {
                 await RunOnUiThreadAsync(() =>
                 {
@@ -102,72 +131,92 @@ public partial class MainWindow
 
     private async Task ReloadSessionsForSearchAsync(CancellationToken searchToken)
     {
-        var sessions = await _repository!.ListSessionsAsync(CancellationToken.None);
-        var searchCanceled = searchToken.IsCancellationRequested; // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+        var repository = _repository;
+        if (repository is null)
+        {
+            return;
+        }
+
+        var sessions = await repository.ListSessionsAsync(CancellationToken.None);
+        var searchCanceled = IsSearchCanceled(searchToken);
         await RunOnUiThreadAsync(() =>
         {
-            if (!searchCanceled)
+            if (searchCanceled)
             {
-                _sessions.Clear();
-                foreach (var session in sessions)
-                {
-                    _sessions.Add(session);
-                }
-
-                StatusTextBlock.Text = $"Loaded {_sessions.Count} sessions from cached index.";
+                return;
             }
+
+            _sessions.Clear();
+            foreach (var session in sessions)
+            {
+                _sessions.Add(session);
+            }
+
+            StatusTextBlock.Text = $"Loaded {_sessions.Count} sessions from cached index.";
         });
     }
 
     private async Task ApplySearchResultsAsync(string query, CancellationToken searchToken)
     {
-        var repository = _repository ?? throw new InvalidOperationException("Repository has not been initialized.");
-        var searchQuery = query ?? string.Empty;
+        var repository = _repository;
+        if (repository is null)
+        {
+            throw new InvalidOperationException("Repository has not been initialized.");
+        }
+
+        var searchQuery = query;
+        if (searchQuery is null)
+        {
+            searchQuery = string.Empty;
+        }
+
         var hits = await repository.SearchAsync(searchQuery, CancellationToken.None);
         var hitIds = hits.Select(hit => hit.SessionId).ToHashSet(StringComparer.Ordinal);
         var allSessions = await repository.ListSessionsAsync(CancellationToken.None);
         var visibleSessions = allSessions.Where(session => hitIds.Contains(session.SessionId)).ToArray();
-        var searchCanceled = searchToken.IsCancellationRequested;
+        var searchCanceled = IsSearchCanceled(searchToken);
 
         await RunOnUiThreadAsync(() =>
         {
-            if (!searchCanceled)
+            if (searchCanceled)
             {
-                _sessions.Clear();
-                foreach (var session in visibleSessions)
-                {
-                    _sessions.Add(session);
-                }
-
-                StatusTextBlock.Text = $"Search returned {_sessions.Count} sessions.";
+                return;
             }
+
+            _sessions.Clear();
+            foreach (var session in visibleSessions)
+            {
+                _sessions.Add(session);
+            }
+
+            StatusTextBlock.Text = $"Search returned {_sessions.Count} sessions.";
         });
     }
 
     private CancellationToken BeginSearchToken()
     {
-        var replacement = new CancellationTokenSource();
-        var previous = Interlocked.Exchange(ref _searchCts, replacement);
-        previous?.Cancel();
-        previous?.Dispose();
-        return replacement.Token;
+        return _searchCancellation.Begin();
     }
 
-    private async Task<bool> IsSessionStillSelectedAsync(string sessionId)
+    private static string RequireSelectedSessionId(string? selectedSessionId)
     {
-        return await RunOnUiThreadValueAsync(() =>
+        var sessionId = selectedSessionId ?? throw new ArgumentNullException(nameof(selectedSessionId));
+        if (string.IsNullOrWhiteSpace(sessionId))
+        {
+            throw new ArgumentException("Value cannot be null or whitespace.", nameof(selectedSessionId));
+        }
+
+        return sessionId;
+    }
+
+    private static bool IsSearchCanceled(CancellationToken searchToken) => searchToken.IsCancellationRequested;
+
+    private Task<bool> IsSessionStillSelectedAsync(string sessionId) =>
+        RunOnUiThreadValueAsync(() =>
             string.Equals(GetSelectedSession()?.SessionId, sessionId, StringComparison.Ordinal));
-    }
 
-    private void DisposeSearchCancellation()
+    private void ReleaseSearchCancellationState()
     {
-        var current = Interlocked.Exchange(ref _searchCts, null);
-        current?.Cancel();
-        current?.Dispose();
+        _searchCancellation.Dispose();
     }
-
-    private static string GetSessionId(IndexedLogicalSession session) => session.SessionId; // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
-
-    private static string GetThreadName(IndexedLogicalSession session) => session.ThreadName; // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
 }
-

@@ -1,3 +1,4 @@
+#pragma warning disable S3990 // Codacy false positive: the containing assembly declares CLSCompliant(true).
 using CodexSessionManager.Core.Sessions;
 using CodexSessionManager.Storage.Discovery;
 using CodexSessionManager.Storage.Indexing;

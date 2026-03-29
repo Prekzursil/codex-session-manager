@@ -1,3 +1,4 @@
+#pragma warning disable S3990 // Codacy false positive: the containing assembly declares CLSCompliant(true).
 using System.Reflection;
 using System.Text.Json;
 using CodexSessionManager.Core.Maintenance;
@@ -37,8 +38,14 @@ public sealed class StorageGuardClauseTests
     private static readonly MethodInfo TryGetStringMethod =
         typeof(SessionJsonlParser).GetMethod("TryGetString", BindingFlags.NonPublic | BindingFlags.Static)!;
 
+    private static readonly MethodInfo TryGetPropertyValueMethod =
+        typeof(SessionJsonlParser).GetMethod("TryGetPropertyValue", BindingFlags.NonPublic | BindingFlags.Static)!;
+
     private static readonly MethodInfo TryExtractCommandMethod =
         typeof(SessionJsonlParser).GetMethod("TryExtractCommand", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    private static readonly MethodInfo TryGetTextContentMethod =
+        typeof(SessionJsonlParser).GetMethod("TryGetTextContent", BindingFlags.NonPublic | BindingFlags.Static)!;
 
     private static readonly MethodInfo ExtractFilePathsAndUrlsMethod =
         typeof(SessionJsonlParser).GetMethod("ExtractFilePathsAndUrls", BindingFlags.NonPublic | BindingFlags.Static)!;
@@ -55,6 +62,24 @@ public sealed class StorageGuardClauseTests
     private static readonly MethodInfo RefreshSearchRowMethod =
         typeof(SessionCatalogRepository).GetMethod("RefreshSearchRowAsync", BindingFlags.NonPublic | BindingFlags.Static)!;
 
+    private static readonly MethodInfo ReplaceCopyRowsMethod =
+        typeof(SessionCatalogRepository).GetMethod("ReplaceCopyRowsAsync", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    private static readonly MethodInfo LoadSessionsMethod =
+        typeof(SessionCatalogRepository).GetMethod("LoadSessionsAsync", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    private static readonly MethodInfo ExecuteReaderMethod =
+        typeof(SessionCatalogRepository).GetMethod("ExecuteReaderAsync", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    private static readonly MethodInfo ExecuteCommandMethod =
+        typeof(SessionCatalogRepository).GetMethod("ExecuteCommandAsync", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    private static readonly MethodInfo ExecuteNonQueryMethod =
+        typeof(SessionCatalogRepository).GetMethod("ExecuteNonQueryAsync", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    private static readonly MethodInfo MoveTargetsMethod =
+        typeof(MaintenanceExecutor).GetMethod("MoveTargets", BindingFlags.NonPublic | BindingFlags.Static)!;
+
     private static readonly MethodInfo SplitLinesMethod =
         typeof(SessionCatalogRepository).GetMethod("SplitLines", BindingFlags.NonPublic | BindingFlags.Static)!;
 
@@ -67,14 +92,20 @@ public sealed class StorageGuardClauseTests
     private static readonly MethodInfo ReadRequiredStringMethod =
         typeof(SessionCatalogRepository).GetMethod("ReadRequiredString", BindingFlags.NonPublic | BindingFlags.Static)!;
 
-    private static readonly MethodInfo RequireConnectionMethod =
-        typeof(SessionCatalogRepository).GetMethod("RequireConnection", BindingFlags.NonPublic | BindingFlags.Static)!;
+    private static readonly MethodInfo OpenConnectionMethod =
+        typeof(SessionCatalogRepository).GetMethod("OpenConnection", BindingFlags.NonPublic | BindingFlags.Instance)!;
 
-    private static readonly MethodInfo RequireReaderMethod =
-        typeof(SessionCatalogRepository).GetMethod("RequireReader", BindingFlags.NonPublic | BindingFlags.Static)!;
+    private static readonly FieldInfo DatabasePathField =
+        typeof(SessionCatalogRepository).GetField("_databasePath", BindingFlags.NonPublic | BindingFlags.Instance)!;
 
     private static readonly MethodInfo IsProtectedMethod =
         typeof(MaintenancePlanner).GetMethod("IsProtected", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    private static readonly MethodInfo CreateKnownSessionStoreMethod =
+        typeof(SessionDiscoveryService).GetMethod("CreateKnownSessionStore", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    private static readonly MethodInfo NormalizeRootPathMethod =
+        typeof(SessionDiscoveryService).GetMethod("NormalizeRootPath", BindingFlags.NonPublic | BindingFlags.Static)!;
 
     [Fact]
     public async Task Public_guard_clauses_throw_for_null_inputsAsync()
@@ -82,8 +113,11 @@ public sealed class StorageGuardClauseTests
         var repository = new SessionCatalogRepository(Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db"));
         var previewTarget = new SessionPhysicalCopy("session-1", Path.Combine(Path.GetTempPath(), "session-1.jsonl"), SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false));
 
+        Assert.Throws<ArgumentException>(() => new SessionCatalogRepository(null!));
         await Assert.ThrowsAsync<ArgumentException>(() => SessionJsonlParser.ParseAsync(null!, CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentNullException>(() => SessionDiscoveryService.DiscoverAsync(null!, CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentNullException>(() =>
+            SessionDiscoveryService.DiscoverAsync(new SessionStoreRoot[] { null! }, CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentNullException>(() => repository.UpsertAsync(null!, CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentNullException>(() => repository.SearchAsync(null!, CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentException>(() => repository.SaveMetadataAsync(null!, string.Empty, [], string.Empty, CancellationToken.None));
@@ -94,45 +128,49 @@ public sealed class StorageGuardClauseTests
     }
 
     [Fact]
-    public async Task Private_guard_clauses_throw_for_null_inputsAsync()
+    public async Task Private_helpers_validate_selected_inputsAsync()
     {
         var emptyElement = JsonDocument.Parse("{}").RootElement.Clone();
+        var sessionMetaEnvelope = JsonDocument.Parse("""{"type":"session_meta","payload":{}}""").RootElement.Clone();
         var filePaths = new HashSet<string>(StringComparer.Ordinal);
         var urls = new HashSet<string>(StringComparer.Ordinal);
-        var repositorySession = new IndexedLogicalSession(
-            "session-1",
-            "Thread",
-            new SessionPhysicalCopy("session-1", Path.Combine(Path.GetTempPath(), "session-1.jsonl"), SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false)),
-            [],
-            new SessionSearchDocument());
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
 
-        AssertInner<ArgumentNullException>(() => ParseLineMethod.Invoke(null, [emptyElement, null!]));
+        AssertInner<ArgumentNullException>(() => ParseLineMethod.Invoke(null, [sessionMetaEnvelope, null!]));
         AssertInner<ArgumentNullException>(() => ParseSessionMetadataMethod.Invoke(null, [emptyElement, null!]));
         AssertInner<ArgumentNullException>(() => ParseResponseItemMethod.Invoke(null, [emptyElement, null!]));
         AssertInner<ArgumentNullException>(() => ParseMessageMethod.Invoke(null, [emptyElement, null!]));
         AssertInner<ArgumentNullException>(() => ParseFunctionCallMethod.Invoke(null, [emptyElement, null!]));
         AssertInner<ArgumentNullException>(() => ParseFunctionCallOutputMethod.Invoke(null, [emptyElement, null!]));
         AssertInner<ArgumentNullException>(() => TryGetStringMethod.Invoke(null, [emptyElement, null!]));
-        AssertInner<ArgumentNullException>(() => TryExtractCommandMethod.Invoke(null, [null!]));
+        AssertInner<ArgumentNullException>(() =>
+            TryGetPropertyValueMethod.Invoke(null, [emptyElement, null!, default(JsonElement)]));
+        Assert.Null(TryExtractCommandMethod.Invoke(null, [null!]));
         AssertInner<ArgumentNullException>(() => ExtractFilePathsAndUrlsMethod.Invoke(null, [string.Empty, null!, urls]));
         AssertInner<ArgumentNullException>(() => ExtractFilePathsAndUrlsMethod.Invoke(null, [string.Empty, filePaths, null!]));
-        AssertInner<ArgumentNullException>(() => TryExtractExitCodeMethod.Invoke(null, [null!, 0]));
-
-        await AssertInnerAsync<ArgumentNullException>(() => (Task<SessionSearchDocument>)MergeExistingMetadataMethod.Invoke(null, [null!, repositorySession, CancellationToken.None])!);
-        await using var connection = new SqliteConnection("Data Source=:memory:");
-        await connection.OpenAsync();
-        await AssertInnerAsync<ArgumentNullException>(() => (Task<SessionSearchDocument>)MergeExistingMetadataMethod.Invoke(null, [connection, null!, CancellationToken.None])!);
-        await AssertInnerAsync<ArgumentNullException>(() => (Task)RefreshSearchIndexMethod.Invoke(null, [null!, CancellationToken.None])!);
-        await AssertInnerAsync<ArgumentNullException>(() => (Task)RefreshSearchRowMethod.Invoke(null, [null!, "session-1", CancellationToken.None])!);
+        AssertInner<ArgumentNullException>(() => ExtractFilePathsAndUrlsMethod.Invoke(null, [null!, new HashSet<string>(StringComparer.Ordinal), new HashSet<string>(StringComparer.Ordinal)]));
+        Assert.False((bool)TryExtractExitCodeMethod.Invoke(null, [null!, 0])!);
         await AssertInnerAsync<ArgumentException>(() => (Task)RefreshSearchRowMethod.Invoke(null, [connection, null!, CancellationToken.None])!);
-        AssertInner<ArgumentNullException>(() => SplitLinesMethod.Invoke(null, [null!]));
         AssertInner<ArgumentNullException>(() => ToFtsQueryMethod.Invoke(null, [null!]));
         AssertInner<ArgumentNullException>(() => ToFtsTokenMethod.Invoke(null, [null!]));
-        AssertInner<ArgumentNullException>(() => ExtractFilePathsAndUrlsMethod.Invoke(null, [null!, new HashSet<string>(StringComparer.Ordinal), new HashSet<string>(StringComparer.Ordinal)]));
         AssertInner<ArgumentNullException>(() => ReadRequiredStringMethod.Invoke(null, [null!, 0]));
-        AssertInner<InvalidOperationException>(() => RequireConnectionMethod.Invoke(null, [null!]));
-        AssertInner<ArgumentException>(() => RequireReaderMethod.Invoke(null, [null!, null!]));
-        AssertInner<InvalidOperationException>(() => RequireReaderMethod.Invoke(null, [null!, "reader required"]));
+        await AssertInnerAsync<ArgumentNullException>(() =>
+            (Task<SqliteDataReader>)ExecuteReaderMethod.Invoke(null, [null!, CancellationToken.None])!);
+        await AssertInnerAsync<ArgumentNullException>(() =>
+            (Task)ExecuteNonQueryMethod.Invoke(null, [null!, CancellationToken.None])!);
+        await AssertInnerAsync<ArgumentNullException>(() =>
+            (Task)ReplaceCopyRowsMethod.Invoke(
+                null,
+                [null!, "session-1", Array.Empty<SessionPhysicalCopy>(), CancellationToken.None])!);
+        await AssertInnerAsync<ArgumentNullException>(() =>
+            (Task)ReplaceCopyRowsMethod.Invoke(null, [connection, "session-1", null!, CancellationToken.None])!);
+        var splitLines = (IReadOnlyList<string>)SplitLinesMethod.Invoke(null, [null!])!;
+        Assert.Empty(splitLines);
+        AssertInner<ArgumentNullException>(() => CreateKnownSessionStoreMethod.Invoke(null, [null!]));
+        AssertInner<ArgumentException>(
+            () => CreateKnownSessionStoreMethod.Invoke(null, [new SessionStoreRoot(" ", SessionStoreKind.Live)]));
+        AssertInner<ArgumentNullException>(() => NormalizeRootPathMethod.Invoke(null, [null!]));
     }
 
     [Fact]
@@ -158,6 +196,28 @@ public sealed class StorageGuardClauseTests
     }
 
     [Fact]
+    public void TryGetTextContent_returns_false_when_text_property_is_missing()
+    {
+        var contentItem = JsonDocument.Parse("""{"type":"output_text"}""").RootElement.Clone();
+        object?[] args = [contentItem, string.Empty];
+
+        var result = (bool)TryGetTextContentMethod.Invoke(null, args)!;
+
+        Assert.False(result);
+        Assert.Equal(string.Empty, args[1]);
+    }
+
+    [Fact]
+    public void TryGetString_returns_null_for_non_object_elements()
+    {
+        var scalarElement = JsonDocument.Parse("""1""").RootElement.Clone();
+
+        var result = TryGetStringMethod.Invoke(null, [scalarElement, "payload"]);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
     public async Task Repository_private_branches_reject_missing_required_session_membersAsync()
     {
         var session = new IndexedLogicalSession(
@@ -179,7 +239,87 @@ public sealed class StorageGuardClauseTests
 
         await using var connection = new SqliteConnection($"Data Source={databasePath}");
         await connection.OpenAsync();
+        await AssertInnerAsync<ArgumentNullException>(() =>
+            (Task<SessionSearchDocument>)MergeExistingMetadataMethod.Invoke(
+                null,
+                [null!, session, CancellationToken.None])!);
+        await AssertInnerAsync<ArgumentNullException>(() =>
+            (Task<SessionSearchDocument>)MergeExistingMetadataMethod.Invoke(
+                null,
+                [connection, null!, CancellationToken.None])!);
+        await AssertInnerAsync<ArgumentNullException>(() =>
+            (Task)ReplaceCopyRowsMethod.Invoke(null, [connection, null!, Array.Empty<SessionPhysicalCopy>(), CancellationToken.None])!);
         await AssertInnerAsync<InvalidOperationException>(() => (Task<SessionSearchDocument>)MergeExistingMetadataMethod.Invoke(null, [connection, WithNullIndexedSessionProperty(session, nameof(IndexedLogicalSession.SearchDocument)), CancellationToken.None])!);
+        await AssertInnerAsync<ArgumentNullException>(() =>
+            (Task)ReplaceCopyRowsMethod.Invoke(
+                null,
+                [connection, session.SessionId, new SessionPhysicalCopy[] { null! }, CancellationToken.None])!);
+        await AssertInnerAsync<ArgumentNullException>(() =>
+            (Task<IReadOnlyList<IndexedLogicalSession>>)LoadSessionsMethod.Invoke(null, [connection, null!, CancellationToken.None])!);
+        await AssertInnerAsync<ArgumentNullException>(() =>
+            (Task)ExecuteCommandMethod.Invoke(null, [null!, CancellationToken.None])!);
+        AssertInner<InvalidOperationException>(() =>
+            MoveTargetsMethod.Invoke(
+                null,
+                new object[]
+                {
+                    new SessionPhysicalCopy[]
+                    {
+                        new SessionPhysicalCopy(
+                            "session-1",
+                            Path.GetPathRoot(Path.GetTempPath())!,
+                            SessionStoreKind.Backup,
+                            new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false))
+                    },
+                    Path.GetPathRoot(Path.GetTempPath())!,
+                    CancellationToken.None
+                }));
+
+        DatabasePathField.SetValue(repository, string.Empty);
+        AssertInner<InvalidOperationException>(() => OpenConnectionMethod.Invoke(repository, [CancellationToken.None]));
+    }
+
+    [Fact]
+    public async Task LoadSessionsAsync_treats_null_copy_entries_as_missingAsync()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            CREATE TABLE sessions (
+                session_id TEXT PRIMARY KEY,
+                thread_name TEXT NOT NULL,
+                preferred_path TEXT NOT NULL,
+                readable_transcript TEXT NOT NULL,
+                dialogue_transcript TEXT NOT NULL,
+                tool_summary TEXT NOT NULL,
+                command_text TEXT NOT NULL,
+                file_paths TEXT NOT NULL,
+                urls TEXT NOT NULL,
+                error_text TEXT NOT NULL,
+                alias TEXT NOT NULL,
+                tags TEXT NOT NULL,
+                notes TEXT NOT NULL
+            );
+            INSERT INTO sessions(session_id, thread_name, preferred_path, readable_transcript, dialogue_transcript, tool_summary, command_text, file_paths, urls, error_text, alias, tags, notes)
+            VALUES ('session-null-copies', 'Thread', 'preferred.jsonl', 'readable', 'dialogue', '', '', '', '', '', '', '', '');
+            """;
+        await command.ExecuteNonQueryAsync();
+
+        var copiesBySession = new Dictionary<string, List<SessionPhysicalCopy>>(StringComparer.Ordinal)
+        {
+            ["session-null-copies"] = null!,
+        };
+
+        var sessions = (IReadOnlyList<IndexedLogicalSession>)await ((Task<IReadOnlyList<IndexedLogicalSession>>)LoadSessionsMethod.Invoke(
+            null,
+            [connection, copiesBySession, CancellationToken.None])!);
+        var session = Assert.Single(sessions);
+
+        Assert.Equal("preferred.jsonl", session.PreferredCopy.FilePath);
+        Assert.Single(session.PhysicalCopies);
+        Assert.Equal("preferred.jsonl", session.PhysicalCopies[0].FilePath);
     }
 
     private static IndexedLogicalSession WithNullIndexedSessionProperty(IndexedLogicalSession session, string propertyName)

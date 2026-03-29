@@ -1,3 +1,4 @@
+#pragma warning disable S3990 // Codacy false positive: the containing assembly declares CLSCompliant(true).
 using CodexSessionManager.Core.Sessions;
 using CodexSessionManager.Storage.Indexing;
 
@@ -401,6 +402,60 @@ public sealed class SessionCatalogRepositoryTests
             Assert.Equal("stored alias", stored.SearchDocument.Alias);
             Assert.Equal(["stored-tag"], stored.SearchDocument.Tags);
             Assert.Equal("stored note", stored.SearchDocument.Notes);
+        }
+        finally
+        {
+            try
+            {
+                File.Delete(databasePath);
+            }
+            catch (IOException)
+            {
+                // best-effort cleanup for Windows temp SQLite files
+            }
+        }
+    }
+
+    [Fact]
+    public async Task UpsertAsync_And_ListSessionsAsync_PreserveHotCopyStateAsync()
+    {
+        var databasePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var repository = new SessionCatalogRepository(databasePath);
+            await repository.InitializeAsync(CancellationToken.None);
+            var hotCopy = new SessionPhysicalCopy(
+                "session-hot-copy",
+                @"C:\Users\Prekzursil\.codex\sessions\session-hot-copy.jsonl",
+                SessionStoreKind.Live,
+                new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1000, true));
+
+            var session = new IndexedLogicalSession(
+                "session-hot-copy",
+                "Hot Copy",
+                hotCopy,
+                [hotCopy],
+                new SessionSearchDocument
+                {
+                    ReadableTranscript = "hot transcript",
+                    DialogueTranscript = "hot transcript",
+                    ToolSummary = "",
+                    CommandText = "",
+                    FilePaths = [],
+                    Urls = [],
+                    ErrorText = "",
+                    Alias = "",
+                    Tags = [],
+                    Notes = ""
+                });
+
+            await repository.UpsertAsync(session, CancellationToken.None);
+
+            var stored = Assert.Single(await repository.ListSessionsAsync(CancellationToken.None));
+
+            Assert.True(stored.PreferredCopy.IsHot);
+            Assert.True(stored.PhysicalCopies.Single().IsHot);
         }
         finally
         {
