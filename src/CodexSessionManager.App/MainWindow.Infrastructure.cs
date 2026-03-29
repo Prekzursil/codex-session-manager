@@ -9,10 +9,7 @@ public partial class MainWindow
 {
     private async Task RunOnUiThreadAsync(Action action)
     {
-        if (action is null)
-        {
-            throw new ArgumentNullException(nameof(action));
-        }
+        ArgumentNullException.ThrowIfNull(action);
 
         var dispatcher = Dispatcher
             ?? throw new InvalidOperationException("Dispatcher is unavailable.");
@@ -28,10 +25,7 @@ public partial class MainWindow
 
     private async Task<T> RunOnUiThreadValueAsync<T>(Func<T> func)
     {
-        if (func is null)
-        {
-            throw new ArgumentNullException(nameof(func));
-        }
+        ArgumentNullException.ThrowIfNull(func);
 
         var dispatcher = Dispatcher
             ?? throw new InvalidOperationException("Dispatcher is unavailable.");
@@ -46,10 +40,7 @@ public partial class MainWindow
 
     private void RunEventTask(Func<Task> action, string failurePrefix)
     {
-        if (action is null)
-        {
-            throw new ArgumentNullException(nameof(action));
-        }
+        ArgumentNullException.ThrowIfNull(action);
 
         if (string.IsNullOrWhiteSpace(failurePrefix))
         {
@@ -104,10 +95,7 @@ public partial class MainWindow
 
     private static SessionPhysicalCopy GetRequiredPreferredCopy(IndexedLogicalSession? session)
     {
-        if (session is null)
-        {
-            throw new ArgumentNullException(nameof(session));
-        }
+        ArgumentNullException.ThrowIfNull(session);
 
         var preferredCopy = session.PreferredCopy;
         if (preferredCopy is null)
@@ -127,15 +115,12 @@ public partial class MainWindow
         string path,
         Func<string, FileInfo>? fileInfoFactory)
     {
-        if (path is null)
-        {
-            throw new ArgumentNullException(nameof(path));
-        }
+        ArgumentNullException.ThrowIfNull(path);
 
-        fileInfoFactory ??= static filePath => new FileInfo(filePath);
+        Func<string, FileInfo> createFileInfo = fileInfoFactory ?? (static filePath => new FileInfo(filePath));
         try
         {
-            FileInfo info = fileInfoFactory(path);
+            var info = createFileInfo(path);
             if (!info.Exists)
             {
                 return null;
@@ -170,15 +155,8 @@ public partial class MainWindow
         IEnumerable<string> sqlitePaths,
         Func<string, string?> describeSqlitePath)
     {
-        if (sqlitePaths is null)
-        {
-            throw new ArgumentNullException(nameof(sqlitePaths));
-        }
-
-        if (describeSqlitePath is null)
-        {
-            throw new ArgumentNullException(nameof(describeSqlitePath));
-        }
+        ArgumentNullException.ThrowIfNull(sqlitePaths);
+        ArgumentNullException.ThrowIfNull(describeSqlitePath);
 
         var details = sqlitePaths
             .Select(describeSqlitePath)
@@ -195,10 +173,7 @@ public partial class MainWindow
         Func<bool, IReadOnlyList<KnownSessionStore>>? knownStoresProvider,
         bool deepScan)
     {
-        if (knownStoresProvider is null)
-        {
-            throw new ArgumentNullException(nameof(knownStoresProvider));
-        }
+        ArgumentNullException.ThrowIfNull(knownStoresProvider);
 
         var knownStores = knownStoresProvider(deepScan);
         if (knownStores is null)

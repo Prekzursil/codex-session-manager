@@ -277,6 +277,20 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
+    public void GetRequiredPreferredCopy_rejects_sessions_without_a_preferred_copy()
+    {
+        var session = WithNullIndexedSessionProperty(
+            BuildIndexedSession(
+                "session-missing-copy",
+                "Missing Copy",
+                Path.Combine(Path.GetTempPath(), "session-missing-copy.jsonl")),
+            nameof(IndexedLogicalSession.PreferredCopy));
+
+        var preferredCopyException = Assert.Throws<TargetInvocationException>(() => GetRequiredPreferredCopyMethod.Invoke(null, [session]));
+        Assert.IsType<InvalidOperationException>(preferredCopyException.InnerException);
+    }
+
+    [Fact]
     public void RunEventTask_rejects_invalid_arguments()
     {
         RunInSta(() =>

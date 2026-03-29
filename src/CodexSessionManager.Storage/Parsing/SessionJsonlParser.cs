@@ -224,10 +224,7 @@ public static partial class SessionJsonlParser
 
     private static string? TryExtractCommand(string rawArguments)
     {
-        if (rawArguments is null)
-        {
-            throw new ArgumentNullException(nameof(rawArguments));
-        }
+        ArgumentNullException.ThrowIfNull(rawArguments);
 
         if (string.IsNullOrWhiteSpace(rawArguments))
         {
@@ -246,20 +243,9 @@ public static partial class SessionJsonlParser
 
     private static void ExtractFilePathsAndUrls(string value, ISet<string> filePaths, ISet<string> urls)
     {
-        if (value is null)
-        {
-            throw new ArgumentNullException(nameof(value));
-        }
-
-        if (filePaths is null)
-        {
-            throw new ArgumentNullException(nameof(filePaths));
-        }
-
-        if (urls is null)
-        {
-            throw new ArgumentNullException(nameof(urls));
-        }
+        ArgumentNullException.ThrowIfNull(value);
+        ArgumentNullException.ThrowIfNull(filePaths);
+        ArgumentNullException.ThrowIfNull(urls);
 
         foreach (Match match in UrlRegex.Matches(value))
         {
@@ -274,10 +260,7 @@ public static partial class SessionJsonlParser
 
     private static bool TryExtractExitCode(string text, out int exitCode)
     {
-        if (text is null)
-        {
-            throw new ArgumentNullException(nameof(text));
-        }
+        ArgumentNullException.ThrowIfNull(text);
 
         exitCode = 0;
         if (string.IsNullOrWhiteSpace(text))
@@ -303,10 +286,7 @@ public static partial class SessionJsonlParser
         out JsonElement propertyElement)
     {
         propertyElement = default;
-        if (propertyName is null)
-        {
-            throw new ArgumentNullException(nameof(propertyName));
-        }
+        ArgumentNullException.ThrowIfNull(propertyName);
 
         if (element.ValueKind != JsonValueKind.Object)
         {
@@ -318,11 +298,7 @@ public static partial class SessionJsonlParser
 
     private static ParseState RequireState(ParseState? state)
     {
-        if (state is null)
-        {
-            throw new ArgumentNullException(nameof(state));
-        }
-
+        ArgumentNullException.ThrowIfNull(state);
         return state;
     }
 

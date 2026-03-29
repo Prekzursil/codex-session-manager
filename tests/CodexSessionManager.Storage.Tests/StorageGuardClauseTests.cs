@@ -64,6 +64,9 @@ public sealed class StorageGuardClauseTests
     private static readonly MethodInfo ReplaceCopyRowsMethod =
         typeof(SessionCatalogRepository).GetMethod("ReplaceCopyRowsAsync", BindingFlags.NonPublic | BindingFlags.Static)!;
 
+    private static readonly MethodInfo LoadSessionsMethod =
+        typeof(SessionCatalogRepository).GetMethod("LoadSessionsAsync", BindingFlags.NonPublic | BindingFlags.Static)!;
+
     private static readonly MethodInfo ExecuteReaderMethod =
         typeof(SessionCatalogRepository).GetMethod("ExecuteReaderAsync", BindingFlags.NonPublic | BindingFlags.Static)!;
 
@@ -244,6 +247,49 @@ public sealed class StorageGuardClauseTests
 
         DatabasePathField.SetValue(repository, string.Empty);
         AssertInner<InvalidOperationException>(() => OpenConnectionMethod.Invoke(repository, [CancellationToken.None]));
+    }
+
+    [Fact]
+    public async Task LoadSessionsAsync_treats_null_copy_entries_as_missingAsync()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            CREATE TABLE sessions (
+                session_id TEXT PRIMARY KEY,
+                thread_name TEXT NOT NULL,
+                preferred_path TEXT NOT NULL,
+                readable_transcript TEXT NOT NULL,
+                dialogue_transcript TEXT NOT NULL,
+                tool_summary TEXT NOT NULL,
+                command_text TEXT NOT NULL,
+                file_paths TEXT NOT NULL,
+                urls TEXT NOT NULL,
+                error_text TEXT NOT NULL,
+                alias TEXT NOT NULL,
+                tags TEXT NOT NULL,
+                notes TEXT NOT NULL
+            );
+            INSERT INTO sessions(session_id, thread_name, preferred_path, readable_transcript, dialogue_transcript, tool_summary, command_text, file_paths, urls, error_text, alias, tags, notes)
+            VALUES ('session-null-copies', 'Thread', 'preferred.jsonl', 'readable', 'dialogue', '', '', '', '', '', '', '', '');
+            """;
+        await command.ExecuteNonQueryAsync();
+
+        var copiesBySession = new Dictionary<string, List<SessionPhysicalCopy>>(StringComparer.Ordinal)
+        {
+            ["session-null-copies"] = null!,
+        };
+
+        var sessions = (IReadOnlyList<IndexedLogicalSession>)await ((Task<IReadOnlyList<IndexedLogicalSession>>)LoadSessionsMethod.Invoke(
+            null,
+            [connection, copiesBySession, CancellationToken.None])!);
+        var session = Assert.Single(sessions);
+
+        Assert.Equal("preferred.jsonl", session.PreferredCopy.FilePath);
+        Assert.Single(session.PhysicalCopies);
+        Assert.Equal("preferred.jsonl", session.PhysicalCopies[0].FilePath);
     }
 
     private static IndexedLogicalSession WithNullIndexedSessionProperty(IndexedLogicalSession session, string propertyName)

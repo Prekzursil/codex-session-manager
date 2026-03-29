@@ -20,15 +20,8 @@ public partial class MainWindow
 
     private async Task PopulateSelectedSessionHeaderAsync(IndexedLogicalSession selected, string selectedSessionId)
     {
-        if (selected is null)
-        {
-            throw new ArgumentNullException(nameof(selected));
-        }
-
-        if (selectedSessionId is null)
-        {
-            throw new ArgumentNullException(nameof(selectedSessionId));
-        }
+        ArgumentNullException.ThrowIfNull(selected);
+        ArgumentNullException.ThrowIfNull(selectedSessionId);
 
         var preferredCopy = selected.PreferredCopy;
         if (preferredCopy is null)
@@ -67,15 +60,8 @@ public partial class MainWindow
 
     private async Task LoadSelectedSessionBodyAsync(IndexedLogicalSession selected, string selectedSessionId)
     {
-        if (selected is null)
-        {
-            throw new ArgumentNullException(nameof(selected));
-        }
-
-        if (selectedSessionId is null)
-        {
-            throw new ArgumentNullException(nameof(selectedSessionId));
-        }
+        ArgumentNullException.ThrowIfNull(selected);
+        ArgumentNullException.ThrowIfNull(selectedSessionId);
 
         try
         {

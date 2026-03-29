@@ -7,18 +7,12 @@ public static class SessionDiscoveryService
 {
     public static async Task<DiscoveredSessionCatalog> DiscoverAsync(IEnumerable<SessionStoreRoot> roots, CancellationToken cancellationToken)
     {
-        if (roots is null)
-        {
-            throw new ArgumentNullException(nameof(roots));
-        }
+        ArgumentNullException.ThrowIfNull(roots);
 
         var stores = new List<KnownSessionStore>();
         foreach (var root in roots)
         {
-            if (root is null)
-            {
-                throw new ArgumentNullException(nameof(roots));
-            }
+            ArgumentNullException.ThrowIfNull(root, nameof(roots));
 
             stores.Add(CreateKnownSessionStore(root));
         }
@@ -29,10 +23,7 @@ public static class SessionDiscoveryService
 
     private static KnownSessionStore CreateKnownSessionStore(SessionStoreRoot root)
     {
-        if (root is null)
-        {
-            throw new ArgumentNullException(nameof(root));
-        }
+        ArgumentNullException.ThrowIfNull(root);
 
         var rootPath = root.RootPath;
         if (string.IsNullOrWhiteSpace(rootPath))
@@ -74,10 +65,7 @@ public static class SessionDiscoveryService
 
     private static string NormalizeRootPath(string rootPath)
     {
-        if (rootPath is null)
-        {
-            throw new ArgumentNullException(nameof(rootPath));
-        }
+        ArgumentNullException.ThrowIfNull(rootPath);
 
         var normalizedRootPath = rootPath;
         normalizedRootPath = normalizedRootPath.Replace('\\', Path.DirectorySeparatorChar);
