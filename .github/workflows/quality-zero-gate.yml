@@ -20,4 +20,4 @@ jobs:
       event_name: ${{ github.event_name }}
       sha: ${{ github.event.pull_request.head.sha || github.sha }}
       platform_repository: Prekzursil/quality-zero-platform
-      platform_ref: 611dca0b5fd94306edacef37dcc503490896255a
+      platform_ref: 3d8af96
