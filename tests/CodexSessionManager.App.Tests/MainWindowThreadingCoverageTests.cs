@@ -399,6 +399,8 @@ public sealed partial class MainWindowCoverageTests
                     InvokePrivateTaskAsync(window, LoadSelectedSessionBodyAsyncMethod, null!, session.SessionId));
                 await Assert.ThrowsAsync<ArgumentNullException>(() =>
                     InvokePrivateTaskAsync(window, LoadSelectedSessionBodyAsyncMethod, session, null!));
+                await Assert.ThrowsAsync<ArgumentException>(() =>
+                    InvokePrivateTaskAsync(window, LoadSelectedSessionBodyAsyncMethod, session, " "));
             }
             finally
             {

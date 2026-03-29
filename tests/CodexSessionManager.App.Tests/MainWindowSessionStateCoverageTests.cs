@@ -177,6 +177,21 @@ public sealed partial class MainWindowCoverageTests
     }
 
     [Fact]
+    public async Task LoadSelectedSessionAsync_returns_without_selectionAsync()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var window = new MainWindow();
+
+            await InvokePrivateTaskAsync(window, LoadSelectedSessionAsyncMethod);
+
+            Assert.Equal("Starting…", GetNamedField<TextBlock>(window, "StatusTextBlock").Text);
+            Assert.Equal(string.Empty, GetNamedField<TextBlock>(window, "ThreadNameTextBlock").Text);
+            window.Close();
+        });
+    }
+
+    [Fact]
     public async Task LoadSelectedSessionAsync_failure_updates_fallback_uiAsync()
     {
         await RunInStaAsync(async () =>

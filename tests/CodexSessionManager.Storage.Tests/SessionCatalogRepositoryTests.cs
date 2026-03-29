@@ -416,18 +416,68 @@ public sealed class SessionCatalogRepositoryTests
         }
     }
 
+    [Fact]
+    public async Task UpsertAsync_And_ListSessionsAsync_PreserveHotCopyStateAsync()
+    {
+        var databasePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var repository = new SessionCatalogRepository(databasePath);
+            await repository.InitializeAsync(CancellationToken.None);
+
+            var session = CreateIndexedSession(
+                "session-hot-copy",
+                "Hot Copy",
+                new SessionSearchDocument
+                {
+                    ReadableTranscript = "hot transcript",
+                    DialogueTranscript = "hot transcript",
+                    ToolSummary = "",
+                    CommandText = "",
+                    FilePaths = [],
+                    Urls = [],
+                    ErrorText = "",
+                    Alias = "",
+                    Tags = [],
+                    Notes = ""
+                },
+                isHot: true);
+
+            await repository.UpsertAsync(session, CancellationToken.None);
+
+            var stored = Assert.Single(await repository.ListSessionsAsync(CancellationToken.None));
+
+            Assert.True(stored.PreferredCopy.IsHot);
+            Assert.True(stored.PhysicalCopies.Single().IsHot);
+        }
+        finally
+        {
+            try
+            {
+                File.Delete(databasePath);
+            }
+            catch (IOException)
+            {
+                // best-effort cleanup for Windows temp SQLite files
+            }
+        }
+    }
+
     private static IndexedLogicalSession CreateIndexedSession(
         string sessionId,
         string threadName,
         SessionSearchDocument searchDocument,
         DateTimeOffset? lastWriteTimeUtc = null,
-        long fileSizeBytes = 1000)
+        long fileSizeBytes = 1000,
+        bool isHot = false)
     {
         var preferredCopy = CreateLiveCopy(
             sessionId,
             $@"C:\Users\Prekzursil\.codex\sessions\{sessionId}.jsonl",
             lastWriteTimeUtc ?? DateTimeOffset.UtcNow,
-            fileSizeBytes);
+            fileSizeBytes,
+            isHot);
 
         return new IndexedLogicalSession(
             sessionId,
@@ -441,13 +491,14 @@ public sealed class SessionCatalogRepositoryTests
         string sessionId,
         string filePath,
         DateTimeOffset lastWriteTimeUtc,
-        long fileSizeBytes)
+        long fileSizeBytes,
+        bool isHot)
     {
         return new SessionPhysicalCopy(
             sessionId,
             filePath,
             SessionStoreKind.Live,
-            new SessionPhysicalCopyState(lastWriteTimeUtc, fileSizeBytes, false));
+            new SessionPhysicalCopyState(lastWriteTimeUtc, fileSizeBytes, isHot));
     }
 }
 

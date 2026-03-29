@@ -76,6 +76,37 @@ public sealed partial class MainWindowCoverageTests
     }
 
     [Fact]
+    public void BuildKnownStores_skips_duplicate_codex_home_entries_on_deep_scan()
+    {
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var codexHome = Path.Combine(userProfile, ".codex");
+        var createdCodexHome = false;
+
+        try
+        {
+            if (!Directory.Exists(codexHome))
+            {
+                Directory.CreateDirectory(codexHome);
+                createdCodexHome = true;
+            }
+
+            var deep = InvokeBuildKnownStores(true);
+
+            Assert.Equal(
+                deep.Select(store => store.SessionsPath).Distinct(StringComparer.OrdinalIgnoreCase).Count(),
+                deep.Count);
+            Assert.Contains(deep, store => string.Equals(store.WorkspaceRoot, codexHome, StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            if (createdCodexHome)
+            {
+                Directory.Delete(codexHome, recursive: false);
+            }
+        }
+    }
+
+    [Fact]
     public void GetLiveSqliteStatus_returns_status_string()
     {
         var value = (string)GetLiveSqliteStatusMethod.Invoke(null, [])!;
@@ -149,6 +180,13 @@ public sealed partial class MainWindowCoverageTests
     public void DescribeSqlitePath_rejects_null_path()
     {
         var exception = Assert.Throws<TargetInvocationException>(() => DescribeSqlitePathMethod.Invoke(null, [null!, null]));
+        Assert.IsType<ArgumentNullException>(exception.InnerException);
+    }
+
+    [Fact]
+    public void DescribeSqlitePath_single_argument_overload_rejects_null_path()
+    {
+        var exception = Assert.Throws<TargetInvocationException>(() => DescribeSqlitePathSingleArgumentMethod.Invoke(null, [null!]));
         Assert.IsType<ArgumentNullException>(exception.InnerException);
     }
 
