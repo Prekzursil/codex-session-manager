@@ -17,7 +17,7 @@ namespace CodexSessionManager.App.Tests;
 public sealed partial class MainWindowCoverageTests
 {
     [Fact]
-    public async Task InitializeComponent_can_be_called_again_after_constructor_loads_xaml_async()
+    public async Task InitializeComponent_can_be_called_again_after_constructor_loads_xamlAsync()
     {
         await RunInStaAsync(() =>
         {
@@ -210,7 +210,7 @@ public sealed partial class MainWindowCoverageTests
     }
 
     [Fact]
-    public async Task RunBackgroundRefreshAsync_refreshes_successfully_async()
+    public async Task RunBackgroundRefreshAsync_refreshes_successfullyAsync()
     {
         await RunInStaAsync(async () =>
         {
