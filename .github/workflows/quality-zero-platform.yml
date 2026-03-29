@@ -18,7 +18,7 @@ jobs:
       contents: read
       id-token: write
       pull-requests: write
-    uses: Prekzursil/quality-zero-platform/.github/workflows/reusable-scanner-matrix.yml@codex/strict-zero-airline-csm-v2
+    uses: Prekzursil/quality-zero-platform/.github/workflows/reusable-scanner-matrix.yml@cd97245a7c9c2e8057ecdc8f87f6039443632e94
     with:
       repo_slug: ${{ github.repository }}
       event_name: ${{ github.event_name }}
@@ -29,7 +29,7 @@ jobs:
       sha: ${{ github.event.pull_request.head.sha || github.sha }}
       coverage_runner: windows-latest
       platform_repository: Prekzursil/quality-zero-platform
-      platform_ref: codex/strict-zero-airline-csm-v2
+      platform_ref: cd97245a7c9c2e8057ecdc8f87f6039443632e94
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       CODACY_API_TOKEN: ${{ secrets.CODACY_API_TOKEN }}
