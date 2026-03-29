@@ -133,187 +133,6 @@ public partial class MainWindow : Window
         });
     }
 
-    private async Task LoadSelectedSessionAsync()
-    {
-        var selected = await RunOnUiThreadValueAsync(GetSelectedSession);
-        if (selected is null)
-        {
-            return;
-        }
-
-        var selectedSessionId = GetSessionId(selected);
-        await PopulateSelectedSessionHeaderAsync(selected, selectedSessionId);
-        await LoadSelectedSessionBodyAsync(selected, selectedSessionId);
-    }
-
-    private async Task PopulateSelectedSessionHeaderAsync(IndexedLogicalSession selected, string selectedSessionId)
-    {
-        var preferredCopy = selected.PreferredCopy;
-        var searchDocument = selected.SearchDocument;
-        var physicalCopies = selected.PhysicalCopies;
-
-        await RunOnUiThreadAsync(() =>
-        {
-            var currentSelection = GetSelectedSession();
-            if (currentSelection is null || !string.Equals(currentSelection.SessionId, selectedSessionId, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            ThreadNameTextBlock.Text = GetThreadName(selected);
-            SessionIdTextBlock.Text = GetSessionId(selected);
-            PreferredPathTextBlock.Text = preferredCopy.FilePath;
-            AliasTextBox.Text = searchDocument.Alias;
-            TagsTextBox.Text = string.Join(", ", searchDocument.Tags);
-            NotesTextBox.Text = searchDocument.Notes;
-            CopiesListBox.ItemsSource = physicalCopies;
-            ReadableTranscriptTextBox.Text = searchDocument.ReadableTranscript;
-            DialogueTranscriptTextBox.Text = searchDocument.DialogueTranscript;
-        });
-    }
-
-    private async Task LoadSelectedSessionBodyAsync(IndexedLogicalSession selected, string selectedSessionId)
-    {
-        try
-        {
-            var preferredCopy = selected.PreferredCopy;
-            var preferredPath = preferredCopy.FilePath;
-            var parsed = await SessionParser(preferredPath, CancellationToken.None);
-            var rawContent = FileTextReader(preferredPath);
-            var readableTranscript = SessionTranscriptFormatter.Format(parsed.Document, TranscriptMode.Readable).RenderedMarkdown;
-            var dialogueTranscript = SessionTranscriptFormatter.Format(parsed.Document, TranscriptMode.Dialogue).RenderedMarkdown;
-            var auditTranscript = SessionTranscriptFormatter.Format(parsed.Document, TranscriptMode.Audit).RenderedMarkdown;
-            var sqliteStatus = LiveSqliteStatusProvider();
-
-            if (await IsSessionStillSelectedAsync(selectedSessionId))
-            {
-                await RunOnUiThreadAsync(() =>
-                {
-                    SQLiteStatusTextBlock.Text = sqliteStatus;
-                    CwdTextBlock.Text = parsed.Cwd ?? "-";
-                    RawTranscriptTextBox.Text = rawContent;
-                    ReadableTranscriptTextBox.Text = readableTranscript;
-                    DialogueTranscriptTextBox.Text = dialogueTranscript;
-                    AuditTranscriptTextBox.Text = auditTranscript;
-                });
-            }
-        }
-        catch (Exception ex)
-        {
-            if (await IsSessionStillSelectedAsync(selectedSessionId))
-            {
-                await RunOnUiThreadAsync(() =>
-                {
-                    CwdTextBlock.Text = "-";
-                    SQLiteStatusTextBlock.Text = "Live SQLite status unavailable.";
-                    AuditTranscriptTextBox.Text = string.Empty;
-                    RawTranscriptTextBox.Text = $"Unable to load raw session content.{Environment.NewLine}{ex.Message}";
-                });
-            }
-        }
-    }
-
-    private async Task SearchSessionsAsync()
-    {
-        if (_repository is null)
-        {
-            return;
-        }
-
-        var searchToken = BeginSearchToken();
-        var query = await RunOnUiThreadValueAsync(() => SearchTextBox.Text);
-        if (string.IsNullOrWhiteSpace(query))
-        {
-            await ReloadSessionsForSearchAsync(searchToken);
-        }
-        else
-        {
-            await ApplySearchResultsAsync(query, searchToken);
-        }
-    }
-
-    private async Task ReloadSessionsForSearchAsync(CancellationToken searchToken)
-    {
-        var repository = _repository;
-        if (repository is null)
-        {
-            return;
-        }
-
-        var sessions = await repository.ListSessionsAsync(CancellationToken.None);
-        var searchCanceled = searchToken.IsCancellationRequested;
-        await RunOnUiThreadAsync(() =>
-        {
-            if (searchCanceled)
-            {
-                return;
-            }
-
-            _sessions.Clear();
-            foreach (var session in sessions)
-            {
-                _sessions.Add(session);
-            }
-
-            StatusTextBlock.Text = $"Loaded {_sessions.Count} sessions from cached index.";
-        });
-    }
-
-    private async Task ApplySearchResultsAsync(string query, CancellationToken searchToken)
-    {
-        var repository = _repository ?? throw new InvalidOperationException("Repository has not been initialized.");
-        var hits = await repository.SearchAsync(query, CancellationToken.None);
-        var hitIds = hits.Select(hit => hit.SessionId).ToHashSet(StringComparer.Ordinal);
-        var allSessions = await repository.ListSessionsAsync(CancellationToken.None);
-        var visibleSessions = allSessions.Where(session => hitIds.Contains(session.SessionId)).ToArray();
-        var searchCanceled = searchToken.IsCancellationRequested;
-
-        await RunOnUiThreadAsync(() =>
-        {
-            if (searchCanceled)
-            {
-                return;
-            }
-
-            _sessions.Clear();
-            foreach (var session in visibleSessions)
-            {
-                _sessions.Add(session);
-            }
-
-            StatusTextBlock.Text = $"Search returned {_sessions.Count} sessions.";
-        });
-    }
-
-    private CancellationToken BeginSearchToken()
-    {
-        var replacement = new CancellationTokenSource();
-        var previous = Interlocked.Exchange(ref _searchCts, replacement);
-        previous?.Cancel();
-        previous?.Dispose();
-        return replacement.Token;
-    }
-
-    private async Task<bool> IsSessionStillSelectedAsync(string sessionId)
-    {
-        return await RunOnUiThreadValueAsync(() =>
-        {
-            var selected = GetSelectedSession();
-            return selected is not null && string.Equals(selected.SessionId, sessionId, StringComparison.Ordinal);
-        });
-    }
-
-    private void DisposeSearchCancellation()
-    {
-        var current = Interlocked.Exchange(ref _searchCts, null);
-        current?.Cancel();
-        current?.Dispose();
-    }
-
-    private static string GetSessionId(IndexedLogicalSession session) => session.SessionId;
-
-    private static string GetThreadName(IndexedLogicalSession session) => session.ThreadName;
-
     private async Task RefreshAsync(bool deepScan)
     {
         if (_repository is null || _workspaceIndexer is null)
@@ -328,7 +147,7 @@ public partial class MainWindow : Window
         await _workspaceIndexer.RebuildAsync(knownStores, CancellationToken.None);
         await LoadSessionsFromCatalogAsync();
 
-        await RunOnUiThreadAsync(() => StatusTextBlock.Text = $"Indexed {_sessions.Count} deduped sessions at {DateTime.Now:t}.");
+        await RunOnUiThreadAsync(() => StatusTextBlock.Text = $"Indexed {_sessions.Count} deduped sessions at {DateTime.UtcNow.ToLocalTime():t}.");
     }
 
     private Task RunOnUiThreadAsync(Action action)
@@ -356,6 +175,25 @@ public partial class MainWindow : Window
         }
 
         return dispatcher.InvokeAsync(func).Task;
+    }
+
+    private void RunEventTask(Func<Task> action, string failurePrefix)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        ArgumentException.ThrowIfNullOrWhiteSpace(failurePrefix);
+        _ = RunEventTaskCoreAsync(action, failurePrefix);
+    }
+
+    private async Task RunEventTaskCoreAsync(Func<Task> action, string failurePrefix)
+    {
+        try
+        {
+            await action();
+        }
+        catch (Exception ex)
+        {
+            await RunOnUiThreadAsync(() => StatusTextBlock.Text = $"{failurePrefix}: {ex.Message}");
+        }
     }
 
     private string? SelectExportPath(string defaultFileName)
@@ -396,17 +234,19 @@ public partial class MainWindow : Window
     private IReadOnlyList<IndexedLogicalSession> GetSelectedSessions() =>
         SessionsListBox.SelectedItems.Cast<IndexedLogicalSession>().ToArray();
 
-    private async void SessionsListBox_OnSelectionChanged(object _, System.Windows.Controls.SelectionChangedEventArgs __) =>
-        await LoadSelectedSessionAsync();
+    private void SessionsListBox_OnSelectionChanged(object _, System.Windows.Controls.SelectionChangedEventArgs __) =>
+        RunEventTask(LoadSelectedSessionAsync, "Failed to load session");
 
-    private async void SearchTextBox_OnTextChanged(object _, System.Windows.Controls.TextChangedEventArgs __) =>
-        await SearchSessionsAsync();
-
-    [ExcludeFromCodeCoverage]
-    private async void RefreshButton_OnClick(object _, RoutedEventArgs __) => await RefreshAsync(deepScan: false);
+    private void SearchTextBox_OnTextChanged(object _, System.Windows.Controls.TextChangedEventArgs __) =>
+        RunEventTask(SearchSessionsAsync, "Failed to search sessions");
 
     [ExcludeFromCodeCoverage]
-    private async void DeepScanButton_OnClick(object _, RoutedEventArgs __) => await RefreshAsync(deepScan: true);
+    private void RefreshButton_OnClick(object _, RoutedEventArgs __) =>
+        RunEventTask(() => RefreshAsync(deepScan: false), "Refresh failed");
+
+    [ExcludeFromCodeCoverage]
+    private void DeepScanButton_OnClick(object _, RoutedEventArgs __) =>
+        RunEventTask(() => RefreshAsync(deepScan: true), "Deep scan failed");
 
     private async Task SaveSelectedMetadataAsync()
     {
@@ -436,8 +276,11 @@ public partial class MainWindow : Window
     }
 
     [ExcludeFromCodeCoverage]
-    private async void SaveMetadataButton_OnClick(object _, RoutedEventArgs __) =>
-        await SaveSelectedMetadataAsync();
+    private void SaveMetadataButton_OnClick(object _, RoutedEventArgs __) =>
+        RunEventTask(SaveSelectedMetadataAsync, "Failed to save metadata");
+
+    private static SessionPhysicalCopy GetRequiredPreferredCopy(IndexedLogicalSession session) =>
+        session.PreferredCopy ?? throw new InvalidOperationException("Selected session is missing a preferred copy.");
 
     private void OpenFolderButton_OnClick(object _, RoutedEventArgs __)
     {
@@ -447,7 +290,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var preferredPath = selected.PreferredCopy.FilePath;
+        var preferredPath = GetRequiredPreferredCopy(selected).FilePath;
         var folder = Path.GetDirectoryName(preferredPath);
         if (!string.IsNullOrWhiteSpace(folder))
         {
@@ -463,7 +306,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var preferredPath = selected.PreferredCopy.FilePath;
+        var preferredPath = GetRequiredPreferredCopy(selected).FilePath;
         ProcessStarter("notepad.exe", $"\"{preferredPath}\"");
     }
 
@@ -475,7 +318,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var preferredPath = selected.PreferredCopy.FilePath;
+        var preferredPath = GetRequiredPreferredCopy(selected).FilePath;
         ClipboardSetter(preferredPath);
         StatusTextBlock.Text = "Copied preferred path to clipboard.";
     }
@@ -521,7 +364,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var targets = selectedSessions.SelectMany(static session => session.PhysicalCopies).ToArray();
+        var targets = selectedSessions.SelectMany(static session => session.PhysicalCopies ?? []).ToArray();
         var action = MaintenanceActionComboBox.SelectedItem is MaintenanceAction selectedAction
             ? selectedAction
             : MaintenanceAction.Archive;
@@ -572,8 +415,8 @@ public partial class MainWindow : Window
     }
 
     [ExcludeFromCodeCoverage]
-    private async void ExecuteMaintenanceButton_OnClick(object _, RoutedEventArgs __) =>
-        await ExecuteMaintenanceAsync();
+    private void ExecuteMaintenanceButton_OnClick(object _, RoutedEventArgs __) =>
+        RunEventTask(ExecuteMaintenanceAsync, "Maintenance failed");
 
     internal static string? DescribeSqlitePath(string path, Func<string, FileInfo>? fileInfoFactory = null)
     {

@@ -14,7 +14,10 @@ public static partial class SessionJsonlParser
 
     public static async Task<ParsedSessionFile> ParseAsync(string filePath, CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            throw new ArgumentException("Value cannot be null or whitespace.", nameof(filePath));
+        }
 
         var normalizedFilePath = filePath;
         var lines = await File.ReadAllLinesAsync(normalizedFilePath, cancellationToken);

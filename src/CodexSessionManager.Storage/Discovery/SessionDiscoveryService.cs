@@ -20,17 +20,25 @@ public static class SessionDiscoveryService
 
     private static KnownSessionStore CreateKnownSessionStore(SessionStoreRoot root)
     {
-        var normalizedRoot = root.RootPath.Replace('/', '\\').TrimEnd('\\'); // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+        var normalizedRoot = NormalizeRootPath(root.RootPath); // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
         var backupWorkspaceRoot = Path.GetDirectoryName(normalizedRoot);
         var normalizedBackupWorkspaceRoot = string.IsNullOrWhiteSpace(backupWorkspaceRoot) ? normalizedRoot : backupWorkspaceRoot;
 
         return root.StoreKind switch // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
         {
             SessionStoreKind.Live => new KnownSessionStore(normalizedRoot, root.StoreKind, Path.Combine(normalizedRoot, "sessions"), Path.Combine(normalizedRoot, "session_index.jsonl")), // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
-            SessionStoreKind.Backup when normalizedRoot.EndsWith(@"\sessions_backup", StringComparison.OrdinalIgnoreCase)
+            SessionStoreKind.Backup when normalizedRoot.EndsWith($"{Path.DirectorySeparatorChar}sessions_backup", StringComparison.OrdinalIgnoreCase)
                 => new KnownSessionStore(normalizedBackupWorkspaceRoot, root.StoreKind, normalizedRoot, Path.Combine(normalizedBackupWorkspaceRoot, "session_index.jsonl")), // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
             _ => new KnownSessionStore(normalizedRoot, root.StoreKind, normalizedRoot, Path.Combine(normalizedRoot, "session_index.jsonl")) // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
         };
+    }
+
+    private static string NormalizeRootPath(string rootPath)
+    {
+        var alternateSeparator = Path.DirectorySeparatorChar == '/'
+            ? '\\'
+            : '/';
+        return rootPath.Replace(alternateSeparator, Path.DirectorySeparatorChar).TrimEnd(Path.DirectorySeparatorChar);
     }
 }
 

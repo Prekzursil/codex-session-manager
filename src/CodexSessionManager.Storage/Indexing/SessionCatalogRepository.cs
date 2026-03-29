@@ -122,14 +122,17 @@ public sealed class SessionCatalogRepository
 
     public SessionCatalogRepository(string databasePath)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(databasePath);
+        if (string.IsNullOrWhiteSpace(databasePath))
+        {
+            throw new ArgumentException("Value cannot be null or whitespace.", nameof(databasePath));
+        }
+
         _databasePath = Path.GetFullPath(databasePath);
     }
 
     public async Task InitializeAsync(CancellationToken cancellationToken)
     {
-        var connection = RequireConnection(await OpenConnectionAsync(cancellationToken));
-        await using var disposableConnection = connection;
+        await using var connection = RequireConnection(await OpenConnectionAsync(cancellationToken));
         await EnsureSchemaAsync(connection, cancellationToken);
         await RefreshSearchIndexAsync(connection, cancellationToken);
     }
@@ -139,8 +142,7 @@ public sealed class SessionCatalogRepository
         ArgumentNullException.ThrowIfNull(session);
 
         var indexedSession = session;
-        var connection = RequireConnection(await OpenConnectionAsync(cancellationToken));
-        await using var disposableConnection = connection;
+        await using var connection = RequireConnection(await OpenConnectionAsync(cancellationToken));
         var searchDocument = await MergeExistingMetadataAsync(connection, indexedSession, cancellationToken);
         var sessionId = indexedSession.SessionId;
         var threadName = indexedSession.ThreadName;
@@ -148,24 +150,22 @@ public sealed class SessionCatalogRepository
             ?? throw new InvalidOperationException("Session is missing a preferred copy.");
         var physicalCopies = indexedSession.PhysicalCopies ?? [];
 
-        await using (var command = new SqliteCommand(UpsertSessionSql, connection))
-        {
-            command.Parameters.AddWithValue(SessionIdParameterName, sessionId);
-            command.Parameters.AddWithValue("$threadName", threadName);
-            command.Parameters.AddWithValue("$preferredPath", preferredCopy.FilePath);
-            command.Parameters.AddWithValue("$readableTranscript", searchDocument.ReadableTranscript);
-            command.Parameters.AddWithValue("$dialogueTranscript", searchDocument.DialogueTranscript);
-            command.Parameters.AddWithValue("$toolSummary", searchDocument.ToolSummary);
-            command.Parameters.AddWithValue("$commandText", searchDocument.CommandText);
-            command.Parameters.AddWithValue("$filePaths", string.Join('\n', searchDocument.FilePaths));
-            command.Parameters.AddWithValue("$urls", string.Join('\n', searchDocument.Urls));
-            command.Parameters.AddWithValue("$errorText", searchDocument.ErrorText);
-            command.Parameters.AddWithValue("$alias", searchDocument.Alias);
-            command.Parameters.AddWithValue("$tags", string.Join('\n', searchDocument.Tags));
-            command.Parameters.AddWithValue("$notes", searchDocument.Notes);
-            command.Parameters.AddWithValue("$combinedText", searchDocument.CombinedText);
-            await command.ExecuteNonQueryAsync(cancellationToken);
-        }
+        await using var command = new SqliteCommand(UpsertSessionSql, connection);
+        command.Parameters.AddWithValue(SessionIdParameterName, sessionId);
+        command.Parameters.AddWithValue("$threadName", threadName);
+        command.Parameters.AddWithValue("$preferredPath", preferredCopy.FilePath);
+        command.Parameters.AddWithValue("$readableTranscript", searchDocument.ReadableTranscript);
+        command.Parameters.AddWithValue("$dialogueTranscript", searchDocument.DialogueTranscript);
+        command.Parameters.AddWithValue("$toolSummary", searchDocument.ToolSummary);
+        command.Parameters.AddWithValue("$commandText", searchDocument.CommandText);
+        command.Parameters.AddWithValue("$filePaths", string.Join('\n', searchDocument.FilePaths));
+        command.Parameters.AddWithValue("$urls", string.Join('\n', searchDocument.Urls));
+        command.Parameters.AddWithValue("$errorText", searchDocument.ErrorText);
+        command.Parameters.AddWithValue("$alias", searchDocument.Alias);
+        command.Parameters.AddWithValue("$tags", string.Join('\n', searchDocument.Tags));
+        command.Parameters.AddWithValue("$notes", searchDocument.Notes);
+        command.Parameters.AddWithValue("$combinedText", searchDocument.CombinedText);
+        await command.ExecuteNonQueryAsync(cancellationToken);
 
         await ReplaceCopyRowsAsync(connection, sessionId, physicalCopies, cancellationToken);
         await RefreshSearchRowAsync(connection, sessionId, cancellationToken);
@@ -181,8 +181,7 @@ public sealed class SessionCatalogRepository
             return [];
         }
 
-        var connection = RequireConnection(await OpenConnectionAsync(cancellationToken));
-        await using var disposableConnection = connection;
+        await using var connection = RequireConnection(await OpenConnectionAsync(cancellationToken));
         await using var command = new SqliteCommand(SearchSql, connection);
         command.Parameters.AddWithValue("$query", BuildFtsQuery(searchQuery));
 
@@ -200,12 +199,15 @@ public sealed class SessionCatalogRepository
 
     public async Task SaveMetadataAsync(string sessionId, string alias, IReadOnlyList<string> tags, string notes, CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+        if (string.IsNullOrWhiteSpace(sessionId))
+        {
+            throw new ArgumentException("Value cannot be null or whitespace.", nameof(sessionId));
+        }
+
         ArgumentNullException.ThrowIfNull(tags);
 
         var normalizedSessionId = sessionId;
-        var connection = RequireConnection(await OpenConnectionAsync(cancellationToken));
-        await using var disposableConnection = connection;
+        await using var connection = RequireConnection(await OpenConnectionAsync(cancellationToken));
         await using var command = new SqliteCommand(UpdateMetadataSql, connection);
         command.Parameters.AddWithValue(SessionIdParameterName, normalizedSessionId);
         command.Parameters.AddWithValue("$alias", alias);
@@ -220,8 +222,7 @@ public sealed class SessionCatalogRepository
 
     public async Task<IReadOnlyList<IndexedLogicalSession>> ListSessionsAsync(CancellationToken cancellationToken)
     {
-        var connection = RequireConnection(await OpenConnectionAsync(cancellationToken));
-        await using var disposableConnection = connection;
+        await using var connection = RequireConnection(await OpenConnectionAsync(cancellationToken));
         var copiesBySession = await LoadCopiesBySessionAsync(connection, cancellationToken);
         return await LoadSessionsAsync(connection, copiesBySession, cancellationToken);
     }
@@ -237,8 +238,10 @@ public sealed class SessionCatalogRepository
         var sessionId = session.SessionId;
         command.Parameters.AddWithValue(SessionIdParameterName, sessionId);
         cancellationToken.ThrowIfCancellationRequested();
-        using var reader = RequireReader(command.ExecuteReader(), "Metadata query did not return a reader.");
-        if (!reader.Read())
+        await using var reader = RequireReader(
+            await command.ExecuteReaderAsync(cancellationToken),
+            "Metadata query did not return a reader.");
+        if (!await reader.ReadAsync(cancellationToken))
         {
             return currentSearchDocument;
         }
@@ -255,10 +258,8 @@ public sealed class SessionCatalogRepository
     {
         ArgumentNullException.ThrowIfNull(connection);
 
-        await using (var deleteCommand = new SqliteCommand(DeleteSearchIndexSql, connection))
-        {
-            await deleteCommand.ExecuteNonQueryAsync(cancellationToken);
-        }
+        await using var deleteCommand = new SqliteCommand(DeleteSearchIndexSql, connection);
+        await deleteCommand.ExecuteNonQueryAsync(cancellationToken);
 
         await using var insertCommand = new SqliteCommand(RebuildSearchIndexSql, connection);
         await insertCommand.ExecuteNonQueryAsync(cancellationToken);
@@ -267,19 +268,18 @@ public sealed class SessionCatalogRepository
     private static async Task RefreshSearchRowAsync(SqliteConnection connection, string sessionId, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(connection);
-        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
-
-        await using (var deleteCommand = new SqliteCommand(DeleteSearchRowSql, connection))
+        if (string.IsNullOrWhiteSpace(sessionId))
         {
-            deleteCommand.Parameters.AddWithValue(SessionIdParameterName, sessionId);
-            await deleteCommand.ExecuteNonQueryAsync(cancellationToken);
+            throw new ArgumentException("Value cannot be null or whitespace.", nameof(sessionId));
         }
 
-        await using (var insertCommand = new SqliteCommand(InsertSearchRowSql, connection))
-        {
-            insertCommand.Parameters.AddWithValue(SessionIdParameterName, sessionId);
-            await insertCommand.ExecuteNonQueryAsync(cancellationToken);
-        }
+        await using var deleteCommand = new SqliteCommand(DeleteSearchRowSql, connection);
+        deleteCommand.Parameters.AddWithValue(SessionIdParameterName, sessionId);
+        await deleteCommand.ExecuteNonQueryAsync(cancellationToken);
+
+        await using var insertCommand = new SqliteCommand(InsertSearchRowSql, connection);
+        insertCommand.Parameters.AddWithValue(SessionIdParameterName, sessionId);
+        await insertCommand.ExecuteNonQueryAsync(cancellationToken);
     }
 
     private Task<SqliteConnection> OpenConnectionAsync(CancellationToken cancellationToken)
@@ -421,15 +421,9 @@ public sealed class SessionCatalogRepository
         {
             var sessionId = ReadRequiredString(reader, 0);
             var preferredPath = ReadRequiredString(reader, 2);
-            List<SessionPhysicalCopy> copies;
-            if (!copiesBySession.TryGetValue(sessionId, out var existingCopies))
-            {
-                copies = [];
-            }
-            else
-            {
-                copies = existingCopies;
-            }
+            var copies = copiesBySession.TryGetValue(sessionId, out var existingCopies)
+                ? existingCopies
+                : [];
             var preferredCopy = copies.FirstOrDefault(copy => string.Equals(copy.FilePath, preferredPath, StringComparison.OrdinalIgnoreCase))
                 ?? new SessionPhysicalCopy(
                     sessionId,
