@@ -21,13 +21,10 @@ public partial class MainWindow
         await LoadSelectedSessionBodyAsync(selected, selectedSessionId);
     }
 
-    private async Task PopulateSelectedSessionHeaderAsync(IndexedLogicalSession selected, string selectedSessionId)
+    private async Task PopulateSelectedSessionHeaderAsync(IndexedLogicalSession selected, string? selectedSessionId)
     {
         var selectedSession = selected ?? throw new ArgumentNullException(nameof(selected));
-        if (string.IsNullOrWhiteSpace(selectedSessionId))
-        {
-            throw new ArgumentException("Value cannot be null or whitespace.", nameof(selectedSessionId));
-        }
+        var sessionId = RequireSelectedSessionId(selectedSessionId);
 
         var preferredCopy = selectedSession.PreferredCopy;
         if (preferredCopy is null)
@@ -47,7 +44,7 @@ public partial class MainWindow
 
         await RunOnUiThreadAsync(() =>
         {
-            if (!string.Equals(GetSelectedSession()?.SessionId, selectedSessionId, StringComparison.Ordinal))
+            if (!string.Equals(GetSelectedSession()?.SessionId, sessionId, StringComparison.Ordinal))
             {
                 return;
             }
@@ -64,13 +61,10 @@ public partial class MainWindow
         });
     }
 
-    private async Task LoadSelectedSessionBodyAsync(IndexedLogicalSession selected, string selectedSessionId)
+    private async Task LoadSelectedSessionBodyAsync(IndexedLogicalSession selected, string? selectedSessionId)
     {
         var selectedSession = selected ?? throw new ArgumentNullException(nameof(selected));
-        if (string.IsNullOrWhiteSpace(selectedSessionId))
-        {
-            throw new ArgumentException("Value cannot be null or whitespace.", nameof(selectedSessionId));
-        }
+        var sessionId = RequireSelectedSessionId(selectedSessionId);
 
         try
         {
@@ -88,7 +82,7 @@ public partial class MainWindow
             var auditTranscript = SessionTranscriptFormatter.Format(parsed.Document, TranscriptMode.Audit).RenderedMarkdown;
             var sqliteStatus = LiveSqliteStatusProvider();
 
-            if (await IsSessionStillSelectedAsync(selectedSessionId))
+            if (await IsSessionStillSelectedAsync(sessionId))
             {
                 await RunOnUiThreadAsync(() =>
                 {
@@ -103,7 +97,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            if (await IsSessionStillSelectedAsync(selectedSessionId))
+            if (await IsSessionStillSelectedAsync(sessionId))
             {
                 await RunOnUiThreadAsync(() =>
                 {
@@ -202,6 +196,17 @@ public partial class MainWindow
     private CancellationToken BeginSearchToken()
     {
         return _searchCancellation.Begin();
+    }
+
+    private static string RequireSelectedSessionId(string? selectedSessionId)
+    {
+        var sessionId = selectedSessionId ?? throw new ArgumentNullException(nameof(selectedSessionId));
+        if (string.IsNullOrWhiteSpace(sessionId))
+        {
+            throw new ArgumentException("Value cannot be null or whitespace.", nameof(selectedSessionId));
+        }
+
+        return sessionId;
     }
 
     private static bool IsSearchCanceled(CancellationToken searchToken) => searchToken.IsCancellationRequested;

@@ -125,12 +125,13 @@ public sealed class StorageGuardClauseTests
     public async Task Private_helpers_validate_selected_inputsAsync()
     {
         var emptyElement = JsonDocument.Parse("{}").RootElement.Clone();
+        var sessionMetaEnvelope = JsonDocument.Parse("""{"type":"session_meta","payload":{}}""").RootElement.Clone();
         var filePaths = new HashSet<string>(StringComparer.Ordinal);
         var urls = new HashSet<string>(StringComparer.Ordinal);
         await using var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
 
-        AssertInner<ArgumentNullException>(() => ParseLineMethod.Invoke(null, [emptyElement, null!]));
+        AssertInner<ArgumentNullException>(() => ParseLineMethod.Invoke(null, [sessionMetaEnvelope, null!]));
         AssertInner<ArgumentNullException>(() => ParseSessionMetadataMethod.Invoke(null, [emptyElement, null!]));
         AssertInner<ArgumentNullException>(() => ParseResponseItemMethod.Invoke(null, [emptyElement, null!]));
         AssertInner<ArgumentNullException>(() => ParseMessageMethod.Invoke(null, [emptyElement, null!]));
