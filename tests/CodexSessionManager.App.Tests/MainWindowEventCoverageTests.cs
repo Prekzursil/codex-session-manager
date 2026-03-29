@@ -7,6 +7,7 @@ using System.Windows.Controls.Primitives;
 using CodexSessionManager.Core.Maintenance;
 using CodexSessionManager.Core.Sessions;
 using CodexSessionManager.Storage.Indexing;
+using CodexSessionManager.Storage.Maintenance;
 using CodexSessionManager.Storage.Parsing;
 
 namespace CodexSessionManager.App.Tests;
