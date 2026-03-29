@@ -383,6 +383,63 @@ public sealed partial class MainWindowCoverageTests
     }
 
     [Fact]
+    public async Task ExecuteMaintenanceAsync_uses_default_runner_when_executor_is_configuredAsync()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var root = CreateTempDirectory();
+            try
+            {
+                var sessionFile = WriteSessionJsonl(root, "session-default-runner", "Default Runner");
+                var session = BuildIndexedSession("session-default-runner", "Default Runner", sessionFile);
+                var window = new MainWindow();
+
+                MaintenanceExecutorField.SetValue(window, new MaintenanceExecutor(Path.Combine(root, "checkpoints")));
+                AddSession(window, session);
+                SelectSingleSession(window, session);
+                BuildPreviewMethod.Invoke(window, [window, new RoutedEventArgs()]);
+                GetNamedField<TextBox>(window, "DestinationRootTextBox").Text = string.Empty;
+
+                await InvokePrivateTaskAsync(window, ExecuteMaintenanceUiAsyncMethod);
+
+                Assert.Contains("Executed maintenance. Checkpoint:", GetNamedField<TextBlock>(window, "StatusTextBlock").Text, StringComparison.Ordinal);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task ExecuteMaintenanceAsync_returns_without_executor_when_preview_existsAsync()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var root = CreateTempDirectory();
+            try
+            {
+                var sessionFile = WriteSessionJsonl(root, "session-missing-executor", "Missing Executor");
+                var session = BuildIndexedSession("session-missing-executor", "Missing Executor", sessionFile);
+                var window = new MainWindow();
+
+                AddSession(window, session);
+                SelectSingleSession(window, session);
+                BuildPreviewMethod.Invoke(window, [window, new RoutedEventArgs()]);
+                GetNamedField<TextBlock>(window, "StatusTextBlock").Text = "idle";
+
+                await InvokePrivateTaskAsync(window, ExecuteMaintenanceUiAsyncMethod);
+
+                Assert.Equal("idle", GetNamedField<TextBlock>(window, "StatusTextBlock").Text);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        });
+    }
+
+    [Fact]
     public void BuildPreviewButton_uses_archive_fallback_and_plural_confirmation()
     {
         RunInSta(() =>
@@ -414,6 +471,18 @@ public sealed partial class MainWindowCoverageTests
                 DeleteDirectory(root);
             }
         });
+    }
+
+    [Fact]
+    public void StartExternalProcess_rejects_blank_file_name_and_null_arguments()
+    {
+        var blankException = Assert.Throws<TargetInvocationException>(() =>
+            StartExternalProcessMethod.Invoke(null, [" ", Array.Empty<string>()]));
+        Assert.IsType<ArgumentException>(blankException.InnerException);
+
+        var argumentsException = Assert.Throws<TargetInvocationException>(() =>
+            StartExternalProcessMethod.Invoke(null, ["codex", null!]));
+        Assert.IsType<ArgumentNullException>(argumentsException.InnerException);
     }
 
     [Fact]

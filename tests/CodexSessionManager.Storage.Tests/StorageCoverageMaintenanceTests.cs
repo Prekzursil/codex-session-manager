@@ -69,6 +69,36 @@ public sealed partial class StorageCoverageExpansionTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_ThrowsWhenTypedConfirmationIsDisabledAsync()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var executor = new MaintenanceExecutor(Path.Combine(root, "checkpoints"));
+        var preview = new MaintenancePreview
+        {
+            Action = MaintenanceAction.Archive,
+            AllowedTargets = [],
+            BlockedTargets = [],
+            Warnings = [],
+            RequiresCheckpoint = true,
+            RequiresTypedConfirmation = false,
+            RequiredTypedConfirmation = "ARCHIVE 0 FILES"
+        };
+
+        try
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                executor.ExecuteAsync(preview, Path.Combine(root, "archive"), "IGNORED", CancellationToken.None));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task ExecuteAsync_ReconcileMovesTargetsIntoReconciledFolderAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));

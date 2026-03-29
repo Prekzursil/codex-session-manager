@@ -74,6 +74,32 @@ public sealed partial class StorageCoverageExpansionTests
     }
 
     [Fact]
+    public async Task DiscoverAsync_UsesMirrorStoreKinds_ForNonBackupRootsAsync()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var mirrorRoot = Path.Combine(root, "mirror-store");
+        await WriteAssistantSessionAsync(
+            Path.Combine(mirrorRoot, "2026", "03", "26"),
+            "session-mirror",
+            "mirror session");
+
+        try
+        {
+            var catalog = await SessionDiscoveryService.DiscoverAsync(
+                [new SessionStoreRoot(mirrorRoot.Replace('\\', '/'), SessionStoreKind.Mirror)],
+                CancellationToken.None);
+
+            var logical = Assert.Single(catalog.LogicalSessions);
+            Assert.Equal("session-mirror", logical.SessionId);
+            Assert.Equal(SessionStoreKind.Mirror, logical.PreferredCopy.StoreKind);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task DiscoverAsync_Normalizes_sessions_backup_rootsAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));

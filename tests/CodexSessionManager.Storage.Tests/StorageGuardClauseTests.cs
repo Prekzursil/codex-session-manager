@@ -71,8 +71,14 @@ public sealed class StorageGuardClauseTests
     private static readonly MethodInfo ExecuteReaderMethod =
         typeof(SessionCatalogRepository).GetMethod("ExecuteReaderAsync", BindingFlags.NonPublic | BindingFlags.Static)!;
 
+    private static readonly MethodInfo ExecuteCommandMethod =
+        typeof(SessionCatalogRepository).GetMethod("ExecuteCommandAsync", BindingFlags.NonPublic | BindingFlags.Static)!;
+
     private static readonly MethodInfo ExecuteNonQueryMethod =
         typeof(SessionCatalogRepository).GetMethod("ExecuteNonQueryAsync", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    private static readonly MethodInfo MoveTargetsMethod =
+        typeof(MaintenanceExecutor).GetMethod("MoveTargets", BindingFlags.NonPublic | BindingFlags.Static)!;
 
     private static readonly MethodInfo SplitLinesMethod =
         typeof(SessionCatalogRepository).GetMethod("SplitLines", BindingFlags.NonPublic | BindingFlags.Static)!;
@@ -241,11 +247,33 @@ public sealed class StorageGuardClauseTests
             (Task<SessionSearchDocument>)MergeExistingMetadataMethod.Invoke(
                 null,
                 [connection, null!, CancellationToken.None])!);
+        await AssertInnerAsync<ArgumentNullException>(() =>
+            (Task)ReplaceCopyRowsMethod.Invoke(null, [connection, null!, Array.Empty<SessionPhysicalCopy>(), CancellationToken.None])!);
         await AssertInnerAsync<InvalidOperationException>(() => (Task<SessionSearchDocument>)MergeExistingMetadataMethod.Invoke(null, [connection, WithNullIndexedSessionProperty(session, nameof(IndexedLogicalSession.SearchDocument)), CancellationToken.None])!);
         await AssertInnerAsync<ArgumentNullException>(() =>
             (Task)ReplaceCopyRowsMethod.Invoke(
                 null,
                 [connection, session.SessionId, new SessionPhysicalCopy[] { null! }, CancellationToken.None])!);
+        await AssertInnerAsync<ArgumentNullException>(() =>
+            (Task<IReadOnlyList<IndexedLogicalSession>>)LoadSessionsMethod.Invoke(null, [connection, null!, CancellationToken.None])!);
+        await AssertInnerAsync<ArgumentNullException>(() =>
+            (Task)ExecuteCommandMethod.Invoke(null, [null!, CancellationToken.None])!);
+        AssertInner<InvalidOperationException>(() =>
+            MoveTargetsMethod.Invoke(
+                null,
+                new object[]
+                {
+                    new SessionPhysicalCopy[]
+                    {
+                        new SessionPhysicalCopy(
+                            "session-1",
+                            Path.GetPathRoot(Path.GetTempPath())!,
+                            SessionStoreKind.Backup,
+                            new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false))
+                    },
+                    Path.GetPathRoot(Path.GetTempPath())!,
+                    CancellationToken.None
+                }));
 
         DatabasePathField.SetValue(repository, string.Empty);
         AssertInner<InvalidOperationException>(() => OpenConnectionMethod.Invoke(repository, [CancellationToken.None]));
