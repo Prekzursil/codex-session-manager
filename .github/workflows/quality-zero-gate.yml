@@ -14,10 +14,10 @@ jobs:
   aggregate-gate:
     permissions:
       contents: read
-    uses: Prekzursil/quality-zero-platform/.github/workflows/reusable-quality-zero-gate.yml@378e60c9867de5427dd06b44497b065732c8c66d
+    uses: Prekzursil/quality-zero-platform/.github/workflows/reusable-quality-zero-gate.yml@codex/strict-zero-airline-csm-v2-restack
     with:
       repo_slug: ${{ github.repository }}
       event_name: ${{ github.event_name }}
       sha: ${{ github.event.pull_request.head.sha || github.sha }}
       platform_repository: Prekzursil/quality-zero-platform
-      platform_ref: 3d8af96f9aecf0e23c60092da4c68856fa9c7952
+      platform_ref: codex/strict-zero-airline-csm-v2-restack
