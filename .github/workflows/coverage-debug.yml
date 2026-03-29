@@ -31,14 +31,17 @@ jobs:
           [xml]$coverage = Get-Content (Join-Path $PWD 'coverage\app\coverage.cobertura.xml')
           $classes = $coverage.coverage.packages.package.classes.class
           foreach ($class in $classes) {
-            $filename = $class.filename
+            $filename = [string]$class.GetAttribute('filename')
+            if ([string]::IsNullOrWhiteSpace($filename)) {
+              throw "Missing Cobertura filename attribute for class '$($class.GetAttribute('name'))'"
+            }
             $zeroHits = @($class.lines.line | Where-Object { $_.hits -eq '0' })
             $partialBranches = @($class.lines.line | Where-Object { $_.branch -eq 'True' -and $_.'condition-coverage' -notlike '100%*' })
             if ($zeroHits.Count -eq 0 -and $partialBranches.Count -eq 0) {
               continue
             }
 
-            Write-Host "FILE: $filename"
+            Write-Host ("FILE: {0}" -f $filename)
             foreach ($line in $zeroHits) {
               Write-Host ("  UNCOVERED line {0}" -f $line.number)
             }
