@@ -20,11 +20,10 @@ public partial class MainWindow
 
     private async Task PopulateSelectedSessionHeaderAsync(IndexedLogicalSession selected, string selectedSessionId)
     {
-        var preferredCopy = selected.PreferredCopy
-            ?? throw new InvalidOperationException("Selected session is missing a preferred copy.");
-        var searchDocument = selected.SearchDocument
-            ?? throw new InvalidOperationException("Selected session is missing search metadata.");
-        var physicalCopies = selected.PhysicalCopies ?? [];
+        var selectedSession = RequireSession(selected);
+        var preferredCopy = GetRequiredPreferredCopy(selectedSession);
+        var searchDocument = GetRequiredSearchDocument(selectedSession);
+        var physicalCopies = selectedSession.PhysicalCopies ?? [];
 
         await RunOnUiThreadAsync(() =>
         {
@@ -33,8 +32,8 @@ public partial class MainWindow
                 return;
             }
 
-            ThreadNameTextBlock.Text = GetThreadName(selected);
-            SessionIdTextBlock.Text = GetSessionId(selected);
+            ThreadNameTextBlock.Text = GetThreadName(selectedSession);
+            SessionIdTextBlock.Text = GetSessionId(selectedSession);
             PreferredPathTextBlock.Text = preferredCopy.FilePath;
             AliasTextBox.Text = searchDocument.Alias;
             TagsTextBox.Text = string.Join(", ", searchDocument.Tags);
@@ -49,8 +48,8 @@ public partial class MainWindow
     {
         try
         {
-            var preferredCopy = selected.PreferredCopy
-                ?? throw new InvalidOperationException("Selected session is missing a preferred copy.");
+            var selectedSession = RequireSession(selected);
+            var preferredCopy = GetRequiredPreferredCopy(selectedSession);
             var preferredPath = preferredCopy.FilePath;
             var parsed = await SessionParser(preferredPath, CancellationToken.None);
             var rawContent = FileTextReader(preferredPath);
@@ -136,7 +135,12 @@ public partial class MainWindow
     private async Task ApplySearchResultsAsync(string query, CancellationToken searchToken)
     {
         var repository = _repository ?? throw new InvalidOperationException("Repository has not been initialized.");
-        var searchQuery = query ?? string.Empty;
+        var searchQuery = query;
+        if (searchQuery is null)
+        {
+            searchQuery = string.Empty;
+        }
+
         var hits = await repository.SearchAsync(searchQuery, CancellationToken.None);
         var hitIds = hits.Select(hit => hit.SessionId).ToHashSet(StringComparer.Ordinal);
         var allSessions = await repository.ListSessionsAsync(CancellationToken.None);
@@ -162,11 +166,7 @@ public partial class MainWindow
 
     private CancellationToken BeginSearchToken()
     {
-        var replacement = new CancellationTokenSource();
-        var previous = Interlocked.Exchange(ref _searchCts, replacement);
-        previous?.Cancel();
-        previous?.Dispose();
-        return replacement.Token;
+        return _searchCancellation.Begin();
     }
 
     private Task<bool> IsSessionStillSelectedAsync(string sessionId) =>
@@ -175,12 +175,28 @@ public partial class MainWindow
 
     private void DisposeSearchCancellation()
     {
-        var current = Interlocked.Exchange(ref _searchCts, null);
-        current?.Cancel();
-        current?.Dispose();
+        _searchCancellation.Dispose();
     }
 
-    private static string GetSessionId(IndexedLogicalSession session) => session.SessionId;
+    private static IndexedLogicalSession RequireSession(IndexedLogicalSession? session) =>
+        session ?? throw new ArgumentNullException(nameof(session));
 
-    private static string GetThreadName(IndexedLogicalSession session) => session.ThreadName;
+    private static SessionSearchDocument GetRequiredSearchDocument(IndexedLogicalSession? session)
+    {
+        var selectedSession = RequireSession(session);
+        return selectedSession.SearchDocument
+            ?? throw new InvalidOperationException("Selected session is missing search metadata.");
+    }
+
+    private static string GetSessionId(IndexedLogicalSession? session)
+    {
+        var selectedSession = RequireSession(session);
+        return selectedSession.SessionId;
+    }
+
+    private static string GetThreadName(IndexedLogicalSession? session)
+    {
+        var selectedSession = RequireSession(session);
+        return selectedSession.ThreadName;
+    }
 }

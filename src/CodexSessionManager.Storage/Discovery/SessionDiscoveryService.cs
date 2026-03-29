@@ -12,7 +12,7 @@ public static class SessionDiscoveryService
             throw new ArgumentNullException(nameof(roots));
         }
 
-        var stores = roots.Select(CreateKnownSessionStore).ToArray(); // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+        var stores = roots.Select(CreateKnownSessionStore).ToArray();
 
         var sessions = await SessionWorkspaceIndexer.LoadSessionsAsync(stores, cancellationToken);
         return new DiscoveredSessionCatalog(sessions);
@@ -20,25 +20,35 @@ public static class SessionDiscoveryService
 
     private static KnownSessionStore CreateKnownSessionStore(SessionStoreRoot root)
     {
-        var normalizedRoot = NormalizeRootPath(root.RootPath); // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+        if (root is null)
+        {
+            throw new ArgumentNullException(nameof(root));
+        }
+
+        var normalizedRoot = NormalizeRootPath(root.RootPath);
         var backupWorkspaceRoot = Path.GetDirectoryName(normalizedRoot);
         var normalizedBackupWorkspaceRoot = string.IsNullOrWhiteSpace(backupWorkspaceRoot) ? normalizedRoot : backupWorkspaceRoot;
 
-        return root.StoreKind switch // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+        return root.StoreKind switch
         {
-            SessionStoreKind.Live => new KnownSessionStore(normalizedRoot, root.StoreKind, Path.Combine(normalizedRoot, "sessions"), Path.Combine(normalizedRoot, "session_index.jsonl")), // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+            SessionStoreKind.Live => new KnownSessionStore(normalizedRoot, root.StoreKind, Path.Combine(normalizedRoot, "sessions"), Path.Combine(normalizedRoot, "session_index.jsonl")),
             SessionStoreKind.Backup when normalizedRoot.EndsWith($"{Path.DirectorySeparatorChar}sessions_backup", StringComparison.OrdinalIgnoreCase)
-                => new KnownSessionStore(normalizedBackupWorkspaceRoot, root.StoreKind, normalizedRoot, Path.Combine(normalizedBackupWorkspaceRoot, "session_index.jsonl")), // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
-            _ => new KnownSessionStore(normalizedRoot, root.StoreKind, normalizedRoot, Path.Combine(normalizedRoot, "session_index.jsonl")) // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+                => new KnownSessionStore(normalizedBackupWorkspaceRoot, root.StoreKind, normalizedRoot, Path.Combine(normalizedBackupWorkspaceRoot, "session_index.jsonl")),
+            _ => new KnownSessionStore(normalizedRoot, root.StoreKind, normalizedRoot, Path.Combine(normalizedRoot, "session_index.jsonl"))
         };
     }
 
     private static string NormalizeRootPath(string rootPath)
     {
-        var alternateSeparator = Path.DirectorySeparatorChar == '/'
-            ? '\\'
-            : '/';
-        return rootPath.Replace(alternateSeparator, Path.DirectorySeparatorChar).TrimEnd(Path.DirectorySeparatorChar);
+        if (rootPath is null)
+        {
+            throw new ArgumentNullException(nameof(rootPath));
+        }
+
+        return rootPath
+            .Replace('\\', Path.DirectorySeparatorChar)
+            .Replace('/', Path.DirectorySeparatorChar)
+            .TrimEnd(Path.DirectorySeparatorChar);
     }
 }
 

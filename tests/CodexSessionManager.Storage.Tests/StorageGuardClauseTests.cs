@@ -40,6 +40,9 @@ public sealed class StorageGuardClauseTests
     private static readonly MethodInfo TryExtractCommandMethod =
         typeof(SessionJsonlParser).GetMethod("TryExtractCommand", BindingFlags.NonPublic | BindingFlags.Static)!;
 
+    private static readonly MethodInfo TryGetTextContentMethod =
+        typeof(SessionJsonlParser).GetMethod("TryGetTextContent", BindingFlags.NonPublic | BindingFlags.Static)!;
+
     private static readonly MethodInfo ExtractFilePathsAndUrlsMethod =
         typeof(SessionJsonlParser).GetMethod("ExtractFilePathsAndUrls", BindingFlags.NonPublic | BindingFlags.Static)!;
 
@@ -54,6 +57,9 @@ public sealed class StorageGuardClauseTests
 
     private static readonly MethodInfo RefreshSearchRowMethod =
         typeof(SessionCatalogRepository).GetMethod("RefreshSearchRowAsync", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    private static readonly MethodInfo ExecuteNonQueryMethod =
+        typeof(SessionCatalogRepository).GetMethod("ExecuteNonQueryAsync", BindingFlags.NonPublic | BindingFlags.Static)!;
 
     private static readonly MethodInfo SplitLinesMethod =
         typeof(SessionCatalogRepository).GetMethod("SplitLines", BindingFlags.NonPublic | BindingFlags.Static)!;
@@ -73,8 +79,20 @@ public sealed class StorageGuardClauseTests
     private static readonly MethodInfo RequireReaderMethod =
         typeof(SessionCatalogRepository).GetMethod("RequireReader", BindingFlags.NonPublic | BindingFlags.Static)!;
 
+    private static readonly MethodInfo OpenConnectionMethod =
+        typeof(SessionCatalogRepository).GetMethod("OpenConnectionAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+    private static readonly FieldInfo DatabasePathField =
+        typeof(SessionCatalogRepository).GetField("_databasePath", BindingFlags.NonPublic | BindingFlags.Instance)!;
+
     private static readonly MethodInfo IsProtectedMethod =
         typeof(MaintenancePlanner).GetMethod("IsProtected", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    private static readonly MethodInfo CreateKnownSessionStoreMethod =
+        typeof(SessionDiscoveryService).GetMethod("CreateKnownSessionStore", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    private static readonly MethodInfo NormalizeRootPathMethod =
+        typeof(SessionDiscoveryService).GetMethod("NormalizeRootPath", BindingFlags.NonPublic | BindingFlags.Static)!;
 
     [Fact]
     public async Task Public_guard_clauses_throw_for_null_inputsAsync()
@@ -82,6 +100,7 @@ public sealed class StorageGuardClauseTests
         var repository = new SessionCatalogRepository(Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db"));
         var previewTarget = new SessionPhysicalCopy("session-1", Path.Combine(Path.GetTempPath(), "session-1.jsonl"), SessionStoreKind.Backup, new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false));
 
+        Assert.Throws<ArgumentException>(() => new SessionCatalogRepository(null!));
         await Assert.ThrowsAsync<ArgumentException>(() => SessionJsonlParser.ParseAsync(null!, CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentNullException>(() => SessionDiscoveryService.DiscoverAsync(null!, CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentNullException>(() => repository.UpsertAsync(null!, CancellationToken.None));
@@ -125,6 +144,7 @@ public sealed class StorageGuardClauseTests
         await AssertInnerAsync<ArgumentNullException>(() => (Task)RefreshSearchIndexMethod.Invoke(null, [null!, CancellationToken.None])!);
         await AssertInnerAsync<ArgumentNullException>(() => (Task)RefreshSearchRowMethod.Invoke(null, [null!, "session-1", CancellationToken.None])!);
         await AssertInnerAsync<ArgumentException>(() => (Task)RefreshSearchRowMethod.Invoke(null, [connection, null!, CancellationToken.None])!);
+        await AssertInnerAsync<InvalidOperationException>(() => (Task)ExecuteNonQueryMethod.Invoke(null, [null!, CancellationToken.None])!);
         AssertInner<ArgumentNullException>(() => SplitLinesMethod.Invoke(null, [null!]));
         AssertInner<ArgumentNullException>(() => ToFtsQueryMethod.Invoke(null, [null!]));
         AssertInner<ArgumentNullException>(() => ToFtsTokenMethod.Invoke(null, [null!]));
@@ -133,6 +153,8 @@ public sealed class StorageGuardClauseTests
         AssertInner<InvalidOperationException>(() => RequireConnectionMethod.Invoke(null, [null!]));
         AssertInner<ArgumentException>(() => RequireReaderMethod.Invoke(null, [null!, null!]));
         AssertInner<InvalidOperationException>(() => RequireReaderMethod.Invoke(null, [null!, "reader required"]));
+        AssertInner<ArgumentNullException>(() => CreateKnownSessionStoreMethod.Invoke(null, [null!]));
+        AssertInner<ArgumentNullException>(() => NormalizeRootPathMethod.Invoke(null, [null!]));
     }
 
     [Fact]
@@ -158,6 +180,18 @@ public sealed class StorageGuardClauseTests
     }
 
     [Fact]
+    public void TryGetTextContent_returns_false_when_text_property_is_missing()
+    {
+        var contentItem = JsonDocument.Parse("""{"type":"output_text"}""").RootElement.Clone();
+        object?[] args = [contentItem, string.Empty];
+
+        var result = (bool)TryGetTextContentMethod.Invoke(null, args)!;
+
+        Assert.False(result);
+        Assert.Equal(string.Empty, args[1]);
+    }
+
+    [Fact]
     public async Task Repository_private_branches_reject_missing_required_session_membersAsync()
     {
         var session = new IndexedLogicalSession(
@@ -180,6 +214,9 @@ public sealed class StorageGuardClauseTests
         await using var connection = new SqliteConnection($"Data Source={databasePath}");
         await connection.OpenAsync();
         await AssertInnerAsync<InvalidOperationException>(() => (Task<SessionSearchDocument>)MergeExistingMetadataMethod.Invoke(null, [connection, WithNullIndexedSessionProperty(session, nameof(IndexedLogicalSession.SearchDocument)), CancellationToken.None])!);
+
+        DatabasePathField.SetValue(repository, string.Empty);
+        AssertInner<InvalidOperationException>(() => OpenConnectionMethod.Invoke(repository, [CancellationToken.None]));
     }
 
     private static IndexedLogicalSession WithNullIndexedSessionProperty(IndexedLogicalSession session, string propertyName)

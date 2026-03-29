@@ -19,11 +19,11 @@ namespace CodexSessionManager.App;
 public partial class MainWindow : Window
 {
     private readonly ObservableCollection<IndexedLogicalSession> _sessions = [];
+    private readonly SearchCancellationState _searchCancellation = new();
     private SessionCatalogRepository? _repository;
     private SessionWorkspaceIndexer? _workspaceIndexer;
     private MaintenanceExecutor? _maintenanceExecutor;
     private MaintenancePreview? _currentMaintenancePreview;
-    private CancellationTokenSource? _searchCts;
 
     internal Func<string> LocalDataRootProvider { get; set; }
     internal Func<string, SessionCatalogRepository> RepositoryFactory { get; set; }
@@ -41,6 +41,7 @@ public partial class MainWindow : Window
     internal Func<string, string?> ExportPathSelector { get; set; }
     internal Action<string, string> TextFileWriter { get; set; }
     internal Func<MaintenancePreview, string, string, CancellationToken, Task<MaintenanceExecutionResult>> MaintenanceRunner { get; set; }
+    internal CancellationTokenSource? CurrentSearchCancellationTokenSource => _searchCancellation.Snapshot();
 
     public MainWindow()
     {
@@ -143,8 +144,14 @@ public partial class MainWindow : Window
         await RunOnUiThreadAsync(() => StatusTextBlock.Text = deepScan ? "Running deep scan…" : "Refreshing known stores…");
 
         var knownStoresProvider = KnownStoresProvider;
+        if (knownStoresProvider is null)
+        {
+            throw new InvalidOperationException("Known stores provider has not been initialized.");
+        }
+
+        var workspaceIndexer = _workspaceIndexer;
         var knownStores = knownStoresProvider(deepScan);
-        await _workspaceIndexer.RebuildAsync(knownStores, CancellationToken.None);
+        await workspaceIndexer.RebuildAsync(knownStores, CancellationToken.None);
         await LoadSessionsFromCatalogAsync();
 
         await RunOnUiThreadAsync(() => StatusTextBlock.Text = $"Indexed {_sessions.Count} deduped sessions at {DateTime.UtcNow.ToLocalTime():t}.");
@@ -152,7 +159,10 @@ public partial class MainWindow : Window
 
     private Task RunOnUiThreadAsync(Action action)
     {
-        ArgumentNullException.ThrowIfNull(action);
+        if (action is null)
+        {
+            throw new ArgumentNullException(nameof(action));
+        }
 
         var dispatcher = Dispatcher;
         if (dispatcher.CheckAccess())
@@ -166,7 +176,10 @@ public partial class MainWindow : Window
 
     private Task<T> RunOnUiThreadValueAsync<T>(Func<T> func)
     {
-        ArgumentNullException.ThrowIfNull(func);
+        if (func is null)
+        {
+            throw new ArgumentNullException(nameof(func));
+        }
 
         var dispatcher = Dispatcher;
         if (dispatcher.CheckAccess())
@@ -179,8 +192,16 @@ public partial class MainWindow : Window
 
     private void RunEventTask(Func<Task> action, string failurePrefix)
     {
-        ArgumentNullException.ThrowIfNull(action);
-        ArgumentException.ThrowIfNullOrWhiteSpace(failurePrefix);
+        if (action is null)
+        {
+            throw new ArgumentNullException(nameof(action));
+        }
+
+        if (string.IsNullOrWhiteSpace(failurePrefix))
+        {
+            throw new ArgumentException("Value cannot be null or whitespace.", nameof(failurePrefix));
+        }
+
         _ = RunEventTaskCoreAsync(action, failurePrefix);
     }
 
@@ -250,7 +271,8 @@ public partial class MainWindow : Window
 
     private async Task SaveSelectedMetadataAsync()
     {
-        if (_repository is null)
+        var repository = _repository;
+        if (repository is null)
         {
             return;
         }
@@ -270,7 +292,7 @@ public partial class MainWindow : Window
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .ToArray();
 
-        await _repository.UpdateMetadataAsync(selected.SessionId, metadata.Alias, tags, metadata.Notes, CancellationToken.None);
+        await repository.UpdateMetadataAsync(selected.SessionId, metadata.Alias, tags, metadata.Notes, CancellationToken.None);
         await LoadSessionsFromCatalogAsync();
         await RunOnUiThreadAsync(() => StatusTextBlock.Text = $"Saved metadata for {selected.SessionId}.");
     }
@@ -279,8 +301,11 @@ public partial class MainWindow : Window
     private void SaveMetadataButton_OnClick(object _, RoutedEventArgs __) =>
         RunEventTask(SaveSelectedMetadataAsync, "Failed to save metadata");
 
-    private static SessionPhysicalCopy GetRequiredPreferredCopy(IndexedLogicalSession session) =>
-        session.PreferredCopy ?? throw new InvalidOperationException("Selected session is missing a preferred copy.");
+    private static SessionPhysicalCopy GetRequiredPreferredCopy(IndexedLogicalSession? session)
+    {
+        var selectedSession = session ?? throw new ArgumentNullException(nameof(session));
+        return selectedSession.PreferredCopy ?? throw new InvalidOperationException("Selected session is missing a preferred copy.");
+    }
 
     private void OpenFolderButton_OnClick(object _, RoutedEventArgs __)
     {
@@ -420,6 +445,11 @@ public partial class MainWindow : Window
 
     internal static string? DescribeSqlitePath(string path, Func<string, FileInfo>? fileInfoFactory = null)
     {
+        if (path is null)
+        {
+            throw new ArgumentNullException(nameof(path));
+        }
+
         try
         {
             var resolvedFileInfoFactory = fileInfoFactory ?? (static filePath => new FileInfo(filePath));
@@ -464,6 +494,29 @@ public partial class MainWindow : Window
         return details.Length == 0
             ? "No live SQLite store detected."
             : string.Join(Environment.NewLine, details);
+    }
+
+    private sealed class SearchCancellationState
+    {
+        private CancellationTokenSource? _current;
+
+        public CancellationToken Begin()
+        {
+            var replacement = new CancellationTokenSource();
+            var previous = Interlocked.Exchange(ref _current, replacement);
+            previous?.Cancel();
+            previous?.Dispose();
+            return replacement.Token;
+        }
+
+        public CancellationTokenSource? Snapshot() => Volatile.Read(ref _current);
+
+        public void Dispose()
+        {
+            var current = Interlocked.Exchange(ref _current, null);
+            current?.Cancel();
+            current?.Dispose();
+        }
     }
 }
 

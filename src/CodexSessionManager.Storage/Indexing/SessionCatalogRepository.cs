@@ -6,6 +6,7 @@ namespace CodexSessionManager.Storage.Indexing;
 
 public sealed class SessionCatalogRepository
 {
+    private const string NullOrWhitespaceMessage = "Value cannot be null or whitespace.";
     private const string SessionIdParameterName = "$sessionId";
     private const string DeleteSessionCopiesSql = "DELETE FROM session_copies WHERE session_id = $sessionId;";
     private const string CreateSessionsSql =
@@ -124,7 +125,7 @@ public sealed class SessionCatalogRepository
     {
         if (string.IsNullOrWhiteSpace(databasePath))
         {
-            throw new ArgumentException("Value cannot be null or whitespace.", nameof(databasePath));
+            throw new ArgumentException(NullOrWhitespaceMessage, nameof(databasePath));
         }
 
         _databasePath = Path.GetFullPath(databasePath);
@@ -139,7 +140,10 @@ public sealed class SessionCatalogRepository
 
     public async Task UpsertAsync(IndexedLogicalSession session, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(session);
+        if (session is null)
+        {
+            throw new ArgumentNullException(nameof(session));
+        }
 
         var indexedSession = session;
         await using var connection = RequireConnection(await OpenConnectionAsync(cancellationToken));
@@ -173,7 +177,10 @@ public sealed class SessionCatalogRepository
 
     public async Task<IReadOnlyList<SessionSearchHit>> SearchAsync(string query, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(query);
+        if (query is null)
+        {
+            throw new ArgumentNullException(nameof(query));
+        }
 
         var searchQuery = query;
         if (string.IsNullOrWhiteSpace(searchQuery))
@@ -201,10 +208,13 @@ public sealed class SessionCatalogRepository
     {
         if (string.IsNullOrWhiteSpace(sessionId))
         {
-            throw new ArgumentException("Value cannot be null or whitespace.", nameof(sessionId));
+            throw new ArgumentException(NullOrWhitespaceMessage, nameof(sessionId));
         }
 
-        ArgumentNullException.ThrowIfNull(tags);
+        if (tags is null)
+        {
+            throw new ArgumentNullException(nameof(tags));
+        }
 
         var normalizedSessionId = sessionId;
         await using var connection = RequireConnection(await OpenConnectionAsync(cancellationToken));
@@ -229,8 +239,15 @@ public sealed class SessionCatalogRepository
 
     private static async Task<SessionSearchDocument> MergeExistingMetadataAsync(SqliteConnection connection, IndexedLogicalSession session, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(connection);
-        ArgumentNullException.ThrowIfNull(session);
+        if (connection is null)
+        {
+            throw new ArgumentNullException(nameof(connection));
+        }
+
+        if (session is null)
+        {
+            throw new ArgumentNullException(nameof(session));
+        }
 
         var currentSearchDocument = session.SearchDocument
             ?? throw new InvalidOperationException("Session is missing search metadata.");
@@ -238,9 +255,10 @@ public sealed class SessionCatalogRepository
         var sessionId = session.SessionId;
         command.Parameters.AddWithValue(SessionIdParameterName, sessionId);
         cancellationToken.ThrowIfCancellationRequested();
-        await using var reader = RequireReader(
+        var metadataReader = RequireReader(
             await command.ExecuteReaderAsync(cancellationToken),
             "Metadata query did not return a reader.");
+        await using var reader = metadataReader;
         if (!await reader.ReadAsync(cancellationToken))
         {
             return currentSearchDocument;
@@ -256,30 +274,37 @@ public sealed class SessionCatalogRepository
 
     private static async Task RefreshSearchIndexAsync(SqliteConnection connection, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(connection);
+        if (connection is null)
+        {
+            throw new ArgumentNullException(nameof(connection));
+        }
 
         await using var deleteCommand = new SqliteCommand(DeleteSearchIndexSql, connection);
-        await deleteCommand.ExecuteNonQueryAsync(cancellationToken);
+        await ExecuteNonQueryAsync(deleteCommand, cancellationToken);
 
         await using var insertCommand = new SqliteCommand(RebuildSearchIndexSql, connection);
-        await insertCommand.ExecuteNonQueryAsync(cancellationToken);
+        await ExecuteNonQueryAsync(insertCommand, cancellationToken);
     }
 
     private static async Task RefreshSearchRowAsync(SqliteConnection connection, string sessionId, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(connection);
+        if (connection is null)
+        {
+            throw new ArgumentNullException(nameof(connection));
+        }
+
         if (string.IsNullOrWhiteSpace(sessionId))
         {
-            throw new ArgumentException("Value cannot be null or whitespace.", nameof(sessionId));
+            throw new ArgumentException(NullOrWhitespaceMessage, nameof(sessionId));
         }
 
         await using var deleteCommand = new SqliteCommand(DeleteSearchRowSql, connection);
         deleteCommand.Parameters.AddWithValue(SessionIdParameterName, sessionId);
-        await deleteCommand.ExecuteNonQueryAsync(cancellationToken);
+        await ExecuteNonQueryAsync(deleteCommand, cancellationToken);
 
         await using var insertCommand = new SqliteCommand(InsertSearchRowSql, connection);
         insertCommand.Parameters.AddWithValue(SessionIdParameterName, sessionId);
-        await insertCommand.ExecuteNonQueryAsync(cancellationToken);
+        await ExecuteNonQueryAsync(insertCommand, cancellationToken);
     }
 
     private Task<SqliteConnection> OpenConnectionAsync(CancellationToken cancellationToken)
@@ -300,7 +325,10 @@ public sealed class SessionCatalogRepository
 
     private static IReadOnlyList<string> SplitLines(string value)
     {
-        ArgumentNullException.ThrowIfNull(value);
+        if (value is null)
+        {
+            throw new ArgumentNullException(nameof(value));
+        }
 
         return string.IsNullOrWhiteSpace(value)
             ? []
@@ -323,7 +351,11 @@ public sealed class SessionCatalogRepository
 
     private static string ToFtsToken(string token)
     {
-        ArgumentNullException.ThrowIfNull(token);
+        if (token is null)
+        {
+            throw new ArgumentNullException(nameof(token));
+        }
+
         var escaped = token.Replace("\"", "\"\"");
         return escaped.All(static ch => char.IsLetterOrDigit(ch) || ch == '_')
             ? $"{escaped}*"
@@ -332,7 +364,11 @@ public sealed class SessionCatalogRepository
 
     private static string ReadRequiredString(SqliteDataReader reader, int ordinal)
     {
-        ArgumentNullException.ThrowIfNull(reader);
+        if (reader is null)
+        {
+            throw new ArgumentNullException(nameof(reader));
+        }
+
         return reader.GetString(ordinal);
     }
 
@@ -343,7 +379,7 @@ public sealed class SessionCatalogRepository
     {
         if (string.IsNullOrWhiteSpace(errorMessage))
         {
-            throw new ArgumentException("Value cannot be null or whitespace.", nameof(errorMessage));
+            throw new ArgumentException(NullOrWhitespaceMessage, nameof(errorMessage));
         }
 
         return reader ?? throw new InvalidOperationException(errorMessage);
@@ -359,7 +395,7 @@ public sealed class SessionCatalogRepository
         {
             deleteCopies.Parameters.AddWithValue(SessionIdParameterName, sessionId);
             cancellationToken.ThrowIfCancellationRequested();
-            await deleteCopies.ExecuteNonQueryAsync(cancellationToken);
+            await ExecuteNonQueryAsync(deleteCopies, cancellationToken);
         }
 
         foreach (var copy in physicalCopies)
@@ -378,7 +414,7 @@ public sealed class SessionCatalogRepository
             copyCommand.Parameters.AddWithValue("$lastWriteUtc", copyLastWriteUtc);
             copyCommand.Parameters.AddWithValue("$fileSizeBytes", copyFileSizeBytes);
             copyCommand.Parameters.AddWithValue("$isHot", copyIsHot);
-            await copyCommand.ExecuteNonQueryAsync(cancellationToken);
+            await ExecuteNonQueryAsync(copyCommand, cancellationToken);
         }
     }
 
@@ -386,7 +422,10 @@ public sealed class SessionCatalogRepository
     {
         var copiesBySession = new Dictionary<string, List<SessionPhysicalCopy>>(StringComparer.Ordinal);
         await using var copiesCommand = new SqliteCommand(ListCopiesSql, connection);
-        await using var reader = await copiesCommand.ExecuteReaderAsync(cancellationToken);
+        var copiesReader = RequireReader(
+            await copiesCommand.ExecuteReaderAsync(cancellationToken),
+            "Copy query did not return a reader.");
+        await using var reader = copiesReader;
         while (await reader.ReadAsync(cancellationToken))
         {
             var sessionId = ReadRequiredString(reader, 0);
@@ -416,7 +455,10 @@ public sealed class SessionCatalogRepository
     {
         var sessions = new List<IndexedLogicalSession>();
         await using var sessionCommand = new SqliteCommand(ListSessionsSql, connection);
-        await using var reader = await sessionCommand.ExecuteReaderAsync(cancellationToken);
+        var sessionReader = RequireReader(
+            await sessionCommand.ExecuteReaderAsync(cancellationToken),
+            "Session query did not return a reader.");
+        await using var reader = sessionReader;
         while (await reader.ReadAsync(cancellationToken))
         {
             var sessionId = ReadRequiredString(reader, 0);
@@ -461,11 +503,15 @@ public sealed class SessionCatalogRepository
         await ExecuteNonQueryAsync(new SqliteCommand(CreateSearchSql, connection), cancellationToken);
     }
 
-    private static Task ExecuteNonQueryAsync(SqliteCommand command, CancellationToken cancellationToken)
+    private static async Task ExecuteNonQueryAsync(SqliteCommand? command, CancellationToken cancellationToken)
     {
-        using var disposableCommand = command;
+        if (command is null)
+        {
+            throw new InvalidOperationException("Database command was not created.");
+        }
+
+        await using var disposableCommand = command;
         cancellationToken.ThrowIfCancellationRequested();
-        disposableCommand.ExecuteNonQuery();
-        return Task.CompletedTask;
+        await disposableCommand.ExecuteNonQueryAsync(cancellationToken);
     }
 }

@@ -66,6 +66,9 @@ public sealed class MainWindowCoverageTests
             .Single(method => method.Name == "RunOnUiThreadValueAsync" && method.IsGenericMethodDefinition)
             .MakeGenericMethod(typeof(string));
 
+    private static readonly MethodInfo RunEventTaskMethod =
+        typeof(MainWindow).GetMethod("RunEventTask", BindingFlags.NonPublic | BindingFlags.Instance)!;
+
     private static readonly MethodInfo LoadSelectedSessionAsyncMethod =
         typeof(MainWindow).GetMethod("LoadSelectedSessionAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
 
@@ -107,6 +110,15 @@ public sealed class MainWindowCoverageTests
     private static readonly MethodInfo BuildPreviewMethod =
         typeof(MainWindow).GetMethod("BuildPreviewButton_OnClick", BindingFlags.NonPublic | BindingFlags.Instance)!;
 
+    private static readonly MethodInfo GetRequiredPreferredCopyMethod =
+        typeof(MainWindow).GetMethod("GetRequiredPreferredCopy", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    private static readonly MethodInfo GetSessionIdMethod =
+        typeof(MainWindow).GetMethod("GetSessionId", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    private static readonly MethodInfo GetThreadNameMethod =
+        typeof(MainWindow).GetMethod("GetThreadName", BindingFlags.NonPublic | BindingFlags.Static)!;
+
     private static readonly FieldInfo SessionsField =
         typeof(MainWindow).GetField("_sessions", BindingFlags.Instance | BindingFlags.NonPublic)!;
 
@@ -119,8 +131,8 @@ public sealed class MainWindowCoverageTests
     private static readonly FieldInfo MaintenanceExecutorField =
         typeof(MainWindow).GetField("_maintenanceExecutor", BindingFlags.Instance | BindingFlags.NonPublic)!;
 
-    private static readonly FieldInfo SearchCtsField =
-        typeof(MainWindow).GetField("_searchCts", BindingFlags.Instance | BindingFlags.NonPublic)!;
+    private static readonly PropertyInfo CurrentSearchCancellationTokenSourceProperty =
+        typeof(MainWindow).GetProperty("CurrentSearchCancellationTokenSource", BindingFlags.Instance | BindingFlags.NonPublic)!;
 
     private static readonly string[] SqliteStatusPaths = ["first", "second"];
 
@@ -229,6 +241,43 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
+    public void DescribeSqlitePath_rejects_null_path()
+    {
+        var exception = Assert.Throws<TargetInvocationException>(() => DescribeSqlitePathMethod.Invoke(null, [null!, null]));
+        Assert.IsType<ArgumentNullException>(exception.InnerException);
+    }
+
+    [Fact]
+    public void Session_helper_methods_reject_null_sessions()
+    {
+        var preferredCopyException = Assert.Throws<TargetInvocationException>(() => GetRequiredPreferredCopyMethod.Invoke(null, [null!]));
+        Assert.IsType<ArgumentNullException>(preferredCopyException.InnerException);
+
+        var sessionIdException = Assert.Throws<TargetInvocationException>(() => GetSessionIdMethod.Invoke(null, [null!]));
+        Assert.IsType<ArgumentNullException>(sessionIdException.InnerException);
+
+        var threadNameException = Assert.Throws<TargetInvocationException>(() => GetThreadNameMethod.Invoke(null, [null!]));
+        Assert.IsType<ArgumentNullException>(threadNameException.InnerException);
+    }
+
+    [Fact]
+    public void RunEventTask_rejects_invalid_arguments()
+    {
+        RunInSta(() =>
+        {
+            var window = new MainWindow();
+
+            var actionException = Assert.Throws<TargetInvocationException>(() => RunEventTaskMethod.Invoke(window, [null!, "Failed"]));
+            Assert.IsType<ArgumentNullException>(actionException.InnerException);
+
+            var failurePrefixException = Assert.Throws<TargetInvocationException>(() => RunEventTaskMethod.Invoke(window, [(Func<Task>)(() => Task.CompletedTask), " "]));
+            Assert.IsType<ArgumentException>(failurePrefixException.InnerException);
+
+            window.Close();
+        });
+    }
+
+    [Fact]
     public void BuildKnownStores_includes_additional_profile_home_on_deep_scan()
     {
         var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
@@ -280,6 +329,23 @@ public sealed class MainWindowCoverageTests
             });
 
             Assert.Equal("Value from background", value);
+            window.Close();
+        });
+    }
+
+    [Fact]
+    public void RunOnUiThread_helpers_reject_null_delegates()
+    {
+        RunInSta(() =>
+        {
+            var window = new MainWindow();
+
+            var actionException = Assert.Throws<TargetInvocationException>(() => RunOnUiThreadAsyncMethod.Invoke(window, [null!]));
+            Assert.IsType<ArgumentNullException>(actionException.InnerException);
+
+            var valueException = Assert.Throws<TargetInvocationException>(() => RunOnUiThreadValueAsyncMethod.Invoke(window, [null!]));
+            Assert.IsType<ArgumentNullException>(valueException.InnerException);
+
             window.Close();
         });
     }
@@ -436,6 +502,29 @@ public sealed class MainWindowCoverageTests
 
                 Assert.Single(GetNamedField<ListBox>(window, "SessionsListBox").Items);
                 Assert.Contains("Indexed 1 deduped sessions", GetNamedField<TextBlock>(window, "StatusTextBlock").Text, StringComparison.Ordinal);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task RefreshAsync_throws_when_known_stores_provider_is_missingAsync()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var root = CreateTempDirectory();
+            try
+            {
+                var repository = CreateRepository(root);
+                var window = new MainWindow();
+                RepositoryField.SetValue(window, repository);
+                WorkspaceIndexerField.SetValue(window, new SessionWorkspaceIndexer(repository));
+                SetProvider(window, "KnownStoresProvider", null!);
+
+                await Assert.ThrowsAsync<InvalidOperationException>(() => InvokePrivateTaskAsync(window, RefreshAsyncMethod, false));
             }
             finally
             {
@@ -760,7 +849,7 @@ public sealed class MainWindowCoverageTests
                 CancellationTokenSource? searchCts = null;
                 for (var attempt = 0; attempt < 50 && searchCts is null; attempt++)
                 {
-                    searchCts = SearchCtsField.GetValue(window) as CancellationTokenSource;
+                    searchCts = CurrentSearchCancellationTokenSourceProperty.GetValue(window) as CancellationTokenSource;
                     if (searchCts is null)
                     {
                         await Task.Delay(10);
@@ -772,7 +861,7 @@ public sealed class MainWindowCoverageTests
                 await searchTask;
 
                 window.Close();
-                Assert.Null(SearchCtsField.GetValue(window));
+                Assert.Null(CurrentSearchCancellationTokenSourceProperty.GetValue(window));
             }
             finally
             {
