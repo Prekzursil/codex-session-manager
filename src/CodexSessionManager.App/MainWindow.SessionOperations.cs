@@ -24,7 +24,7 @@ public partial class MainWindow
     private async Task PopulateSelectedSessionHeaderAsync(IndexedLogicalSession selected, string? selectedSessionId)
     {
         var selectedSession = selected ?? throw new ArgumentNullException(nameof(selected));
-        var sessionId = RequireSelectedSessionId(selectedSessionId);
+        var requestedSessionId = RequireSelectedSessionId(selectedSessionId);
 
         var preferredCopy = selectedSession.PreferredCopy;
         if (preferredCopy is null)
@@ -44,7 +44,7 @@ public partial class MainWindow
 
         await RunOnUiThreadAsync(() =>
         {
-            if (!string.Equals(GetSelectedSession()?.SessionId, sessionId, StringComparison.Ordinal))
+            if (!string.Equals(GetSelectedSession()?.SessionId, requestedSessionId, StringComparison.Ordinal))
             {
                 return;
             }
