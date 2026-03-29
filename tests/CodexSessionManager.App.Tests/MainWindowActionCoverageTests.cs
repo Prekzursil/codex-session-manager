@@ -181,6 +181,23 @@ public sealed partial class MainWindowCoverageTests
     }
 
     [Fact]
+    public async Task Event_wrapper_handlers_return_cleanly_without_selection_or_repositoryAsync()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var window = new MainWindow();
+            GetNamedField<TextBlock>(window, "StatusTextBlock").Text = "idle";
+
+            SearchTextChangedMethod.Invoke(window, new object?[] { window, null });
+            SessionsListSelectionChangedMethod.Invoke(window, new object?[] { window, null });
+            await Task.Delay(50);
+
+            Assert.Equal("idle", GetNamedField<TextBlock>(window, "StatusTextBlock").Text);
+            window.Close();
+        });
+    }
+
+    [Fact]
     public void ExportPathSelector_uses_dialog_factory_and_presenter()
     {
         RunInSta(() =>
@@ -331,6 +348,9 @@ public sealed partial class MainWindowCoverageTests
             ReleaseSearchCancellationStateMethod.Invoke(window, []);
 
             Assert.True(secondToken.IsCancellationRequested);
+            Assert.Null(CurrentSearchCancellationTokenSourceProperty.GetValue(window));
+
+            ReleaseSearchCancellationStateMethod.Invoke(window, []);
             Assert.Null(CurrentSearchCancellationTokenSourceProperty.GetValue(window));
 
             window.Close();
