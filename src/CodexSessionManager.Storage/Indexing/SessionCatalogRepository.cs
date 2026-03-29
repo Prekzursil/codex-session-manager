@@ -133,7 +133,8 @@ public sealed class SessionCatalogRepository
 
     public async Task InitializeAsync(CancellationToken cancellationToken)
     {
-        using var connection = OpenConnection(cancellationToken);
+        var connection = OpenConnection(cancellationToken);
+        using var _ = connection;
         await EnsureSchemaAsync(connection, cancellationToken);
         await RefreshSearchIndexAsync(connection, cancellationToken);
     }
@@ -423,9 +424,12 @@ public sealed class SessionCatalogRepository
         {
             var sessionId = ReadRequiredString(reader, 0);
             var preferredPath = ReadRequiredString(reader, 2);
-            var existingCopies = copiesBySession.TryGetValue(sessionId, out var sessionCopies)
-                ? sessionCopies ?? []
-                : [];
+            List<SessionPhysicalCopy> existingCopies = [];
+            if (copiesBySession.TryGetValue(sessionId, out var sessionCopies)
+                && sessionCopies is not null)
+            {
+                existingCopies = sessionCopies;
+            }
             var preferredCopy = existingCopies.FirstOrDefault(copy => string.Equals(copy.FilePath, preferredPath, StringComparison.OrdinalIgnoreCase))
                 ?? new SessionPhysicalCopy(
                     sessionId,

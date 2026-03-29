@@ -116,11 +116,11 @@ public partial class MainWindow
         Func<string, FileInfo>? fileInfoFactory)
     {
         ArgumentNullException.ThrowIfNull(path);
-
-        Func<string, FileInfo> createFileInfo = fileInfoFactory ?? (static filePath => new FileInfo(filePath));
         try
         {
-            var info = createFileInfo(path);
+            var info = fileInfoFactory is null
+                ? new FileInfo(path)
+                : fileInfoFactory(path);
             if (!info.Exists)
             {
                 return null;

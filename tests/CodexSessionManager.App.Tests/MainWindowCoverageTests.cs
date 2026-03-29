@@ -93,6 +93,12 @@ public sealed class MainWindowCoverageTests
     private static readonly MethodInfo SearchSessionsAsyncMethod =
         typeof(MainWindow).GetMethod("SearchSessionsAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
 
+    private static readonly MethodInfo ReloadSessionsForSearchAsyncMethod =
+        typeof(MainWindow).GetMethod("ReloadSessionsForSearchAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+    private static readonly MethodInfo ApplySearchResultsAsyncMethod =
+        typeof(MainWindow).GetMethod("ApplySearchResultsAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
+
     private static readonly MethodInfo SaveSelectedMetadataAsyncMethod =
         typeof(MainWindow).GetMethod("SaveSelectedMetadataAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
 
@@ -291,6 +297,19 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
+    public void GetRequiredPreferredCopy_returns_the_selected_preferred_copy()
+    {
+        var session = BuildIndexedSession(
+            "session-preferred-copy",
+            "Preferred Copy",
+            Path.Combine(Path.GetTempPath(), "session-preferred-copy.jsonl"));
+
+        var preferredCopy = (SessionPhysicalCopy)GetRequiredPreferredCopyMethod.Invoke(null, [session])!;
+
+        Assert.Same(session.PreferredCopy, preferredCopy);
+    }
+
+    [Fact]
     public void RunEventTask_rejects_invalid_arguments()
     {
         RunInSta(() =>
@@ -303,6 +322,67 @@ public sealed class MainWindowCoverageTests
             var failurePrefixException = Assert.Throws<TargetInvocationException>(() => RunEventTaskMethod.Invoke(window, [(Func<Task>)(() => Task.CompletedTask), " "]));
             Assert.IsType<ArgumentException>(failurePrefixException.InnerException);
 
+            window.Close();
+        });
+    }
+
+    [Fact]
+    public async Task RunEventTask_sets_status_when_action_failsAsync()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var window = new MainWindow();
+            var statusTextBlock = GetNamedField<TextBlock>(window, "StatusTextBlock");
+            var invoked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            RunEventTaskMethod.Invoke(
+                window,
+                [
+                    (Func<Task>)(() =>
+                    {
+                        invoked.SetResult();
+                        throw new InvalidOperationException("boom");
+                    }),
+                    "Failed"
+                ]);
+
+            await invoked.Task;
+            for (var attempt = 0; attempt < 50; attempt++)
+            {
+                if (statusTextBlock.Text.Contains("Failed: boom", StringComparison.Ordinal))
+                {
+                    break;
+                }
+
+                await Task.Delay(10);
+            }
+
+            Assert.Contains("Failed: boom", statusTextBlock.Text, StringComparison.Ordinal);
+            window.Close();
+        });
+    }
+
+    [Fact]
+    public async Task RunEventTask_invokes_action_when_it_succeedsAsync()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var window = new MainWindow();
+            var invoked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            RunEventTaskMethod.Invoke(
+                window,
+                [
+                    (Func<Task>)(() =>
+                    {
+                        invoked.SetResult();
+                        return Task.CompletedTask;
+                    }),
+                    "Failed"
+                ]);
+
+            await invoked.Task;
+            Assert.Equal("Starting…", GetNamedField<TextBlock>(window, "StatusTextBlock").Text);
             window.Close();
         });
     }
@@ -359,6 +439,41 @@ public sealed class MainWindowCoverageTests
             });
 
             Assert.Equal("Value from background", value);
+            window.Close();
+        });
+    }
+
+    [Fact]
+    public async Task RunOnUiThreadAsync_invokes_action_when_called_on_dispatcher_threadAsync()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var window = new MainWindow();
+            var invoked = false;
+
+            var task = (Task)RunOnUiThreadAsyncMethod.Invoke(
+                window,
+                [(Action)(() => invoked = true)])!;
+            await task;
+
+            Assert.True(invoked);
+            window.Close();
+        });
+    }
+
+    [Fact]
+    public async Task RunOnUiThreadValueAsync_returns_value_when_called_on_dispatcher_threadAsync()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var window = new MainWindow();
+
+            var task = (Task<string>)RunOnUiThreadValueAsyncMethod.Invoke(
+                window,
+                [(Func<string>)(() => "Value on dispatcher")])!;
+            var value = await task;
+
+            Assert.Equal("Value on dispatcher", value);
             window.Close();
         });
     }
@@ -704,6 +819,39 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
+    public async Task PopulateSelectedSessionHeaderAsync_uses_empty_copy_list_when_copies_are_missingAsync()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var root = CreateTempDirectory();
+            try
+            {
+                var sessionFile = WriteSessionJsonl(root, "session-header-empty-copies", "Header Empty Copies");
+                var session = WithNullIndexedSessionProperty(
+                    BuildIndexedSession("session-header-empty-copies", "Header Empty Copies", sessionFile),
+                    nameof(IndexedLogicalSession.PhysicalCopies));
+                var window = new MainWindow();
+
+                AddSession(window, session);
+                SelectSingleSession(window, session);
+
+                await InvokePrivateTaskAsync(
+                    window,
+                    PopulateSelectedSessionHeaderAsyncMethod,
+                    session,
+                    session.SessionId);
+
+                Assert.Empty(GetNamedField<ListBox>(window, "CopiesListBox").Items);
+                Assert.Equal("Header Empty Copies", GetNamedField<TextBlock>(window, "ThreadNameTextBlock").Text);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        });
+    }
+
+    [Fact]
     public async Task Session_detail_helpers_reject_null_inputsAsync()
     {
         await RunInStaAsync(async () =>
@@ -723,6 +871,42 @@ public sealed class MainWindowCoverageTests
                     InvokePrivateTaskAsync(window, LoadSelectedSessionBodyAsyncMethod, null!, session.SessionId));
                 await Assert.ThrowsAsync<ArgumentNullException>(() =>
                     InvokePrivateTaskAsync(window, LoadSelectedSessionBodyAsyncMethod, session, null!));
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task LoadSelectedSessionBodyAsync_skips_updates_when_session_is_no_longer_selectedAsync()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var root = CreateTempDirectory();
+            try
+            {
+                var sessionFile = WriteSessionJsonl(root, "session-body-stale", "Body Stale");
+                var session = BuildIndexedSession("session-body-stale", "Body Stale", sessionFile);
+                var parsed = BuildParsedFile("session-body-stale", @"C:\stale");
+                var window = new MainWindow();
+
+                SetProvider(window, "LiveSqliteStatusProvider", (() => "sqlite stale"));
+                SetProvider(
+                    window,
+                    "SessionParser",
+                    ((Func<string, CancellationToken, Task<ParsedSessionFile>>)((_, _) => Task.FromResult(parsed))));
+                SetProvider(window, "FileTextReader", ((Func<string, string>)(_ => "stale-content")));
+
+                await InvokePrivateTaskAsync(
+                    window,
+                    LoadSelectedSessionBodyAsyncMethod,
+                    session,
+                    session.SessionId);
+
+                Assert.Equal("-", GetNamedField<TextBlock>(window, "CwdTextBlock").Text);
+                Assert.Equal(string.Empty, GetNamedField<TextBox>(window, "RawTranscriptTextBox").Text);
             }
             finally
             {
@@ -760,7 +944,8 @@ public sealed class MainWindowCoverageTests
         {
             var window = new MainWindow();
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() => InvokePrivateTaskAsync(window, typeof(MainWindow).GetMethod("ApplySearchResultsAsync", BindingFlags.NonPublic | BindingFlags.Instance)!, "query", CancellationToken.None));
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                InvokePrivateTaskAsync(window, ApplySearchResultsAsyncMethod, "query", CancellationToken.None));
 
             window.Close();
         });
@@ -780,7 +965,11 @@ public sealed class MainWindowCoverageTests
 
                 RepositoryField.SetValue(window, repository);
 
-                await InvokePrivateTaskAsync(window, typeof(MainWindow).GetMethod("ApplySearchResultsAsync", BindingFlags.NonPublic | BindingFlags.Instance)!, null!, CancellationToken.None);
+                await InvokePrivateTaskAsync(
+                    window,
+                    ApplySearchResultsAsyncMethod,
+                    null!,
+                    CancellationToken.None);
 
                 Assert.Contains("Search returned", GetNamedField<TextBlock>(window, "StatusTextBlock").Text, StringComparison.Ordinal);
             }
@@ -788,6 +977,61 @@ public sealed class MainWindowCoverageTests
             {
                 DeleteDirectory(root);
             }
+        });
+    }
+
+    [Fact]
+    public async Task Search_result_helpers_skip_ui_updates_when_search_is_canceledAsync()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var root = CreateTempDirectory();
+            try
+            {
+                var sessionFile = WriteSessionJsonl(root, "session-search-canceled", "Canceled Search");
+                var repository = CreateRepository(
+                    root,
+                    BuildIndexedSession("session-search-canceled", "Canceled Search", sessionFile));
+                var window = new MainWindow();
+
+                RepositoryField.SetValue(window, repository);
+                GetNamedField<TextBlock>(window, "StatusTextBlock").Text = "idle";
+
+                await InvokePrivateTaskAsync(
+                    window,
+                    ReloadSessionsForSearchAsyncMethod,
+                    new CancellationToken(canceled: true));
+                await InvokePrivateTaskAsync(
+                    window,
+                    ApplySearchResultsAsyncMethod,
+                    "Canceled",
+                    new CancellationToken(canceled: true));
+
+                Assert.Equal("idle", GetNamedField<TextBlock>(window, "StatusTextBlock").Text);
+                Assert.Empty(GetNamedField<ListBox>(window, "SessionsListBox").Items);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task ReloadSessionsForSearchAsync_returns_without_repositoryAsync()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var window = new MainWindow();
+            GetNamedField<TextBlock>(window, "StatusTextBlock").Text = "idle";
+
+            await InvokePrivateTaskAsync(
+                window,
+                ReloadSessionsForSearchAsyncMethod,
+                CancellationToken.None);
+
+            Assert.Equal("idle", GetNamedField<TextBlock>(window, "StatusTextBlock").Text);
+            window.Close();
         });
     }
 

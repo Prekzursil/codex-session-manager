@@ -12,7 +12,10 @@ public static class SessionDiscoveryService
         var stores = new List<KnownSessionStore>();
         foreach (var root in roots)
         {
-            ArgumentNullException.ThrowIfNull(root, nameof(roots));
+            if (root is null)
+            {
+                throw new ArgumentNullException(nameof(roots));
+            }
 
             stores.Add(CreateKnownSessionStore(root));
         }
