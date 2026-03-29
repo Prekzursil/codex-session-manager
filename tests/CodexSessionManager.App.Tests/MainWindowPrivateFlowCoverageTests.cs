@@ -228,7 +228,7 @@ public sealed partial class MainWindowCoverageTests
 
                 await InvokePrivateTaskAsync(window, RunBackgroundRefreshAsyncMethod);
 
-                Assert.Contains("Indexed 0 deduped sessions", GetNamedField<TextBlock>(window, "StatusTextBlock").Text, StringComparison.Ordinal);
+                Assert.Contains("Indexed 1 deduped sessions", GetNamedField<TextBlock>(window, "StatusTextBlock").Text, StringComparison.Ordinal);
                 window.Close();
             }
             finally
