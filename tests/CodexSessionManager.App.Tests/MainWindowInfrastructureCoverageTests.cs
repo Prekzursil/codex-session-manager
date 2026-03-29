@@ -69,6 +69,10 @@ public sealed partial class MainWindowCoverageTests
         Assert.Null((string?)DescribeSqlitePathMethod.Invoke(null, [missingPath, (Func<string, FileInfo>)(_ => throw new IOException("blocked"))]));
         Assert.Null((string?)DescribeSqlitePathMethod.Invoke(null, [missingPath, (Func<string, FileInfo>)(_ => throw new UnauthorizedAccessException("blocked"))]));
 
+        var nullTwoArgPathException = Assert.Throws<TargetInvocationException>(() =>
+            DescribeSqlitePathMethod.Invoke(null, [null!, null]));
+        Assert.IsType<ArgumentNullException>(nullTwoArgPathException.InnerException);
+
         var nullPathException = Assert.Throws<TargetInvocationException>(() =>
             DescribeSqlitePathSingleArgumentMethod.Invoke(null, [null!]));
         Assert.IsType<ArgumentNullException>(nullPathException.InnerException);
@@ -84,6 +88,14 @@ public sealed partial class MainWindowCoverageTests
             null,
             [SqliteStatusPaths, (Func<string, string?>)(path => path == "first" ? "first.sqlite" : "second.sqlite")])!;
         Assert.Equal($"first.sqlite{Environment.NewLine}second.sqlite", joinedStatus);
+
+        var nullPathsException = Assert.Throws<TargetInvocationException>(() =>
+            GetLiveSqliteStatusWithInputsMethod.Invoke(null, [null!, (Func<string, string?>)(_ => null)]));
+        Assert.IsType<ArgumentNullException>(nullPathsException.InnerException);
+
+        var nullDescribeException = Assert.Throws<TargetInvocationException>(() =>
+            GetLiveSqliteStatusWithInputsMethod.Invoke(null, [SqliteStatusPaths, null!]));
+        Assert.IsType<ArgumentNullException>(nullDescribeException.InnerException);
 
         var nullProviderException = Assert.Throws<TargetInvocationException>(() =>
             GetKnownStoresMethod.Invoke(null, [null!, false]));
@@ -176,6 +188,10 @@ public sealed partial class MainWindowCoverageTests
                     InvokePrivateTaskAsync(window, ApplySearchResultsAsyncMethod, "Cancel", CancellationToken.None));
                 Assert.Equal("Repository has not been initialized.", missingRepositoryException.Message);
 
+                var nullSelectedHeaderException = await Assert.ThrowsAsync<ArgumentNullException>(() =>
+                    InvokePrivateTaskAsync(window, PopulateSelectedSessionHeaderAsyncMethod, null!, session.SessionId));
+                Assert.Equal("selected", nullSelectedHeaderException.ParamName);
+
                 var blankSessionIdException = await Assert.ThrowsAsync<ArgumentException>(() =>
                     InvokePrivateTaskAsync(window, PopulateSelectedSessionHeaderAsyncMethod, session, " "));
                 Assert.Equal("selectedSessionId", blankSessionIdException.ParamName);
@@ -196,6 +212,14 @@ public sealed partial class MainWindowCoverageTests
                 Assert.Equal("Live SQLite status unavailable.", GetNamedField<TextBlock>(window, "SQLiteStatusTextBlock").Text);
                 Assert.Equal(string.Empty, GetNamedField<TextBox>(window, "AuditTranscriptTextBox").Text);
                 Assert.Contains("Unable to load raw session content.", GetNamedField<TextBox>(window, "RawTranscriptTextBox").Text, StringComparison.Ordinal);
+
+                var nullSelectedBodyException = await Assert.ThrowsAsync<ArgumentNullException>(() =>
+                    InvokePrivateTaskAsync(window, LoadSelectedSessionBodyAsyncMethod, null!, session.SessionId));
+                Assert.Equal("selected", nullSelectedBodyException.ParamName);
+
+                var nullBodySessionIdException = await Assert.ThrowsAsync<ArgumentNullException>(() =>
+                    InvokePrivateTaskAsync(window, LoadSelectedSessionBodyAsyncMethod, session, null!));
+                Assert.Equal("selectedSessionId", nullBodySessionIdException.ParamName);
 
                 RepositoryField.SetValue(window, repository);
                 sessions.Clear();

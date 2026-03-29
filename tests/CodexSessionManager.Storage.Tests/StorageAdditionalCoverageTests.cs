@@ -160,6 +160,10 @@ public sealed partial class StorageCoverageExpansionTests
             var normalizedNestedRoot = (string)NormalizeRootPathCoverageMethod.Invoke(null, [nestedRoot])!;
             Assert.Equal(Path.Combine(root, "nested"), normalizedNestedRoot);
 
+            var filesystemSeparatorRoot = Path.DirectorySeparatorChar.ToString();
+            var normalizedSeparatorRoot = (string)NormalizeRootPathCoverageMethod.Invoke(null, [filesystemSeparatorRoot])!;
+            Assert.Equal(filesystemSeparatorRoot, normalizedSeparatorRoot);
+
             if (OperatingSystem.IsWindows())
             {
                 var filesystemRoot = Path.GetPathRoot(Path.GetTempPath())!;
