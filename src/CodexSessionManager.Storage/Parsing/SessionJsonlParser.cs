@@ -226,11 +226,6 @@ public static partial class SessionJsonlParser
 
     private static string? TryExtractCommand(string rawArguments)
     {
-        if (rawArguments is null)
-        {
-            throw new ArgumentNullException(nameof(rawArguments));
-        }
-
         if (string.IsNullOrWhiteSpace(rawArguments))
         {
             return null;

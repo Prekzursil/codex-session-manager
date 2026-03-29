@@ -140,7 +140,7 @@ public sealed class StorageGuardClauseTests
         AssertInner<ArgumentNullException>(() => TryGetStringMethod.Invoke(null, [emptyElement, null!]));
         AssertInner<ArgumentNullException>(() =>
             TryGetPropertyValueMethod.Invoke(null, [emptyElement, null!, default(JsonElement)]));
-        AssertInner<ArgumentNullException>(() => TryExtractCommandMethod.Invoke(null, [null!]));
+        Assert.Null(TryExtractCommandMethod.Invoke(null, [null!]));
         AssertInner<ArgumentNullException>(() => ExtractFilePathsAndUrlsMethod.Invoke(null, [string.Empty, null!, urls]));
         AssertInner<ArgumentNullException>(() => ExtractFilePathsAndUrlsMethod.Invoke(null, [string.Empty, filePaths, null!]));
         AssertInner<ArgumentNullException>(() => ExtractFilePathsAndUrlsMethod.Invoke(null, [null!, new HashSet<string>(StringComparer.Ordinal), new HashSet<string>(StringComparer.Ordinal)]));
