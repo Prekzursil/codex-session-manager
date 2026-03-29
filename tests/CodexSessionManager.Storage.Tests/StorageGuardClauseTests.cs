@@ -253,27 +253,12 @@ public sealed class StorageGuardClauseTests
         await AssertInnerAsync<ArgumentNullException>(() =>
             (Task)ReplaceCopyRowsMethod.Invoke(
                 null,
-                [connection, session.SessionId, new SessionPhysicalCopy[] { null! }, CancellationToken.None])!);
+                [connection, session.SessionId, [null!], CancellationToken.None])!);
         await AssertInnerAsync<ArgumentNullException>(() =>
             (Task<IReadOnlyList<IndexedLogicalSession>>)LoadSessionsMethod.Invoke(null, [connection, null!, CancellationToken.None])!);
         await AssertInnerAsync<ArgumentNullException>(() =>
             (Task)ExecuteCommandMethod.Invoke(null, [null!, CancellationToken.None])!);
-        AssertInner<InvalidOperationException>(() =>
-            MoveTargetsMethod.Invoke(
-                null,
-                new object[]
-                {
-                    new SessionPhysicalCopy[]
-                    {
-                        new SessionPhysicalCopy(
-                            "session-1",
-                            Path.GetPathRoot(Path.GetTempPath())!,
-                            SessionStoreKind.Backup,
-                            new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false))
-                    },
-                    Path.GetPathRoot(Path.GetTempPath())!,
-                    CancellationToken.None
-                }));
+        AssertInvalidMoveTargetPath();
 
         DatabasePathField.SetValue(repository, string.Empty);
         AssertInner<InvalidOperationException>(() => OpenConnectionMethod.Invoke(repository, [CancellationToken.None]));
@@ -341,6 +326,34 @@ public sealed class StorageGuardClauseTests
         Assert.Empty(preview.BlockedTargets);
         Assert.Empty(preview.Warnings);
         AssertInner<ArgumentNullException>(() => IsProtectedMethod.Invoke(null, [null!]));
+    }
+
+    [Fact]
+    public void SessionDiscoveryService_normalize_root_path_preserves_filesystem_root()
+    {
+        var filesystemRoot = Path.GetPathRoot(Path.GetTempPath())!;
+        var normalizedRoot = (string)NormalizeRootPathMethod.Invoke(null, [filesystemRoot])!;
+
+        Assert.Equal(filesystemRoot, normalizedRoot);
+    }
+
+    private static void AssertInvalidMoveTargetPath()
+    {
+        AssertInner<InvalidOperationException>(() =>
+            MoveTargetsMethod.Invoke(
+                null,
+                new object[]
+                {
+                    [
+                        new SessionPhysicalCopy(
+                            "session-1",
+                            Path.GetPathRoot(Path.GetTempPath())!,
+                            SessionStoreKind.Backup,
+                            new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false)),
+                    ],
+                    Path.GetPathRoot(Path.GetTempPath())!,
+                    CancellationToken.None,
+                }));
     }
 
     private static void AssertInner<TException>(Action action)

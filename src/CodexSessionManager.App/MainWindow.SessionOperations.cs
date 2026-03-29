@@ -16,7 +16,7 @@ public partial class MainWindow
             return;
         }
 
-        var selectedSessionId = selected.SessionId;
+        var selectedSessionId = RequireSelectedSessionId(selected.SessionId);
         await PopulateSelectedSessionHeaderAsync(selected, selectedSessionId);
         await LoadSelectedSessionBodyAsync(selected, selectedSessionId);
     }
@@ -39,8 +39,8 @@ public partial class MainWindow
         }
 
         var physicalCopies = selectedSession.PhysicalCopies ?? Array.Empty<SessionPhysicalCopy>();
-        var threadName = selectedSession.ThreadName;
-        var sessionId = selectedSession.SessionId;
+        var threadName = selectedSession.ThreadName ?? string.Empty;
+        var sessionId = RequireSelectedSessionId(selectedSession.SessionId);
 
         await RunOnUiThreadAsync(() =>
         {
@@ -173,7 +173,9 @@ public partial class MainWindow
         var hits = await repository.SearchAsync(searchQuery, CancellationToken.None);
         var hitIds = hits.Select(hit => hit.SessionId).ToHashSet(StringComparer.Ordinal);
         var allSessions = await repository.ListSessionsAsync(CancellationToken.None);
-        var visibleSessions = allSessions.Where(session => hitIds.Contains(session.SessionId)).ToArray();
+        var visibleSessions = allSessions
+            .Where(session => hitIds.Contains(RequireSelectedSessionId(session.SessionId)))
+            .ToArray();
         var searchCanceled = IsSearchCanceled(searchToken);
 
         await RunOnUiThreadAsync(() =>

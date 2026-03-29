@@ -86,7 +86,8 @@ public partial class MainWindow : Window
         }
 
         var processArguments = arguments ?? throw new ArgumentNullException(nameof(arguments));
-        var startInfo = new ProcessStartInfo(fileName)
+        var normalizedFileName = NormalizeAllowedProcessFileName(fileName);
+        var startInfo = new ProcessStartInfo(normalizedFileName)
         {
             UseShellExecute = false,
         };
@@ -97,6 +98,31 @@ public partial class MainWindow : Window
         }
 
         _ = Process.Start(startInfo);
+    }
+
+    private static string NormalizeAllowedProcessFileName(string fileName)
+    {
+        var candidate = fileName ?? throw new ArgumentNullException(nameof(fileName));
+        if (string.Equals(candidate, "explorer.exe", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(candidate, "notepad.exe", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(candidate, "codex", StringComparison.OrdinalIgnoreCase))
+        {
+            return candidate;
+        }
+
+        var systemDirectory = Environment.SystemDirectory;
+        if (Path.IsPathRooted(candidate)
+            && string.Equals(Path.GetDirectoryName(candidate), systemDirectory, StringComparison.OrdinalIgnoreCase))
+        {
+            var executableName = Path.GetFileName(candidate);
+            if (string.Equals(executableName, "cmd.exe", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(executableName, "whoami.exe", StringComparison.OrdinalIgnoreCase))
+            {
+                return candidate;
+            }
+        }
+
+        throw new InvalidOperationException($"Launching '{candidate}' is not allowed.");
     }
 
     private async Task InitializeAsync()
@@ -174,7 +200,7 @@ public partial class MainWindow : Window
 
     private string? SelectExportPath(string defaultFileName)
     {
-        var dialog = SaveFileDialogFactory();
+        var dialog = SaveFileDialogFactory() ?? throw new InvalidOperationException("Save file dialog factory returned null.");
 
         dialog.FileName = defaultFileName;
         dialog.Filter = "Markdown (*.md)|*.md|Text (*.txt)|*.txt|JSON (*.json)|*.json";
@@ -222,10 +248,11 @@ public partial class MainWindow : Window
         var tags = metadata.TagsText
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .ToArray();
+        var sessionId = RequireSelectedSessionId(selected.SessionId);
 
-        await repository.UpdateMetadataAsync(selected.SessionId, metadata.Alias, tags, metadata.Notes, CancellationToken.None);
+        await repository.UpdateMetadataAsync(sessionId, metadata.Alias, tags, metadata.Notes, CancellationToken.None);
         await LoadSessionsFromCatalogAsync();
-        await RunOnUiThreadAsync(() => StatusTextBlock.Text = $"Saved metadata for {selected.SessionId}.");
+        await RunOnUiThreadAsync(() => StatusTextBlock.Text = $"Saved metadata for {sessionId}.");
     }
 
     [ExcludeFromCodeCoverage]
@@ -281,10 +308,11 @@ public partial class MainWindow : Window
             return;
         }
 
+        var sessionId = RequireSelectedSessionId(selected.SessionId);
         var cwd = !string.IsNullOrWhiteSpace(CwdTextBlock.Text) && CwdTextBlock.Text != "-" ? CwdTextBlock.Text : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
-        ProcessStarter("codex", ["resume", selected.SessionId, "-C", cwd]);
-        StatusTextBlock.Text = $"Opened Codex resume command for {selected.SessionId}.";
+        ProcessStarter("codex", ["resume", sessionId, "-C", cwd]);
+        StatusTextBlock.Text = $"Opened Codex resume command for {sessionId}.";
     }
 
     private void ExportButton_OnClick(object _, RoutedEventArgs __)

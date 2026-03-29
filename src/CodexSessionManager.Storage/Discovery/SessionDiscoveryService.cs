@@ -13,7 +13,8 @@ public static class SessionDiscoveryService
         var stores = new List<KnownSessionStore>();
         foreach (var root in sessionRoots)
         {
-            stores.Add(CreateKnownSessionStore(root ?? throw new ArgumentNullException(nameof(roots))));
+            var sessionRoot = root ?? throw new ArgumentNullException(nameof(roots));
+            stores.Add(CreateKnownSessionStore(sessionRoot));
         }
 
         var sessions = await SessionWorkspaceIndexer.LoadSessionsAsync(stores.ToArray(), cancellationToken);
@@ -66,10 +67,23 @@ public static class SessionDiscoveryService
     private static string NormalizeRootPath(string rootPath)
     {
         var rawRootPath = rootPath ?? throw new ArgumentNullException(nameof(rootPath));
+        var normalizedRootPath = rawRootPath
+            .Replace('\\', Path.DirectorySeparatorChar)
+            .Replace('/', Path.DirectorySeparatorChar);
+        var filesystemRoot = Path.GetPathRoot(normalizedRootPath);
+        var trimmedRootPath = normalizedRootPath.TrimEnd(Path.DirectorySeparatorChar);
 
-        var normalizedRootPath = rawRootPath;
-        normalizedRootPath = normalizedRootPath.Replace('\\', Path.DirectorySeparatorChar);
-        normalizedRootPath = normalizedRootPath.Replace('/', Path.DirectorySeparatorChar);
-        return normalizedRootPath.TrimEnd(Path.DirectorySeparatorChar);
+        if (string.IsNullOrEmpty(trimmedRootPath) && !string.IsNullOrEmpty(filesystemRoot))
+        {
+            return filesystemRoot;
+        }
+
+        if (!string.IsNullOrEmpty(filesystemRoot)
+            && string.Equals(trimmedRootPath, filesystemRoot.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
+        {
+            return filesystemRoot;
+        }
+
+        return trimmedRootPath;
     }
 }

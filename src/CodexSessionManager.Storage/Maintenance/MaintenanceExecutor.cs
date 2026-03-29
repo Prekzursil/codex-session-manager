@@ -11,6 +11,11 @@ public sealed class MaintenanceExecutor
 
     public MaintenanceExecutor(string checkpointRoot)
     {
+        if (string.IsNullOrWhiteSpace(checkpointRoot))
+        {
+            throw new ArgumentException("Value cannot be null or whitespace.", nameof(checkpointRoot));
+        }
+
         _checkpointRoot = checkpointRoot;
     }
 
@@ -71,9 +76,16 @@ public sealed class MaintenanceExecutor
         string effectiveDestinationRoot,
         CancellationToken cancellationToken)
     {
-        var movedTargets = new List<SessionPhysicalCopy>();
-        foreach (var target in allowedTargets)
+        var targets = allowedTargets ?? throw new ArgumentNullException(nameof(allowedTargets));
+        if (string.IsNullOrWhiteSpace(effectiveDestinationRoot))
         {
+            throw new ArgumentException("Value cannot be null or whitespace.", nameof(effectiveDestinationRoot));
+        }
+
+        var movedTargets = new List<SessionPhysicalCopy>();
+        foreach (var target in targets)
+        {
+            ArgumentNullException.ThrowIfNull(target);
             cancellationToken.ThrowIfCancellationRequested();
             var fileName = Path.GetFileName(target.FilePath);
             var destinationPath = BuildDestinationPath(effectiveDestinationRoot, fileName);
@@ -90,6 +102,16 @@ public sealed class MaintenanceExecutor
 
     private static string BuildDestinationPath(string effectiveDestinationRoot, string fileName)
     {
+        if (string.IsNullOrWhiteSpace(effectiveDestinationRoot))
+        {
+            throw new ArgumentException("Value cannot be null or whitespace.", nameof(effectiveDestinationRoot));
+        }
+
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            throw new ArgumentException("Value cannot be null or whitespace.", nameof(fileName));
+        }
+
         var destinationPath = Path.Combine(effectiveDestinationRoot, fileName);
         if (!File.Exists(destinationPath))
         {
@@ -105,12 +127,13 @@ public sealed class MaintenanceExecutor
         IReadOnlyList<SessionPhysicalCopy> movedTargets,
         CancellationToken cancellationToken)
     {
+        var targets = movedTargets ?? throw new ArgumentNullException(nameof(movedTargets));
         var manifestPath = Path.Combine(_checkpointRoot, $"{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}-{action}.json");
         var payload = new
         {
             action = action.ToString(),
             executedAtUtc = DateTimeOffset.UtcNow,
-            targets = movedTargets.Select(target => new
+            targets = targets.Select(target => new
             {
                 sessionId = target.SessionId,
                 filePath = target.FilePath,
