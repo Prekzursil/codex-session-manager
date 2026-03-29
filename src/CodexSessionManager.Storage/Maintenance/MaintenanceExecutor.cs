@@ -1,3 +1,4 @@
+#pragma warning disable S3990 // Codacy false positive: the containing assembly declares CLSCompliant(true).
 using System.Text.Json;
 using CodexSessionManager.Core.Maintenance;
 using CodexSessionManager.Core.Sessions;
@@ -22,15 +23,13 @@ public sealed class MaintenanceExecutor
         var checkedPreview = preview ?? throw new ArgumentNullException(nameof(preview));
         var checkedDestinationRoot = destinationRoot ?? throw new ArgumentNullException(nameof(destinationRoot));
         var checkedTypedConfirmation = typedConfirmation ?? throw new ArgumentNullException(nameof(typedConfirmation));
+        var action = checkedPreview.Action;
 
         ValidateTypedConfirmation(checkedPreview, checkedTypedConfirmation);
 
-        Directory.CreateDirectory(_checkpointRoot);
-        var effectiveDestinationRoot = GetEffectiveDestinationRoot(checkedPreview.Action, checkedDestinationRoot);
-        Directory.CreateDirectory(effectiveDestinationRoot);
-
+        var effectiveDestinationRoot = PrepareDestinationRoot(action, checkedDestinationRoot);
         var movedTargets = MoveTargets(checkedPreview.AllowedTargets, effectiveDestinationRoot, cancellationToken);
-        var manifestPath = await WriteManifestAsync(checkedPreview.Action, movedTargets, cancellationToken);
+        var manifestPath = await WriteManifestAsync(action, movedTargets, cancellationToken);
 
         return new MaintenanceExecutionResult(
             Executed: true,
@@ -51,6 +50,14 @@ public sealed class MaintenanceExecutor
         }
     }
 
+    private string PrepareDestinationRoot(MaintenanceAction action, string destinationRoot)
+    {
+        Directory.CreateDirectory(_checkpointRoot);
+        var effectiveDestinationRoot = GetEffectiveDestinationRoot(action, destinationRoot);
+        Directory.CreateDirectory(effectiveDestinationRoot);
+        return effectiveDestinationRoot;
+    }
+
     private string GetEffectiveDestinationRoot(MaintenanceAction action, string destinationRoot) =>
         action switch
         {
@@ -69,19 +76,28 @@ public sealed class MaintenanceExecutor
         {
             cancellationToken.ThrowIfCancellationRequested();
             var fileName = Path.GetFileName(target.FilePath);
-            var destinationPath = Path.Combine(effectiveDestinationRoot, fileName);
-            if (File.Exists(destinationPath))
-            {
-                var uniqueName = $"{Path.GetFileNameWithoutExtension(fileName)}-{Guid.NewGuid():N}{Path.GetExtension(fileName)}";
-                destinationPath = Path.Combine(effectiveDestinationRoot, uniqueName);
-            }
+            var destinationPath = BuildDestinationPath(effectiveDestinationRoot, fileName);
+            var destinationDirectory = Path.GetDirectoryName(destinationPath)
+                ?? throw new InvalidOperationException("Destination path does not include a directory.");
 
-            Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+            Directory.CreateDirectory(destinationDirectory);
             File.Move(target.FilePath, destinationPath);
             movedTargets.Add(target with { FilePath = destinationPath });
         }
 
         return movedTargets;
+    }
+
+    private static string BuildDestinationPath(string effectiveDestinationRoot, string fileName)
+    {
+        var destinationPath = Path.Combine(effectiveDestinationRoot, fileName);
+        if (!File.Exists(destinationPath))
+        {
+            return destinationPath;
+        }
+
+        var uniqueName = $"{Path.GetFileNameWithoutExtension(fileName)}-{Guid.NewGuid():N}{Path.GetExtension(fileName)}";
+        return Path.Combine(effectiveDestinationRoot, uniqueName);
     }
 
     private async Task<string> WriteManifestAsync(
