@@ -361,7 +361,7 @@ public sealed class SessionCatalogRepository
 
         foreach (var copy in physicalCopies)
         {
-            ArgumentNullException.ThrowIfNull(copy, nameof(physicalCopies));
+            ArgumentNullException.ThrowIfNull(copy);
 
             var copyCommand = new SqliteCommand(InsertCopySql, connection);
             var copySessionId = copy.SessionId;
