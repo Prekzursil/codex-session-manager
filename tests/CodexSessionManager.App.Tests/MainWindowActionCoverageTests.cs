@@ -496,6 +496,92 @@ public sealed partial class MainWindowCoverageTests
     }
 
     [Fact]
+    public void StartExternalProcess_starts_valid_process_without_arguments()
+    {
+        var fileName = Path.Combine(Environment.SystemDirectory, "whoami.exe");
+
+        StartExternalProcessMethod.Invoke(
+            null,
+            [fileName, Array.Empty<string>()]);
+    }
+
+    [Fact]
+    public async Task MaintenanceRunner_throws_when_executor_is_not_initializedAsync()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var root = CreateTempDirectory();
+            try
+            {
+                var sessionFile = WriteSessionJsonl(root, "session-missing-runner", "Missing Runner");
+                var session = BuildIndexedSession("session-missing-runner", "Missing Runner", sessionFile);
+                var window = new MainWindow();
+
+                AddSession(window, session);
+                SelectSingleSession(window, session);
+                BuildPreviewMethod.Invoke(window, [window, new RoutedEventArgs()]);
+
+                var preview = (MaintenancePreview)typeof(MainWindow)
+                    .GetField("_currentMaintenancePreview", BindingFlags.Instance | BindingFlags.NonPublic)!
+                    .GetValue(window)!;
+                var runner = (Func<MaintenancePreview, string, string, CancellationToken, Task<MaintenanceExecutionResult>>)typeof(MainWindow)
+                    .GetProperty("MaintenanceRunner", BindingFlags.Instance | BindingFlags.NonPublic)!
+                    .GetValue(window)!;
+
+                var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                    runner(preview, Path.Combine(root, "archive"), string.Empty, CancellationToken.None));
+                Assert.Equal("Maintenance executor has not been initialized.", exception.Message);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task ExecuteMaintenanceAsync_preserves_nonblank_destination_rootAsync()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var root = CreateTempDirectory();
+            try
+            {
+                var sessionFile = WriteSessionJsonl(root, "session-custom-destination", "Custom Destination");
+                var session = BuildIndexedSession("session-custom-destination", "Custom Destination", sessionFile);
+                var requestedDestinationRoot = Path.Combine(root, "custom-archive");
+                var observedDestinationRoots = new List<string>();
+                var window = new MainWindow();
+
+                MaintenanceExecutorField.SetValue(window, new MaintenanceExecutor(Path.Combine(root, "checkpoints")));
+                AddSession(window, session);
+                SelectSingleSession(window, session);
+                SetProvider(
+                    window,
+                    "MaintenanceRunner",
+                    ((Func<MaintenancePreview, string, string, CancellationToken, Task<MaintenanceExecutionResult>>)((_, destinationRoot, _, _) =>
+                    {
+                        observedDestinationRoots.Add(destinationRoot);
+                        return Task.FromResult(new MaintenanceExecutionResult(false, [], Path.Combine(root, "checkpoint.json")));
+                    })));
+
+                BuildPreviewMethod.Invoke(window, [window, new RoutedEventArgs()]);
+                GetNamedField<TextBox>(window, "DestinationRootTextBox").Text = requestedDestinationRoot;
+
+                await InvokePrivateTaskAsync(window, ExecuteMaintenanceUiAsyncMethod);
+
+                Assert.Single(observedDestinationRoots);
+                Assert.Equal(requestedDestinationRoot, observedDestinationRoots[0]);
+                Assert.Equal("Maintenance did not execute.", GetNamedField<TextBlock>(window, "StatusTextBlock").Text);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        });
+    }
+
+    [Fact]
     public async Task ExecuteMaintenanceAsync_sets_status_when_runner_returns_not_executedAsync()
     {
         await RunInStaAsync(async () =>
