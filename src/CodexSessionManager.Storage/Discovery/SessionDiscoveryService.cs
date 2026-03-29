@@ -12,25 +12,97 @@ public static class SessionDiscoveryService
             throw new ArgumentNullException(nameof(roots));
         }
 
-        var stores = roots.Select(CreateKnownSessionStore).ToArray(); // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+        var sessionRoots = roots;
 
-        var sessions = await SessionWorkspaceIndexer.LoadSessionsAsync(stores, cancellationToken);
+        var stores = new List<KnownSessionStore>();
+        foreach (var root in sessionRoots)
+        {
+            if (root is null)
+            {
+                throw new ArgumentNullException(nameof(roots));
+            }
+
+            var sessionRoot = root;
+            stores.Add(CreateKnownSessionStore(sessionRoot));
+        }
+
+        var sessions = await SessionWorkspaceIndexer.LoadSessionsAsync(stores.ToArray(), cancellationToken);
         return new DiscoveredSessionCatalog(sessions);
     }
 
     private static KnownSessionStore CreateKnownSessionStore(SessionStoreRoot root)
     {
-        var normalizedRoot = root.RootPath.Replace('/', '\\').TrimEnd('\\'); // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+        if (root is null)
+        {
+            throw new ArgumentNullException(nameof(root));
+        }
+
+        var sessionRoot = root;
+
+        var rootPath = sessionRoot.RootPath;
+        if (string.IsNullOrWhiteSpace(rootPath))
+        {
+            throw new ArgumentException("Session store root path cannot be empty.", nameof(root));
+        }
+
+        var storeKind = sessionRoot.StoreKind;
+        var normalizedRoot = NormalizeRootPath(rootPath);
         var backupWorkspaceRoot = Path.GetDirectoryName(normalizedRoot);
         var normalizedBackupWorkspaceRoot = string.IsNullOrWhiteSpace(backupWorkspaceRoot) ? normalizedRoot : backupWorkspaceRoot;
 
-        return root.StoreKind switch // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+        if (storeKind == SessionStoreKind.Live)
         {
-            SessionStoreKind.Live => new KnownSessionStore(normalizedRoot, root.StoreKind, Path.Combine(normalizedRoot, "sessions"), Path.Combine(normalizedRoot, "session_index.jsonl")), // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
-            SessionStoreKind.Backup when normalizedRoot.EndsWith(@"\sessions_backup", StringComparison.OrdinalIgnoreCase)
-                => new KnownSessionStore(normalizedBackupWorkspaceRoot, root.StoreKind, normalizedRoot, Path.Combine(normalizedBackupWorkspaceRoot, "session_index.jsonl")), // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
-            _ => new KnownSessionStore(normalizedRoot, root.StoreKind, normalizedRoot, Path.Combine(normalizedRoot, "session_index.jsonl")) // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
-        };
+            return new KnownSessionStore(
+                normalizedRoot,
+                storeKind,
+                Path.Combine(normalizedRoot, "sessions"),
+                Path.Combine(normalizedRoot, "session_index.jsonl"));
+        }
+
+        if (storeKind == SessionStoreKind.Backup
+            && normalizedRoot.EndsWith(
+                $"{Path.DirectorySeparatorChar}sessions_backup",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return new KnownSessionStore(
+                normalizedBackupWorkspaceRoot,
+                storeKind,
+                normalizedRoot,
+                Path.Combine(normalizedBackupWorkspaceRoot, "session_index.jsonl"));
+        }
+
+        return new KnownSessionStore(
+            normalizedRoot,
+            storeKind,
+            normalizedRoot,
+            Path.Combine(normalizedRoot, "session_index.jsonl"));
+    }
+
+    private static string NormalizeRootPath(string rootPath)
+    {
+        if (rootPath is null)
+        {
+            throw new ArgumentNullException(nameof(rootPath));
+        }
+
+        var rawRootPath = rootPath;
+        var normalizedRootPath = rawRootPath
+            .Replace('\\', Path.DirectorySeparatorChar)
+            .Replace('/', Path.DirectorySeparatorChar);
+        var filesystemRoot = Path.GetPathRoot(normalizedRootPath);
+        var trimmedRootPath = normalizedRootPath.TrimEnd(Path.DirectorySeparatorChar);
+
+        if (string.IsNullOrEmpty(trimmedRootPath) && !string.IsNullOrEmpty(filesystemRoot))
+        {
+            return filesystemRoot;
+        }
+
+        if (!string.IsNullOrEmpty(filesystemRoot)
+            && string.Equals(trimmedRootPath, filesystemRoot.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
+        {
+            return filesystemRoot;
+        }
+
+        return trimmedRootPath;
     }
 }
-
