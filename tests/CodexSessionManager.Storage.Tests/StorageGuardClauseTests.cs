@@ -349,7 +349,7 @@ public sealed class StorageGuardClauseTests
                 new SessionPhysicalCopyState(DateTimeOffset.UtcNow, 1, false)),
         ];
 
-        AssertInner<InvalidOperationException>(() =>
+        AssertInner<ArgumentException>(() =>
             MoveTargetsMethod.Invoke(
                 null,
                 new object[]
