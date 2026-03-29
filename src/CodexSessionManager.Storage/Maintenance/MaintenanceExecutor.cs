@@ -1,4 +1,3 @@
-#pragma warning disable S3990 // Codacy false positive: the containing assembly declares CLSCompliant(true).
 using System.Text.Json;
 using CodexSessionManager.Core.Maintenance;
 using CodexSessionManager.Core.Sessions;
@@ -26,9 +25,24 @@ public sealed class MaintenanceExecutor
         string typedConfirmation,
         CancellationToken cancellationToken)
     {
-        var checkedPreview = preview ?? throw new ArgumentNullException(nameof(preview));
-        var checkedDestinationRoot = destinationRoot ?? throw new ArgumentNullException(nameof(destinationRoot));
-        var checkedTypedConfirmation = typedConfirmation ?? throw new ArgumentNullException(nameof(typedConfirmation));
+        if (preview is null)
+        {
+            throw new ArgumentNullException(nameof(preview));
+        }
+
+        if (destinationRoot is null)
+        {
+            throw new ArgumentNullException(nameof(destinationRoot));
+        }
+
+        if (typedConfirmation is null)
+        {
+            throw new ArgumentNullException(nameof(typedConfirmation));
+        }
+
+        var checkedPreview = preview;
+        var checkedDestinationRoot = destinationRoot;
+        var checkedTypedConfirmation = typedConfirmation;
         var action = checkedPreview.Action;
 
         ValidateTypedConfirmation(checkedPreview, checkedTypedConfirmation);
@@ -77,7 +91,11 @@ public sealed class MaintenanceExecutor
         string effectiveDestinationRoot,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(allowedTargets);
+        if (allowedTargets is null)
+        {
+            throw new ArgumentNullException(nameof(allowedTargets));
+        }
+
         var targets = allowedTargets;
         if (string.IsNullOrWhiteSpace(effectiveDestinationRoot))
         {
@@ -126,7 +144,10 @@ public sealed class MaintenanceExecutor
         IReadOnlyList<SessionPhysicalCopy> movedTargets,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(movedTargets);
+        if (movedTargets is null)
+        {
+            throw new ArgumentNullException(nameof(movedTargets));
+        }
 
         var targets = movedTargets;
         var manifestPath = Path.Combine(_checkpointRoot, $"{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}-{action}.json");

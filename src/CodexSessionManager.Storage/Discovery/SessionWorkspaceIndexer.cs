@@ -17,7 +17,9 @@ public sealed class SessionWorkspaceIndexer
 
     public async Task<IReadOnlyList<IndexedLogicalSession>> RebuildAsync(IEnumerable<KnownSessionStore> stores, CancellationToken cancellationToken)
     {
-        var sessions = await LoadSessionsAsync(stores, cancellationToken); // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+        ArgumentNullException.ThrowIfNull(stores);
+
+        var sessions = await LoadSessionsAsync(stores, cancellationToken);
         foreach (var session in sessions)
         {
             await _repository.UpsertAsync(session, cancellationToken);
@@ -28,12 +30,15 @@ public sealed class SessionWorkspaceIndexer
 
     internal static async Task<IReadOnlyList<IndexedLogicalSession>> LoadSessionsAsync(IEnumerable<KnownSessionStore> stores, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(stores);
+
         var threadNames = new Dictionary<string, string>(StringComparer.Ordinal);
         var parsedSessions = new Dictionary<string, ParsedSessionFile>(StringComparer.Ordinal);
         var copies = new List<SessionPhysicalCopy>();
 
         foreach (var store in stores)
         {
+            ArgumentNullException.ThrowIfNull(store);
             await LoadStoreSessionsAsync(store, threadNames, parsedSessions, copies, cancellationToken);
         }
 
@@ -76,21 +81,25 @@ public sealed class SessionWorkspaceIndexer
         ICollection<SessionPhysicalCopy> copies,
         CancellationToken cancellationToken)
     {
-        foreach (var kvp in await LoadSessionIndexAsync(store.SessionIndexPath, cancellationToken)) // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+        ArgumentNullException.ThrowIfNull(store);
+
+        var knownStore = store;
+
+        foreach (var kvp in await LoadSessionIndexAsync(knownStore.SessionIndexPath, cancellationToken))
         {
             threadNames[kvp.Key] = kvp.Value;
         }
 
-        if (!Directory.Exists(store.SessionsPath)) // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+        if (!Directory.Exists(knownStore.SessionsPath))
         {
             return;
         }
 
-        foreach (var filePath in Directory.EnumerateFiles(store.SessionsPath, "*.jsonl", SearchOption.AllDirectories)) // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+        foreach (var filePath in Directory.EnumerateFiles(knownStore.SessionsPath, "*.jsonl", SearchOption.AllDirectories))
         {
             var parsed = await SessionJsonlParser.ParseAsync(filePath, cancellationToken);
             parsedSessions[parsed.SessionId] = parsed;
-            copies.Add(CreateSessionCopy(store.StoreKind, filePath, parsed.SessionId)); // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+            copies.Add(CreateSessionCopy(knownStore.StoreKind, filePath, parsed.SessionId));
         }
     }
 
@@ -109,13 +118,14 @@ public sealed class SessionWorkspaceIndexer
 
     private static async Task<Dictionary<string, string>> LoadSessionIndexAsync(string sessionIndexPath, CancellationToken cancellationToken)
     {
+        var checkedSessionIndexPath = sessionIndexPath ?? throw new ArgumentNullException(nameof(sessionIndexPath));
         var results = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (!File.Exists(sessionIndexPath))
+        if (!File.Exists(checkedSessionIndexPath))
         {
             return results;
         }
 
-        var lines = await File.ReadAllLinesAsync(sessionIndexPath, cancellationToken); // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+        var lines = await File.ReadAllLinesAsync(checkedSessionIndexPath, cancellationToken);
         foreach (var line in lines.Where(static value => !string.IsNullOrWhiteSpace(value)))
         {
             using var document = JsonDocument.Parse(line);

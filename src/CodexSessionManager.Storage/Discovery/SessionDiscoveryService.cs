@@ -1,4 +1,3 @@
-#pragma warning disable S3990 // Codacy false positive: the containing assembly declares CLSCompliant(true).
 using CodexSessionManager.Core.Sessions;
 using CodexSessionManager.Core.Transcripts;
 
@@ -8,12 +7,22 @@ public static class SessionDiscoveryService
 {
     public static async Task<DiscoveredSessionCatalog> DiscoverAsync(IEnumerable<SessionStoreRoot> roots, CancellationToken cancellationToken)
     {
-        var sessionRoots = roots ?? throw new ArgumentNullException(nameof(roots));
+        if (roots is null)
+        {
+            throw new ArgumentNullException(nameof(roots));
+        }
+
+        var sessionRoots = roots;
 
         var stores = new List<KnownSessionStore>();
         foreach (var root in sessionRoots)
         {
-            var sessionRoot = root ?? throw new ArgumentNullException(nameof(roots));
+            if (root is null)
+            {
+                throw new ArgumentNullException(nameof(roots));
+            }
+
+            var sessionRoot = root;
             stores.Add(CreateKnownSessionStore(sessionRoot));
         }
 
@@ -23,7 +32,12 @@ public static class SessionDiscoveryService
 
     private static KnownSessionStore CreateKnownSessionStore(SessionStoreRoot root)
     {
-        var sessionRoot = root ?? throw new ArgumentNullException(nameof(root));
+        if (root is null)
+        {
+            throw new ArgumentNullException(nameof(root));
+        }
+
+        var sessionRoot = root;
 
         var rootPath = sessionRoot.RootPath;
         if (string.IsNullOrWhiteSpace(rootPath))
@@ -66,7 +80,12 @@ public static class SessionDiscoveryService
 
     private static string NormalizeRootPath(string rootPath)
     {
-        var rawRootPath = rootPath ?? throw new ArgumentNullException(nameof(rootPath));
+        if (rootPath is null)
+        {
+            throw new ArgumentNullException(nameof(rootPath));
+        }
+
+        var rawRootPath = rootPath;
         var normalizedRootPath = rawRootPath
             .Replace('\\', Path.DirectorySeparatorChar)
             .Replace('/', Path.DirectorySeparatorChar);

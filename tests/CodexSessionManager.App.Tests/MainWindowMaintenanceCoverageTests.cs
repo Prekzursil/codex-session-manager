@@ -1,4 +1,3 @@
-#pragma warning disable S3990 // Codacy false positive: the containing assembly declares CLSCompliant(true).
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
@@ -14,6 +13,7 @@ using CodexSessionManager.Storage.Maintenance;
 
 namespace CodexSessionManager.App.Tests;
 
+[SuppressMessage("Compatibility", "S3990", Justification = "The assembly already declares CLSCompliant(true); this file-level report is a persistent analyzer false positive.")]
 [SuppressMessage("Code Smell", "S2333", Justification = "The coverage tests are intentionally split across partial files.")]
 public sealed partial class MainWindowCoverageTests
 {
@@ -168,6 +168,10 @@ public sealed partial class MainWindowCoverageTests
         var argumentsException = Assert.Throws<TargetInvocationException>(() =>
             StartExternalProcessMethod.Invoke(null, ["codex", null!]));
         Assert.IsType<ArgumentNullException>(argumentsException.InnerException);
+
+        var nullEntryException = Assert.Throws<TargetInvocationException>(() =>
+            StartExternalProcessMethod.Invoke(null, ["codex", new string?[] { null! }]));
+        Assert.IsType<ArgumentException>(nullEntryException.InnerException);
     }
 
     [Fact]
@@ -198,6 +202,16 @@ public sealed partial class MainWindowCoverageTests
         Assert.Equal(
             "codex",
             (string)NormalizeAllowedProcessFileNameMethod.Invoke(null, ["codex"])!);
+
+        var cmdPath = Path.Combine(Environment.SystemDirectory, "cmd.exe");
+        Assert.Equal(
+            cmdPath,
+            (string)NormalizeAllowedProcessFileNameMethod.Invoke(null, [cmdPath])!);
+
+        var whoAmIPath = Path.Combine(Environment.SystemDirectory, "whoami.exe");
+        Assert.Equal(
+            whoAmIPath,
+            (string)NormalizeAllowedProcessFileNameMethod.Invoke(null, [whoAmIPath])!);
     }
 
     [Fact]

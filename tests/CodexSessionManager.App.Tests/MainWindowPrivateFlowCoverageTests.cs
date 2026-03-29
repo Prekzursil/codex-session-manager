@@ -1,4 +1,3 @@
-#pragma warning disable S3990 // Codacy false positive: the containing assembly declares CLSCompliant(true).
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
@@ -13,6 +12,7 @@ using CodexSessionManager.Storage.Parsing;
 
 namespace CodexSessionManager.App.Tests;
 
+[SuppressMessage("Compatibility", "S3990", Justification = "The assembly already declares CLSCompliant(true); this file-level report is a persistent analyzer false positive.")]
 [SuppressMessage("Code Smell", "S2333", Justification = "The coverage tests are intentionally split across partial files.")]
 public sealed partial class MainWindowCoverageTests
 {

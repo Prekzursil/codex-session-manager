@@ -1,4 +1,3 @@
-#pragma warning disable S3990 // Codacy false positive: the containing assembly declares CLSCompliant(true).
 using CodexSessionManager.Core.Sessions;
 using Microsoft.Data.Sqlite;
 using System.Globalization;
@@ -204,7 +203,12 @@ public sealed class SessionCatalogRepository
             throw new ArgumentException(NullOrWhitespaceMessage, nameof(sessionId));
         }
 
-        var metadataTags = tags ?? throw new ArgumentNullException(nameof(tags));
+        if (tags is null)
+        {
+            throw new ArgumentNullException(nameof(tags));
+        }
+
+        var metadataTags = tags;
 
         var normalizedSessionId = sessionId;
         using var connection = OpenConnection(cancellationToken);
@@ -219,6 +223,11 @@ public sealed class SessionCatalogRepository
 
     public Task UpdateMetadataAsync(string sessionId, string alias, IReadOnlyList<string> tags, string notes, CancellationToken cancellationToken)
     {
+        if (tags is null)
+        {
+            throw new ArgumentNullException(nameof(tags));
+        }
+
         return SaveMetadataAsync(sessionId, alias, tags, notes, cancellationToken);
     }
 
@@ -231,8 +240,18 @@ public sealed class SessionCatalogRepository
 
     private static async Task<SessionSearchDocument> MergeExistingMetadataAsync(SqliteConnection connection, IndexedLogicalSession session, CancellationToken cancellationToken)
     {
-        var openConnection = RequireConnection(connection);
-        var indexedSession = RequireSession(session);
+        if (connection is null)
+        {
+            throw new ArgumentNullException(nameof(connection));
+        }
+
+        if (session is null)
+        {
+            throw new ArgumentNullException(nameof(session));
+        }
+
+        var openConnection = connection;
+        var indexedSession = session;
 
         var currentSearchDocument = GetRequiredSearchDocument(indexedSession);
 
@@ -309,7 +328,12 @@ public sealed class SessionCatalogRepository
 
     private static string BuildFtsQuery(string query)
     {
-        var searchQuery = query ?? throw new ArgumentNullException(nameof(query));
+        if (query is null)
+        {
+            throw new ArgumentNullException(nameof(query));
+        }
+
+        var searchQuery = query;
 
         return string.Join(
             " AND ",
@@ -320,7 +344,12 @@ public sealed class SessionCatalogRepository
 
     private static string ToFtsToken(string token)
     {
-        var searchToken = token ?? throw new ArgumentNullException(nameof(token));
+        if (token is null)
+        {
+            throw new ArgumentNullException(nameof(token));
+        }
+
+        var searchToken = token;
 
         var escaped = searchToken.Replace("\"", "\"\"");
         return escaped.All(static ch => char.IsLetterOrDigit(ch) || ch == '_')
@@ -330,7 +359,12 @@ public sealed class SessionCatalogRepository
 
     private static string ReadRequiredString(SqliteDataReader reader, int ordinal)
     {
-        var dataReader = reader ?? throw new ArgumentNullException(nameof(reader));
+        if (reader is null)
+        {
+            throw new ArgumentNullException(nameof(reader));
+        }
+
+        var dataReader = reader;
 
         return dataReader.GetString(ordinal);
     }
@@ -341,9 +375,24 @@ public sealed class SessionCatalogRepository
         IReadOnlyList<SessionPhysicalCopy> physicalCopies,
         CancellationToken cancellationToken)
     {
-        var openConnection = RequireConnection(connection);
-        var normalizedSessionId = sessionId ?? throw new ArgumentNullException(nameof(sessionId));
-        var copies = physicalCopies ?? throw new ArgumentNullException(nameof(physicalCopies));
+        if (connection is null)
+        {
+            throw new ArgumentNullException(nameof(connection));
+        }
+
+        if (sessionId is null)
+        {
+            throw new ArgumentNullException(nameof(sessionId));
+        }
+
+        if (physicalCopies is null)
+        {
+            throw new ArgumentNullException(nameof(physicalCopies));
+        }
+
+        var openConnection = connection;
+        var normalizedSessionId = sessionId;
+        var copies = physicalCopies;
 
         var deleteCopies = new SqliteCommand(DeleteSessionCopiesSql, openConnection);
         deleteCopies.Parameters.AddWithValue(SessionIdParameterName, normalizedSessionId);
@@ -406,8 +455,18 @@ public sealed class SessionCatalogRepository
         IReadOnlyDictionary<string, List<SessionPhysicalCopy>> copiesBySession,
         CancellationToken cancellationToken)
     {
-        var openConnection = RequireConnection(connection);
-        var sessionCopiesById = copiesBySession ?? throw new ArgumentNullException(nameof(copiesBySession));
+        if (connection is null)
+        {
+            throw new ArgumentNullException(nameof(connection));
+        }
+
+        if (copiesBySession is null)
+        {
+            throw new ArgumentNullException(nameof(copiesBySession));
+        }
+
+        var openConnection = connection;
+        var sessionCopiesById = copiesBySession;
         var sessions = new List<IndexedLogicalSession>();
         await using var sessionCommand = new SqliteCommand(ListSessionsSql, openConnection);
         await using var reader = await ExecuteReaderAsync(
@@ -465,7 +524,12 @@ public sealed class SessionCatalogRepository
         SqliteCommand command,
         CancellationToken cancellationToken)
     {
-        var sqliteCommand = command ?? throw new ArgumentNullException(nameof(command));
+        if (command is null)
+        {
+            throw new ArgumentNullException(nameof(command));
+        }
+
+        var sqliteCommand = command;
 
         cancellationToken.ThrowIfCancellationRequested();
         return await sqliteCommand.ExecuteReaderAsync(cancellationToken);
@@ -490,11 +554,25 @@ public sealed class SessionCatalogRepository
         }
     }
 
-    private static SqliteConnection RequireConnection(SqliteConnection? connection) =>
-        connection ?? throw new ArgumentNullException(nameof(connection));
+    private static SqliteConnection RequireConnection(SqliteConnection? connection)
+    {
+        if (connection is null)
+        {
+            throw new ArgumentNullException(nameof(connection));
+        }
 
-    private static IndexedLogicalSession RequireSession(IndexedLogicalSession? session) =>
-        session ?? throw new ArgumentNullException(nameof(session));
+        return connection;
+    }
+
+    private static IndexedLogicalSession RequireSession(IndexedLogicalSession? session)
+    {
+        if (session is null)
+        {
+            throw new ArgumentNullException(nameof(session));
+        }
+
+        return session;
+    }
 
     private static SessionSearchDocument GetRequiredSearchDocument(IndexedLogicalSession session)
     {
@@ -518,6 +596,14 @@ public sealed class SessionCatalogRepository
         return preferredCopy;
     }
 
-    private static IReadOnlyList<SessionPhysicalCopy> GetPhysicalCopies(IndexedLogicalSession session) =>
-        session.PhysicalCopies ?? Array.Empty<SessionPhysicalCopy>();
+    private static IReadOnlyList<SessionPhysicalCopy> GetPhysicalCopies(IndexedLogicalSession session)
+    {
+        var physicalCopies = session.PhysicalCopies;
+        if (physicalCopies is null)
+        {
+            return Array.Empty<SessionPhysicalCopy>();
+        }
+
+        return physicalCopies;
+    }
 }

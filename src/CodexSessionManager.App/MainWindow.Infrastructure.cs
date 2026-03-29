@@ -1,4 +1,3 @@
-#pragma warning disable S3990 // Codacy false positive: the containing assembly declares CLSCompliant(true).
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
@@ -7,12 +6,18 @@ using CodexSessionManager.Storage.Discovery;
 
 namespace CodexSessionManager.App;
 
+[SuppressMessage("Compatibility", "S3990", Justification = "The assembly already declares CLSCompliant(true); this file-level report is a persistent analyzer false positive.")]
 [SuppressMessage("Code Smell", "S2333", Justification = "The class is split across XAML-generated and hand-authored partial files.")]
 public partial class MainWindow
 {
     private async Task RunOnUiThreadAsync(Action action)
     {
-        var uiAction = action ?? throw new ArgumentNullException(nameof(action));
+        if (action is null)
+        {
+            throw new ArgumentNullException(nameof(action));
+        }
+
+        var uiAction = action;
         var dispatcher = Dispatcher;
 
         if (dispatcher.CheckAccess())
@@ -26,7 +31,12 @@ public partial class MainWindow
 
     private async Task<T> RunOnUiThreadValueAsync<T>(Func<T> func)
     {
-        var uiFunc = func ?? throw new ArgumentNullException(nameof(func));
+        if (func is null)
+        {
+            throw new ArgumentNullException(nameof(func));
+        }
+
+        var uiFunc = func;
         var dispatcher = Dispatcher;
 
         if (dispatcher.CheckAccess())
@@ -39,7 +49,12 @@ public partial class MainWindow
 
     private void RunEventTask(Func<Task> action, string failurePrefix)
     {
-        var eventAction = action ?? throw new ArgumentNullException(nameof(action));
+        if (action is null)
+        {
+            throw new ArgumentNullException(nameof(action));
+        }
+
+        var eventAction = action;
 
         if (string.IsNullOrWhiteSpace(failurePrefix))
         {
@@ -94,7 +109,12 @@ public partial class MainWindow
 
     private static SessionPhysicalCopy GetRequiredPreferredCopy(IndexedLogicalSession? session)
     {
-        var selectedSession = session ?? throw new ArgumentNullException(nameof(session));
+        if (session is null)
+        {
+            throw new ArgumentNullException(nameof(session));
+        }
+
+        var selectedSession = session;
 
         var preferredCopy = selectedSession.PreferredCopy;
         if (preferredCopy is null)
@@ -107,7 +127,12 @@ public partial class MainWindow
 
     internal static string? DescribeSqlitePath(string path)
     {
-        var sqlitePath = path ?? throw new ArgumentNullException(nameof(path));
+        if (path is null)
+        {
+            throw new ArgumentNullException(nameof(path));
+        }
+
+        var sqlitePath = path;
         return DescribeSqlitePath(sqlitePath, static candidate => new FileInfo(candidate));
     }
 
@@ -115,8 +140,18 @@ public partial class MainWindow
         string path,
         Func<string, FileInfo>? fileInfoFactory)
     {
-        var sqlitePath = path ?? throw new ArgumentNullException(nameof(path));
-        var createFileInfo = fileInfoFactory ?? (static candidate => new FileInfo(candidate));
+        if (path is null)
+        {
+            throw new ArgumentNullException(nameof(path));
+        }
+
+        var sqlitePath = path;
+        var createFileInfo = fileInfoFactory;
+        if (createFileInfo is null)
+        {
+            createFileInfo = static candidate => new FileInfo(candidate);
+        }
+
         try
         {
             var info = createFileInfo(sqlitePath);
@@ -154,8 +189,18 @@ public partial class MainWindow
         IEnumerable<string> sqlitePaths,
         Func<string, string?> describeSqlitePath)
     {
-        var candidatePaths = sqlitePaths ?? throw new ArgumentNullException(nameof(sqlitePaths));
-        var describePath = describeSqlitePath ?? throw new ArgumentNullException(nameof(describeSqlitePath));
+        if (sqlitePaths is null)
+        {
+            throw new ArgumentNullException(nameof(sqlitePaths));
+        }
+
+        if (describeSqlitePath is null)
+        {
+            throw new ArgumentNullException(nameof(describeSqlitePath));
+        }
+
+        var candidatePaths = sqlitePaths;
+        var describePath = describeSqlitePath;
 
         var details = candidatePaths
             .Select(describePath)
@@ -172,7 +217,12 @@ public partial class MainWindow
         Func<bool, IReadOnlyList<KnownSessionStore>> knownStoresProvider,
         bool deepScan)
     {
-        var provideKnownStores = knownStoresProvider ?? throw new ArgumentNullException(nameof(knownStoresProvider));
+        if (knownStoresProvider is null)
+        {
+            throw new ArgumentNullException(nameof(knownStoresProvider));
+        }
+
+        var provideKnownStores = knownStoresProvider;
 
         var knownStores = provideKnownStores(deepScan);
         if (knownStores is null)

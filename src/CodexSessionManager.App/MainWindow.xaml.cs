@@ -1,4 +1,5 @@
-#pragma warning disable S3990 // Codacy false positive: the containing assembly declares CLSCompliant(true).
+#pragma warning disable S3990 // Codacy false positive: the assembly already declares CLSCompliant(true).
+#pragma warning disable S2333 // False positive: MainWindow is split across XAML-generated and hand-authored partial files.
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -16,9 +17,19 @@ using Microsoft.Win32;
 
 namespace CodexSessionManager.App;
 
+[SuppressMessage("Compatibility", "S3990", Justification = "The assembly already declares CLSCompliant(true); this file-level report is a persistent analyzer false positive.")]
 [SuppressMessage("Code Smell", "S2333", Justification = "The class is split across XAML-generated and hand-authored partial files.")]
 public partial class MainWindow : Window
 {
+    private enum AllowedProcess
+    {
+        Explorer,
+        Notepad,
+        Codex,
+        Cmd,
+        WhoAmI,
+    }
+
     private readonly ObservableCollection<IndexedLogicalSession> _sessions = [];
     private readonly SearchCancellationState _searchCancellation = new();
     private SessionCatalogRepository? _repository;
@@ -85,44 +96,103 @@ public partial class MainWindow : Window
             throw new ArgumentException("Value cannot be null or whitespace.", nameof(fileName));
         }
 
-        var processArguments = arguments ?? throw new ArgumentNullException(nameof(arguments));
-        var normalizedFileName = NormalizeAllowedProcessFileName(fileName);
-        var startInfo = new ProcessStartInfo(normalizedFileName)
+        if (arguments is null)
+        {
+            throw new ArgumentNullException(nameof(arguments));
+        }
+
+        var processArguments = arguments;
+        var allowedProcess = NormalizeAllowedProcess(fileName);
+        var startInfo = CreateAllowedProcessStartInfo(allowedProcess);
+
+        foreach (var argument in processArguments)
+        {
+            if (argument is null)
+            {
+                throw new ArgumentException("Process arguments cannot contain null entries.", nameof(arguments));
+            }
+
+            startInfo.ArgumentList.Add(argument);
+        }
+
+        using var process = new Process { StartInfo = startInfo };
+        process.Start();
+    }
+
+    private static ProcessStartInfo CreateAllowedProcessStartInfo(AllowedProcess allowedProcess)
+        => allowedProcess switch
+        {
+            AllowedProcess.Explorer => CreateProcessStartInfo("explorer.exe"),
+            AllowedProcess.Notepad => CreateProcessStartInfo("notepad.exe"),
+            AllowedProcess.Codex => CreateProcessStartInfo("codex"),
+            AllowedProcess.Cmd => CreateProcessStartInfo(Path.Combine(Environment.SystemDirectory, "cmd.exe")),
+            AllowedProcess.WhoAmI => CreateProcessStartInfo(Path.Combine(Environment.SystemDirectory, "whoami.exe")),
+            _ => throw new InvalidOperationException("Launching the requested process is not allowed."),
+        };
+
+    private static ProcessStartInfo CreateProcessStartInfo(string fileName) =>
+        new(fileName)
         {
             UseShellExecute = false,
         };
 
-        foreach (var argument in processArguments)
+    private static AllowedProcess NormalizeAllowedProcess(string fileName)
+    {
+        if (fileName is null)
         {
-            startInfo.ArgumentList.Add(argument);
+            throw new ArgumentNullException(nameof(fileName));
         }
 
-        _ = Process.Start(startInfo);
+        if (TryResolveNamedProcess(fileName, out var allowedProcess))
+        {
+            return allowedProcess;
+        }
+
+        if (TryResolveSystemProcess(fileName, out allowedProcess))
+        {
+            return allowedProcess;
+        }
+
+        throw new InvalidOperationException($"Launching '{fileName}' is not allowed.");
     }
 
-    private static string NormalizeAllowedProcessFileName(string fileName)
-    {
-        var candidate = fileName ?? throw new ArgumentNullException(nameof(fileName));
-        if (string.Equals(candidate, "explorer.exe", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(candidate, "notepad.exe", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(candidate, "codex", StringComparison.OrdinalIgnoreCase))
-        {
-            return candidate;
-        }
+    private static string NormalizeAllowedProcessFileName(string fileName) =>
+        CreateAllowedProcessStartInfo(NormalizeAllowedProcess(fileName)).FileName;
 
-        var systemDirectory = Environment.SystemDirectory;
+    private static bool TryResolveNamedProcess(string candidate, out AllowedProcess allowedProcess)
+    {
+        allowedProcess = candidate switch
+        {
+            _ when string.Equals(candidate, "explorer.exe", StringComparison.OrdinalIgnoreCase) => AllowedProcess.Explorer,
+            _ when string.Equals(candidate, "notepad.exe", StringComparison.OrdinalIgnoreCase) => AllowedProcess.Notepad,
+            _ when string.Equals(candidate, "codex", StringComparison.OrdinalIgnoreCase) => AllowedProcess.Codex,
+            _ => default,
+        };
+
+        return allowedProcess is AllowedProcess.Explorer or AllowedProcess.Notepad or AllowedProcess.Codex;
+    }
+
+    private static bool TryResolveSystemProcess(string candidate, out AllowedProcess allowedProcess)
+    {
+        allowedProcess = default;
         if (Path.IsPathRooted(candidate)
-            && string.Equals(Path.GetDirectoryName(candidate), systemDirectory, StringComparison.OrdinalIgnoreCase))
+            && string.Equals(Path.GetDirectoryName(candidate), Environment.SystemDirectory, StringComparison.OrdinalIgnoreCase))
         {
             var executableName = Path.GetFileName(candidate);
-            if (string.Equals(executableName, "cmd.exe", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(executableName, "whoami.exe", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(executableName, "cmd.exe", StringComparison.OrdinalIgnoreCase))
             {
-                return candidate;
+                allowedProcess = AllowedProcess.Cmd;
+                return true;
+            }
+
+            if (string.Equals(executableName, "whoami.exe", StringComparison.OrdinalIgnoreCase))
+            {
+                allowedProcess = AllowedProcess.WhoAmI;
+                return true;
             }
         }
 
-        throw new InvalidOperationException($"Launching '{candidate}' is not allowed.");
+        return false;
     }
 
     private async Task InitializeAsync()
@@ -131,13 +201,18 @@ public partial class MainWindow : Window
         {
             var localDataRoot = LocalDataRootProvider();
             Directory.CreateDirectory(localDataRoot);
-            await RunOnUiThreadAsync(() => DestinationRootTextBox.Text = Path.Combine(localDataRoot, "maintenance", "archive"));
+            var defaultDestinationRoot = Path.Combine(localDataRoot, "maintenance", "archive");
+            await RunOnUiThreadAsync(() => DestinationRootTextBox.Text = defaultDestinationRoot);
 
-            _repository = RepositoryFactory(Path.Combine(localDataRoot, "catalog.db"));
-            _workspaceIndexer = WorkspaceIndexerFactory(_repository);
-            _maintenanceExecutor = MaintenanceExecutorFactory(Path.Combine(localDataRoot, "checkpoints"));
+            var repository = RepositoryFactory(Path.Combine(localDataRoot, "catalog.db"));
+            var workspaceIndexer = WorkspaceIndexerFactory(repository);
+            var maintenanceExecutor = MaintenanceExecutorFactory(Path.Combine(localDataRoot, "checkpoints"));
 
-            await _repository.InitializeAsync(CancellationToken.None);
+            _repository = repository;
+            _workspaceIndexer = workspaceIndexer;
+            _maintenanceExecutor = maintenanceExecutor;
+
+            await repository.InitializeAsync(CancellationToken.None);
             await LoadSessionsFromCatalogAsync();
 
             ScheduleRefreshAction();
@@ -162,12 +237,13 @@ public partial class MainWindow : Window
 
     private async Task LoadSessionsFromCatalogAsync()
     {
-        if (_repository is null)
+        var repository = _repository;
+        if (repository is null)
         {
             return;
         }
 
-        var sessions = await _repository.ListSessionsAsync(CancellationToken.None);
+        var sessions = await repository.ListSessionsAsync(CancellationToken.None);
 
         await RunOnUiThreadAsync(() =>
         {
@@ -183,14 +259,15 @@ public partial class MainWindow : Window
 
     private async Task RefreshAsync(bool deepScan)
     {
-        if (_repository is null || _workspaceIndexer is null)
+        var repository = _repository;
+        var workspaceIndexer = _workspaceIndexer;
+        if (repository is null || workspaceIndexer is null)
         {
             return;
         }
 
         await RunOnUiThreadAsync(() => StatusTextBlock.Text = deepScan ? "Running deep scan…" : "Refreshing known stores…");
 
-        var workspaceIndexer = _workspaceIndexer;
         var knownStores = GetKnownStores(KnownStoresProvider, deepScan);
         await workspaceIndexer.RebuildAsync(knownStores, CancellationToken.None);
         await LoadSessionsFromCatalogAsync();
@@ -200,7 +277,17 @@ public partial class MainWindow : Window
 
     private string? SelectExportPath(string defaultFileName)
     {
-        var dialog = SaveFileDialogFactory() ?? throw new InvalidOperationException("Save file dialog factory returned null.");
+        var dialogFactory = SaveFileDialogFactory;
+        if (dialogFactory is null)
+        {
+            throw new InvalidOperationException("Save file dialog factory returned null.");
+        }
+
+        var dialog = dialogFactory();
+        if (dialog is null)
+        {
+            throw new InvalidOperationException("Save file dialog factory returned null.");
+        }
 
         dialog.FileName = defaultFileName;
         dialog.Filter = "Markdown (*.md)|*.md|Text (*.txt)|*.txt|JSON (*.json)|*.json";
@@ -355,7 +442,8 @@ public partial class MainWindow : Window
 
     private async Task ExecuteMaintenanceAsync()
     {
-        if (_currentMaintenancePreview is null || _maintenanceExecutor is null)
+        var preview = _currentMaintenancePreview;
+        if (preview is null || _maintenanceExecutor is null)
         {
             return;
         }
@@ -374,12 +462,12 @@ public partial class MainWindow : Window
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "CodexSessionManager",
                 "maintenance",
-                _currentMaintenancePreview.Action.ToString().ToLowerInvariant());
+                preview.Action.ToString().ToLowerInvariant());
         }
 
         try
         {
-            var result = await MaintenanceRunner(_currentMaintenancePreview, destinationRoot, typedConfirmation, CancellationToken.None);
+            var result = await MaintenanceRunner(preview, destinationRoot, typedConfirmation, CancellationToken.None);
             await RunOnUiThreadAsync(() => StatusTextBlock.Text = result.Executed
                 ? $"Executed maintenance. Checkpoint: {result.ManifestPath}"
                 : "Maintenance did not execute.");

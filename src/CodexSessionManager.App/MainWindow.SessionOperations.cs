@@ -1,10 +1,12 @@
-#pragma warning disable S3990 // Codacy false positive: the containing assembly declares CLSCompliant(true).
+#pragma warning disable S3990 // Codacy false positive: the assembly already declares CLSCompliant(true).
+#pragma warning disable S2333 // False positive: MainWindow is split across XAML-generated and hand-authored partial files.
 using System.Diagnostics.CodeAnalysis;
 using CodexSessionManager.Core.Sessions;
 using CodexSessionManager.Core.Transcripts;
 
 namespace CodexSessionManager.App;
 
+[SuppressMessage("Compatibility", "S3990", Justification = "The assembly already declares CLSCompliant(true); this file-level report is a persistent analyzer false positive.")]
 [SuppressMessage("Code Smell", "S2333", Justification = "The class is split across XAML-generated and hand-authored partial files.")]
 public partial class MainWindow
 {
@@ -23,7 +25,12 @@ public partial class MainWindow
 
     private async Task PopulateSelectedSessionHeaderAsync(IndexedLogicalSession selected, string? selectedSessionId)
     {
-        var selectedSession = selected ?? throw new ArgumentNullException(nameof(selected));
+        if (selected is null)
+        {
+            throw new ArgumentNullException(nameof(selected));
+        }
+
+        var selectedSession = selected;
         var requestedSessionId = RequireSelectedSessionId(selectedSessionId);
 
         var preferredCopy = selectedSession.PreferredCopy;
@@ -41,6 +48,12 @@ public partial class MainWindow
         var physicalCopies = selectedSession.PhysicalCopies ?? Array.Empty<SessionPhysicalCopy>();
         var threadName = selectedSession.ThreadName ?? string.Empty;
         var sessionId = RequireSelectedSessionId(selectedSession.SessionId);
+        var preferredPath = preferredCopy.FilePath;
+        var alias = searchDocument.Alias;
+        var tags = searchDocument.Tags;
+        var notes = searchDocument.Notes;
+        var readableTranscript = searchDocument.ReadableTranscript;
+        var dialogueTranscript = searchDocument.DialogueTranscript;
 
         await RunOnUiThreadAsync(() =>
         {
@@ -51,19 +64,24 @@ public partial class MainWindow
 
             ThreadNameTextBlock.Text = threadName;
             SessionIdTextBlock.Text = sessionId;
-            PreferredPathTextBlock.Text = preferredCopy.FilePath;
-            AliasTextBox.Text = searchDocument.Alias;
-            TagsTextBox.Text = string.Join(", ", searchDocument.Tags);
-            NotesTextBox.Text = searchDocument.Notes;
+            PreferredPathTextBlock.Text = preferredPath;
+            AliasTextBox.Text = alias;
+            TagsTextBox.Text = string.Join(", ", tags);
+            NotesTextBox.Text = notes;
             CopiesListBox.ItemsSource = physicalCopies;
-            ReadableTranscriptTextBox.Text = searchDocument.ReadableTranscript;
-            DialogueTranscriptTextBox.Text = searchDocument.DialogueTranscript;
+            ReadableTranscriptTextBox.Text = readableTranscript;
+            DialogueTranscriptTextBox.Text = dialogueTranscript;
         });
     }
 
     private async Task LoadSelectedSessionBodyAsync(IndexedLogicalSession selected, string? selectedSessionId)
     {
-        var selectedSession = selected ?? throw new ArgumentNullException(nameof(selected));
+        if (selected is null)
+        {
+            throw new ArgumentNullException(nameof(selected));
+        }
+
+        var selectedSession = selected;
         var sessionId = RequireSelectedSessionId(selectedSessionId);
 
         try
@@ -118,7 +136,7 @@ public partial class MainWindow
         }
 
         var searchToken = BeginSearchToken();
-        var query = await RunOnUiThreadValueAsync(() => SearchTextBox.Text);
+        var query = await RunOnUiThreadValueAsync(() => SearchTextBox.Text) ?? string.Empty;
         if (string.IsNullOrWhiteSpace(query))
         {
             await ReloadSessionsForSearchAsync(searchToken);
@@ -202,7 +220,12 @@ public partial class MainWindow
 
     private static string RequireSelectedSessionId(string? selectedSessionId)
     {
-        var sessionId = selectedSessionId ?? throw new ArgumentNullException(nameof(selectedSessionId));
+        if (selectedSessionId is null)
+        {
+            throw new ArgumentNullException(nameof(selectedSessionId));
+        }
+
+        var sessionId = selectedSessionId;
         if (string.IsNullOrWhiteSpace(sessionId))
         {
             throw new ArgumentException("Value cannot be null or whitespace.", nameof(selectedSessionId));

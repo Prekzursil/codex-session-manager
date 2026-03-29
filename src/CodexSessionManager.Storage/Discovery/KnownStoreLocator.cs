@@ -6,18 +6,21 @@ public static class KnownStoreLocator
 {
     public static IReadOnlyList<KnownSessionStore> GetKnownStores(string codexHome)
     {
-        return // nosemgrep: codacy.csharp.security.null-dereference -- false positive after constructor/guard validation.
+        ArgumentNullException.ThrowIfNull(codexHome);
+
+        var workspaceRoot = codexHome;
+        return
         [
             new KnownSessionStore(
-                codexHome,
+                workspaceRoot,
                 SessionStoreKind.Live,
-                Path.Combine(codexHome, "sessions"),
-                Path.Combine(codexHome, "session_index.jsonl")),
+                Path.Combine(workspaceRoot, "sessions"),
+                Path.Combine(workspaceRoot, "session_index.jsonl")),
             new KnownSessionStore(
-                codexHome,
+                workspaceRoot,
                 SessionStoreKind.Backup,
-                Path.Combine(codexHome, "sessions_backup"),
-                Path.Combine(codexHome, "session_index.jsonl"))
+                Path.Combine(workspaceRoot, "sessions_backup"),
+                Path.Combine(workspaceRoot, "session_index.jsonl"))
         ];
     }
 }
