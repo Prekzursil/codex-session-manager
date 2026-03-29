@@ -144,7 +144,7 @@ public sealed class StorageGuardClauseTests
         AssertInner<ArgumentNullException>(() => ExtractFilePathsAndUrlsMethod.Invoke(null, [string.Empty, null!, urls]));
         AssertInner<ArgumentNullException>(() => ExtractFilePathsAndUrlsMethod.Invoke(null, [string.Empty, filePaths, null!]));
         AssertInner<ArgumentNullException>(() => ExtractFilePathsAndUrlsMethod.Invoke(null, [null!, new HashSet<string>(StringComparer.Ordinal), new HashSet<string>(StringComparer.Ordinal)]));
-        AssertInner<ArgumentNullException>(() => TryExtractExitCodeMethod.Invoke(null, [null!, 0]));
+        Assert.False((bool)TryExtractExitCodeMethod.Invoke(null, [null!, 0])!);
         await AssertInnerAsync<ArgumentException>(() => (Task)RefreshSearchRowMethod.Invoke(null, [connection, null!, CancellationToken.None])!);
         AssertInner<ArgumentNullException>(() => ToFtsQueryMethod.Invoke(null, [null!]));
         AssertInner<ArgumentNullException>(() => ToFtsTokenMethod.Invoke(null, [null!]));
