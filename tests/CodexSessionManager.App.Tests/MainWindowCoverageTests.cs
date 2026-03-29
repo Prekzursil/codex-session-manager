@@ -44,7 +44,19 @@ public sealed class MainWindowCoverageTests
             });
 
     private static readonly MethodInfo DescribeSqlitePathMethod =
-        typeof(MainWindow).GetMethod("DescribeSqlitePath", BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Public)!;
+        typeof(MainWindow).GetMethods(BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Public)
+            .Single(method =>
+            {
+                if (method.Name != "DescribeSqlitePath")
+                {
+                    return false;
+                }
+
+                var parameters = method.GetParameters();
+                return parameters.Length == 2
+                    && parameters[0].ParameterType == typeof(string)
+                    && parameters[1].ParameterType == typeof(Func<string, FileInfo>);
+            });
 
     private static readonly MethodInfo InitializeAsyncMethod =
         typeof(MainWindow).GetMethod("InitializeAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
@@ -112,12 +124,6 @@ public sealed class MainWindowCoverageTests
 
     private static readonly MethodInfo GetRequiredPreferredCopyMethod =
         typeof(MainWindow).GetMethod("GetRequiredPreferredCopy", BindingFlags.NonPublic | BindingFlags.Static)!;
-
-    private static readonly MethodInfo GetSessionIdMethod =
-        typeof(MainWindow).GetMethod("GetSessionId", BindingFlags.NonPublic | BindingFlags.Static)!;
-
-    private static readonly MethodInfo GetThreadNameMethod =
-        typeof(MainWindow).GetMethod("GetThreadName", BindingFlags.NonPublic | BindingFlags.Static)!;
 
     private static readonly FieldInfo SessionsField =
         typeof(MainWindow).GetField("_sessions", BindingFlags.Instance | BindingFlags.NonPublic)!;
@@ -248,16 +254,10 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public void Session_helper_methods_reject_null_sessions()
+    public void GetRequiredPreferredCopy_rejects_null_sessions()
     {
         var preferredCopyException = Assert.Throws<TargetInvocationException>(() => GetRequiredPreferredCopyMethod.Invoke(null, [null!]));
         Assert.IsType<ArgumentNullException>(preferredCopyException.InnerException);
-
-        var sessionIdException = Assert.Throws<TargetInvocationException>(() => GetSessionIdMethod.Invoke(null, [null!]));
-        Assert.IsType<ArgumentNullException>(sessionIdException.InnerException);
-
-        var threadNameException = Assert.Throws<TargetInvocationException>(() => GetThreadNameMethod.Invoke(null, [null!]));
-        Assert.IsType<ArgumentNullException>(threadNameException.InnerException);
     }
 
     [Fact]
