@@ -133,7 +133,7 @@ public sealed class SessionCatalogRepository
 
     public async Task InitializeAsync(CancellationToken cancellationToken)
     {
-        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var connection = await OpenRequiredConnectionAsync(cancellationToken);
         await EnsureSchemaAsync(connection, cancellationToken);
         await RefreshSearchIndexAsync(connection, cancellationToken);
     }
@@ -146,7 +146,7 @@ public sealed class SessionCatalogRepository
         }
 
         var indexedSession = session;
-        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var connection = await OpenRequiredConnectionAsync(cancellationToken);
         var searchDocument = await MergeExistingMetadataAsync(connection, indexedSession, cancellationToken);
         var sessionId = indexedSession.SessionId;
         var threadName = indexedSession.ThreadName;
@@ -188,7 +188,7 @@ public sealed class SessionCatalogRepository
             return [];
         }
 
-        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var connection = await OpenRequiredConnectionAsync(cancellationToken);
         await using var command = new SqliteCommand(SearchSql, connection);
         command.Parameters.AddWithValue("$query", BuildFtsQuery(searchQuery));
 
@@ -219,7 +219,7 @@ public sealed class SessionCatalogRepository
         }
 
         var normalizedSessionId = sessionId;
-        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var connection = await OpenRequiredConnectionAsync(cancellationToken);
         await using var command = new SqliteCommand(UpdateMetadataSql, connection);
         command.Parameters.AddWithValue(SessionIdParameterName, normalizedSessionId);
         command.Parameters.AddWithValue("$alias", alias);
@@ -234,13 +234,16 @@ public sealed class SessionCatalogRepository
 
     public async Task<IReadOnlyList<IndexedLogicalSession>> ListSessionsAsync(CancellationToken cancellationToken)
     {
-        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var connection = await OpenRequiredConnectionAsync(cancellationToken);
         var copiesBySession = await LoadCopiesBySessionAsync(connection, cancellationToken);
         return await LoadSessionsAsync(connection, copiesBySession, cancellationToken);
     }
 
     private static async Task<SessionSearchDocument> MergeExistingMetadataAsync(SqliteConnection connection, IndexedLogicalSession session, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(session);
+
         var currentSearchDocument = session.SearchDocument
             ?? throw new InvalidOperationException("Session is missing search metadata.");
         await using var command = new SqliteCommand(SelectMetadataSql, connection);
@@ -304,6 +307,13 @@ public sealed class SessionCatalogRepository
         return Task.FromResult(connection);
     }
 
+    private async Task<SqliteConnection> OpenRequiredConnectionAsync(CancellationToken cancellationToken)
+    {
+        var connection = await OpenConnectionAsync(cancellationToken);
+        ArgumentNullException.ThrowIfNull(connection);
+        return connection;
+    }
+
     private static IReadOnlyList<string> SplitLines(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -311,15 +321,13 @@ public sealed class SessionCatalogRepository
             return [];
         }
 
-        return value.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var nonEmptyValue = value;
+        return nonEmptyValue.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     }
 
     private static string BuildFtsQuery(string query)
     {
-        if (query is null)
-        {
-            throw new ArgumentNullException(nameof(query));
-        }
+        ArgumentNullException.ThrowIfNull(query);
 
         return string.Join(
             " AND ",
@@ -330,6 +338,7 @@ public sealed class SessionCatalogRepository
 
     private static string ToFtsToken(string token)
     {
+        ArgumentNullException.ThrowIfNull(token);
         var escaped = token.Replace("\"", "\"\"");
         return escaped.All(static ch => char.IsLetterOrDigit(ch) || ch == '_')
             ? $"{escaped}*"
@@ -338,6 +347,7 @@ public sealed class SessionCatalogRepository
 
     private static string ReadRequiredString(SqliteDataReader reader, int ordinal)
     {
+        ArgumentNullException.ThrowIfNull(reader);
         return reader.GetString(ordinal);
     }
 
@@ -416,8 +426,9 @@ public sealed class SessionCatalogRepository
             var sessionId = ReadRequiredString(reader, 0);
             var preferredPath = ReadRequiredString(reader, 2);
             var copies = copiesBySession.TryGetValue(sessionId, out var existingCopies)
+                         && existingCopies is not null
                 ? existingCopies
-                : [];
+                : new List<SessionPhysicalCopy>();
             var preferredCopy = copies.FirstOrDefault(copy => string.Equals(copy.FilePath, preferredPath, StringComparison.OrdinalIgnoreCase))
                 ?? new SessionPhysicalCopy(
                     sessionId,
@@ -459,12 +470,16 @@ public sealed class SessionCatalogRepository
         SqliteCommand command,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(command);
         cancellationToken.ThrowIfCancellationRequested();
-        return await command.ExecuteReaderAsync(cancellationToken);
+        var reader = await command.ExecuteReaderAsync(cancellationToken);
+        ArgumentNullException.ThrowIfNull(reader);
+        return reader;
     }
 
     private static async Task ExecuteNonQueryAsync(SqliteCommand command, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(command);
         await using (command)
         {
             cancellationToken.ThrowIfCancellationRequested();

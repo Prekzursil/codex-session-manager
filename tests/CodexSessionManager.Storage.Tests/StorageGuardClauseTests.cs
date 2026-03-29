@@ -132,6 +132,8 @@ public sealed class StorageGuardClauseTests
         var splitLines = (IReadOnlyList<string>)SplitLinesMethod.Invoke(null, [null!])!;
         Assert.Empty(splitLines);
         AssertInner<ArgumentNullException>(() => CreateKnownSessionStoreMethod.Invoke(null, [null!]));
+        AssertInner<ArgumentException>(
+            () => CreateKnownSessionStoreMethod.Invoke(null, [new SessionStoreRoot(" ", SessionStoreKind.Live)]));
         AssertInner<ArgumentNullException>(() => NormalizeRootPathMethod.Invoke(null, [null!]));
     }
 

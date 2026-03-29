@@ -20,9 +20,16 @@ public partial class MainWindow
 
     private async Task PopulateSelectedSessionHeaderAsync(IndexedLogicalSession selected, string selectedSessionId)
     {
-        var preferredCopy = GetRequiredPreferredCopy(selected);
-        var searchDocument = GetRequiredSearchDocument(selected);
-        var physicalCopies = selected.PhysicalCopies ?? [];
+        ArgumentNullException.ThrowIfNull(selected);
+        ArgumentNullException.ThrowIfNull(selectedSessionId);
+
+        var preferredCopy = selected.PreferredCopy
+            ?? throw new InvalidOperationException("Selected session is missing a preferred copy.");
+        var searchDocument = selected.SearchDocument
+            ?? throw new InvalidOperationException("Selected session is missing search metadata.");
+        var physicalCopies = selected.PhysicalCopies ?? Array.Empty<SessionPhysicalCopy>();
+        var threadName = selected.ThreadName;
+        var sessionId = selected.SessionId;
 
         await RunOnUiThreadAsync(() =>
         {
@@ -31,8 +38,8 @@ public partial class MainWindow
                 return;
             }
 
-            ThreadNameTextBlock.Text = GetThreadName(selected);
-            SessionIdTextBlock.Text = GetSessionId(selected);
+            ThreadNameTextBlock.Text = threadName;
+            SessionIdTextBlock.Text = sessionId;
             PreferredPathTextBlock.Text = preferredCopy.FilePath;
             AliasTextBox.Text = searchDocument.Alias;
             TagsTextBox.Text = string.Join(", ", searchDocument.Tags);
@@ -45,9 +52,13 @@ public partial class MainWindow
 
     private async Task LoadSelectedSessionBodyAsync(IndexedLogicalSession selected, string selectedSessionId)
     {
+        ArgumentNullException.ThrowIfNull(selected);
+        ArgumentNullException.ThrowIfNull(selectedSessionId);
+
         try
         {
-            var preferredCopy = GetRequiredPreferredCopy(selected);
+            var preferredCopy = selected.PreferredCopy
+                ?? throw new InvalidOperationException("Selected session is missing a preferred copy.");
             var preferredPath = preferredCopy.FilePath;
             var parsed = await SessionParser(preferredPath, CancellationToken.None);
             var rawContent = FileTextReader(preferredPath);
@@ -174,36 +185,5 @@ public partial class MainWindow
     private void DisposeSearchCancellation()
     {
         _searchCancellation.Dispose();
-    }
-
-    private static SessionSearchDocument GetRequiredSearchDocument(IndexedLogicalSession? session)
-    {
-        if (session is null)
-        {
-            throw new ArgumentNullException(nameof(session));
-        }
-
-        return session.SearchDocument
-            ?? throw new InvalidOperationException("Selected session is missing search metadata.");
-    }
-
-    private static string GetSessionId(IndexedLogicalSession? session)
-    {
-        if (session is null)
-        {
-            throw new ArgumentNullException(nameof(session));
-        }
-
-        return session.SessionId;
-    }
-
-    private static string GetThreadName(IndexedLogicalSession? session)
-    {
-        if (session is null)
-        {
-            throw new ArgumentNullException(nameof(session));
-        }
-
-        return session.ThreadName;
     }
 }

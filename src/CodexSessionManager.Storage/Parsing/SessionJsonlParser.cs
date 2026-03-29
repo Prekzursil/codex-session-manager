@@ -274,10 +274,7 @@ public static partial class SessionJsonlParser
 
     private static bool TryExtractExitCode(string text, out int exitCode)
     {
-        if (text is null)
-        {
-            throw new ArgumentNullException(nameof(text));
-        }
+        ArgumentNullException.ThrowIfNull(text);
 
         exitCode = 0;
         if (string.IsNullOrWhiteSpace(text))
@@ -303,13 +300,16 @@ public static partial class SessionJsonlParser
         string propertyName,
         out JsonElement propertyElement)
     {
+        ArgumentNullException.ThrowIfNull(propertyName);
+
         propertyElement = default;
-        if (element.ValueKind != JsonValueKind.Object)
+        var candidateElement = element;
+        if (candidateElement.ValueKind != JsonValueKind.Object)
         {
             return false;
         }
 
-        return element.TryGetProperty(propertyName, out propertyElement);
+        return candidateElement.TryGetProperty(propertyName, out propertyElement);
     }
 
     private static ParseState RequireState(ParseState? state) =>

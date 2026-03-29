@@ -334,17 +334,17 @@ public sealed class MainWindowCoverageTests
     }
 
     [Fact]
-    public void RunOnUiThread_helpers_reject_null_delegates()
+    public async Task RunOnUiThread_helpers_reject_null_delegatesAsync()
     {
-        RunInSta(() =>
+        await RunInStaAsync(async () =>
         {
             var window = new MainWindow();
 
-            var actionException = Assert.Throws<TargetInvocationException>(() => RunOnUiThreadAsyncMethod.Invoke(window, [null!]));
-            Assert.IsType<ArgumentNullException>(actionException.InnerException);
+            var actionTask = Assert.IsAssignableFrom<Task>(RunOnUiThreadAsyncMethod.Invoke(window, [null!]));
+            await Assert.ThrowsAsync<ArgumentNullException>(async () => await actionTask);
 
-            var valueException = Assert.Throws<TargetInvocationException>(() => RunOnUiThreadValueAsyncMethod.Invoke(window, [null!]));
-            Assert.IsType<ArgumentNullException>(valueException.InnerException);
+            var valueTask = Assert.IsAssignableFrom<Task>(RunOnUiThreadValueAsyncMethod.Invoke(window, [null!]));
+            await Assert.ThrowsAsync<ArgumentNullException>(async () => await valueTask);
 
             window.Close();
         });

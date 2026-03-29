@@ -9,9 +9,14 @@ public static class SessionDiscoveryService
     {
         ArgumentNullException.ThrowIfNull(roots);
 
-        var stores = roots.Select(CreateKnownSessionStore).ToArray();
+        var stores = new List<KnownSessionStore>();
+        foreach (var root in roots)
+        {
+            ArgumentNullException.ThrowIfNull(root);
+            stores.Add(CreateKnownSessionStore(root));
+        }
 
-        var sessions = await SessionWorkspaceIndexer.LoadSessionsAsync(stores, cancellationToken);
+        var sessions = await SessionWorkspaceIndexer.LoadSessionsAsync(stores.ToArray(), cancellationToken);
         return new DiscoveredSessionCatalog(sessions);
     }
 
@@ -20,6 +25,10 @@ public static class SessionDiscoveryService
         ArgumentNullException.ThrowIfNull(root);
 
         var rootPath = root.RootPath;
+        if (string.IsNullOrWhiteSpace(rootPath))
+        {
+            throw new ArgumentException("Session store root path cannot be empty.", nameof(root));
+        }
         var storeKind = root.StoreKind;
         var normalizedRoot = NormalizeRootPath(rootPath);
         var backupWorkspaceRoot = Path.GetDirectoryName(normalizedRoot);
@@ -57,7 +66,8 @@ public static class SessionDiscoveryService
     {
         ArgumentNullException.ThrowIfNull(rootPath);
 
-        var normalizedRootPath = rootPath.Replace('\\', Path.DirectorySeparatorChar);
+        var normalizedRootPath = rootPath;
+        normalizedRootPath = normalizedRootPath.Replace('\\', Path.DirectorySeparatorChar);
         normalizedRootPath = normalizedRootPath.Replace('/', Path.DirectorySeparatorChar);
         return normalizedRootPath.TrimEnd(Path.DirectorySeparatorChar);
     }
