@@ -225,6 +225,50 @@ public sealed partial class MainWindowCoverageTests
     }
 
     [Fact]
+    public async Task LoadSelectedSessionBodyAsync_failure_skips_updates_when_session_is_no_longer_selectedAsync()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var root = CreateTempDirectory();
+            try
+            {
+                var sessionFile = WriteSessionJsonl(root, "session-body-error-stale", "Body Error Stale");
+                var window = new MainWindow();
+                var session = BuildIndexedSession("session-body-error-stale", "Body Error Stale", sessionFile);
+                var parserEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                var releaseParser = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+                AddSession(window, session);
+                SelectSingleSession(window, session);
+                GetNamedField<TextBlock>(window, "SQLiteStatusTextBlock").Text = "keep sqlite";
+                GetNamedField<TextBox>(window, "RawTranscriptTextBox").Text = "keep raw";
+                SetProvider(
+                    window,
+                    "SessionParser",
+                    (Func<string, CancellationToken, Task<ParsedSessionFile>>)(async (_, _) =>
+                    {
+                        parserEntered.SetResult();
+                        await releaseParser.Task;
+                        throw new InvalidOperationException("late parse failure");
+                    }));
+
+                var loadTask = InvokePrivateTaskAsync(window, LoadSelectedSessionBodyAsyncMethod, session, session.SessionId);
+                await parserEntered.Task;
+                GetNamedField<ListBox>(window, "SessionsListBox").SelectedItem = null;
+                releaseParser.SetResult();
+                await loadTask;
+
+                Assert.Equal("keep sqlite", GetNamedField<TextBlock>(window, "SQLiteStatusTextBlock").Text);
+                Assert.Equal("keep raw", GetNamedField<TextBox>(window, "RawTranscriptTextBox").Text);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        });
+    }
+
+    [Fact]
     public async Task PopulateSelectedSessionHeaderAsync_skips_updates_when_selection_changesAsync()
     {
         await RunInStaAsync(async () =>

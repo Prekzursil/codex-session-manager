@@ -27,6 +27,19 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public async Task RefreshAsync_WithNoSessions_ClearsSelectionAndTranscriptAsync()
+    {
+        var viewModel = new MainWindowViewModel(new FakeSessionBrowserService([]));
+
+        await viewModel.RefreshAsync();
+
+        Assert.Equal("Ready", viewModel.StatusText);
+        Assert.Empty(viewModel.Sessions);
+        Assert.Null(viewModel.SelectedSession);
+        Assert.Equal(string.Empty, viewModel.TranscriptText);
+    }
+
+    [Fact]
     public async Task ApplySearchAsync_UsesSearchHitsToFilterVisibleSessionsAsync()
     {
         var sessions = new[]

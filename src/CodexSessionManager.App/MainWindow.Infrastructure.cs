@@ -13,11 +13,7 @@ public partial class MainWindow
     private async Task RunOnUiThreadAsync(Action action)
     {
         var uiAction = action ?? throw new ArgumentNullException(nameof(action));
-
-        if (Dispatcher is not { } dispatcher)
-        {
-            throw new InvalidOperationException("Dispatcher is unavailable.");
-        }
+        var dispatcher = Dispatcher;
 
         if (dispatcher.CheckAccess())
         {
@@ -31,11 +27,7 @@ public partial class MainWindow
     private async Task<T> RunOnUiThreadValueAsync<T>(Func<T> func)
     {
         var uiFunc = func ?? throw new ArgumentNullException(nameof(func));
-
-        if (Dispatcher is not { } dispatcher)
-        {
-            throw new InvalidOperationException("Dispatcher is unavailable.");
-        }
+        var dispatcher = Dispatcher;
 
         if (dispatcher.CheckAccess())
         {

@@ -236,6 +236,52 @@ public sealed partial class MainWindowCoverageTests
     }
 
     [Fact]
+    public async Task RefreshAsync_returns_without_workspace_indexerAsync()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var root = CreateTempDirectory();
+            try
+            {
+                var window = new MainWindow();
+                RepositoryField.SetValue(window, CreateRepository(root));
+                GetNamedField<TextBlock>(window, "StatusTextBlock").Text = "unchanged";
+
+                await InvokePrivateTaskAsync(window, RefreshAsyncMethod, false);
+
+                Assert.Equal("unchanged", GetNamedField<TextBlock>(window, "StatusTextBlock").Text);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task RefreshAsync_returns_without_repositoryAsync()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var root = CreateTempDirectory();
+            try
+            {
+                var window = new MainWindow();
+                WorkspaceIndexerField.SetValue(window, new SessionWorkspaceIndexer(CreateRepository(root)));
+                GetNamedField<TextBlock>(window, "StatusTextBlock").Text = "unchanged";
+
+                await InvokePrivateTaskAsync(window, RefreshAsyncMethod, false);
+
+                Assert.Equal("unchanged", GetNamedField<TextBlock>(window, "StatusTextBlock").Text);
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        });
+    }
+
+    [Fact]
     public async Task RunBackgroundRefreshAsync_sets_status_when_refresh_throwsAsync()
     {
         await RunInStaAsync(async () =>

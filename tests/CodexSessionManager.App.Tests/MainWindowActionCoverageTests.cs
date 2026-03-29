@@ -486,6 +486,16 @@ public sealed partial class MainWindowCoverageTests
     }
 
     [Fact]
+    public void StartExternalProcess_starts_valid_process()
+    {
+        var fileName = Path.Combine(Environment.SystemDirectory, "cmd.exe");
+
+        StartExternalProcessMethod.Invoke(
+            null,
+            [fileName, new[] { "/c", "exit", "0" }]);
+    }
+
+    [Fact]
     public async Task ExecuteMaintenanceAsync_sets_status_when_runner_returns_not_executedAsync()
     {
         await RunInStaAsync(async () =>
