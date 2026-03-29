@@ -8,6 +8,7 @@ using CodexSessionManager.App;
 using CodexSessionManager.Core.Sessions;
 using CodexSessionManager.Storage.Discovery;
 using CodexSessionManager.Storage.Indexing;
+using CodexSessionManager.Storage.Parsing;
 using Microsoft.Win32;
 
 namespace CodexSessionManager.App.Tests;
@@ -22,7 +23,9 @@ public sealed partial class MainWindowCoverageTests
     public void BuildKnownStores_honors_deep_scan_and_includes_extra_codex_homes()
     {
         var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var primaryCodexHome = Path.Combine(userProfile, ".codex");
         var extraCodexHome = Path.Combine(userProfile, $".codex-coverage-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(primaryCodexHome);
         Directory.CreateDirectory(extraCodexHome);
 
         try
@@ -41,6 +44,12 @@ public sealed partial class MainWindowCoverageTests
                 deepStores,
                 store => string.Equals(store.WorkspaceRoot, extraCodexHome, StringComparison.OrdinalIgnoreCase)
                     && store.StoreKind == SessionStoreKind.Backup);
+            Assert.Equal(
+                deepStores.Count,
+                deepStores
+                    .Select(store => store.SessionsPath)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Count());
         }
         finally
         {
@@ -201,6 +210,80 @@ public sealed partial class MainWindowCoverageTests
                 RepositoryField.SetValue(window, null);
                 await InvokePrivateTaskAsync(window, SaveSelectedMetadataAsyncMethod);
                 Assert.Equal("canceled", GetNamedField<TextBlock>(window, "StatusTextBlock").Text);
+                window.Close();
+            }
+            finally
+            {
+                DeleteDirectory(root);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task Session_operation_additional_stale_and_guard_branchesAsync()
+    {
+        await RunInStaAsync(async () =>
+        {
+            var root = CreateTempDirectory();
+            try
+            {
+                var primarySessionFile = WriteSessionJsonl(root, "session-primary", "Primary Thread");
+                var secondarySessionFile = WriteSessionJsonl(root, "session-secondary", "Secondary Thread");
+                var primarySession = BuildIndexedSession("session-primary", "Primary Thread", primarySessionFile);
+                var secondarySession = BuildIndexedSession("session-secondary", "Secondary Thread", secondarySessionFile);
+                var repository = CreateRepository(root, primarySession, secondarySession);
+                var parsedFile = BuildParsedFile("session-primary", @"C:\workspace");
+                var window = new MainWindow();
+                var sessions = (ObservableCollection<IndexedLogicalSession>)SessionsField.GetValue(window)!;
+
+                AddSession(window, primarySession);
+                AddSession(window, secondarySession);
+                SelectSingleSession(window, secondarySession);
+                RepositoryField.SetValue(window, repository);
+                SetProvider(window, "SessionParser", (Func<string, CancellationToken, Task<ParsedSessionFile>>)((_, _) => Task.FromResult(parsedFile)));
+                SetProvider(window, "FileTextReader", (Func<string, string>)(_ => "stale raw content"));
+                SetProvider(window, "LiveSqliteStatusProvider", (Func<string>)(() => "stale sqlite"));
+
+                GetNamedField<TextBlock>(window, "ThreadNameTextBlock").Text = "unchanged thread";
+                await InvokePrivateTaskAsync(window, PopulateSelectedSessionHeaderAsyncMethod, primarySession, primarySession.SessionId);
+                Assert.Equal("unchanged thread", GetNamedField<TextBlock>(window, "ThreadNameTextBlock").Text);
+
+                GetNamedField<TextBox>(window, "RawTranscriptTextBox").Text = "keep raw";
+                await InvokePrivateTaskAsync(window, LoadSelectedSessionBodyAsyncMethod, primarySession, primarySession.SessionId);
+                Assert.Equal("keep raw", GetNamedField<TextBox>(window, "RawTranscriptTextBox").Text);
+
+                sessions.Clear();
+                sessions.Add(BuildIndexedSession("stale-search", "Stale Search", primarySessionFile));
+                GetNamedField<TextBlock>(window, "StatusTextBlock").Text = "stale search";
+                var staleSearchToken = (CancellationToken)BeginSearchTokenMethod.Invoke(window, [])!;
+                _ = (CancellationToken)BeginSearchTokenMethod.Invoke(window, [])!;
+
+                await (Task)ApplySearchResultsAsyncMethod.Invoke(window, new object?[] { null, staleSearchToken })!;
+
+                Assert.Single(sessions);
+                Assert.Equal("stale-search", sessions.Single().SessionId);
+                Assert.Equal("stale search", GetNamedField<TextBlock>(window, "StatusTextBlock").Text);
+
+                GetNamedField<TextBlock>(window, "StatusTextBlock").Text = "idle";
+                RepositoryField.SetValue(window, repository);
+                WorkspaceIndexerField.SetValue(window, null);
+                await InvokePrivateTaskAsync(window, RefreshAsyncMethod, false);
+                Assert.Equal("idle", GetNamedField<TextBlock>(window, "StatusTextBlock").Text);
+
+                GetNamedField<TextBlock>(window, "StatusTextBlock").Text = "still idle";
+                RepositoryField.SetValue(window, null);
+                WorkspaceIndexerField.SetValue(window, new SessionWorkspaceIndexer(repository));
+                await InvokePrivateTaskAsync(window, RefreshAsyncMethod, true);
+                Assert.Equal("still idle", GetNamedField<TextBlock>(window, "StatusTextBlock").Text);
+
+                GetNamedField<TextBlock>(window, "StatusTextBlock").Text = "metadata idle";
+                RepositoryField.SetValue(window, repository);
+                SelectSingleSession(window, secondarySession);
+                GetNamedField<ListBox>(window, "SessionsListBox").SelectedItems.Clear();
+                GetNamedField<ListBox>(window, "SessionsListBox").SelectedItem = null;
+                await InvokePrivateTaskAsync(window, SaveSelectedMetadataAsyncMethod);
+                Assert.Equal("metadata idle", GetNamedField<TextBlock>(window, "StatusTextBlock").Text);
+
                 window.Close();
             }
             finally

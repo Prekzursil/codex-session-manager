@@ -158,9 +158,13 @@ public sealed partial class StorageCoverageExpansionTests
 
             if (OperatingSystem.IsWindows())
             {
-                var driveRoot = Path.GetPathRoot("C:")!;
-                var normalizedDriveRoot = (string)NormalizeRootPathCoverageMethod.Invoke(null, ["C:"])!;
-                Assert.Equal(driveRoot, normalizedDriveRoot);
+                var filesystemRoot = Path.GetPathRoot(Path.GetTempPath())!;
+                var trimmedFilesystemRoot = filesystemRoot.TrimEnd(Path.DirectorySeparatorChar);
+                if (!string.Equals(trimmedFilesystemRoot, filesystemRoot, StringComparison.Ordinal))
+                {
+                    var normalizedDriveRoot = (string)NormalizeRootPathCoverageMethod.Invoke(null, [trimmedFilesystemRoot])!;
+                    Assert.Equal(filesystemRoot, normalizedDriveRoot);
+                }
             }
         }
         finally
