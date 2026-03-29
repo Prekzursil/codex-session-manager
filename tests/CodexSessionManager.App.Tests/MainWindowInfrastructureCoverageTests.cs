@@ -169,6 +169,9 @@ public sealed partial class MainWindowCoverageTests
                 await InvokePrivateTaskAsync(window, LoadSelectedSessionAsyncMethod);
                 Assert.Equal("idle", GetNamedField<TextBlock>(window, "StatusTextBlock").Text);
 
+                await InvokePrivateTaskAsync(window, ReloadSessionsForSearchAsyncMethod, CancellationToken.None);
+                Assert.Equal("idle", GetNamedField<TextBlock>(window, "StatusTextBlock").Text);
+
                 var missingRepositoryException = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                     InvokePrivateTaskAsync(window, ApplySearchResultsAsyncMethod, "Cancel", CancellationToken.None));
                 Assert.Equal("Repository has not been initialized.", missingRepositoryException.Message);
@@ -235,15 +238,29 @@ public sealed partial class MainWindowCoverageTests
                 var parsedFile = BuildParsedFile("session-primary", @"C:\workspace");
                 var window = new MainWindow();
                 var sessions = (ObservableCollection<IndexedLogicalSession>)SessionsField.GetValue(window)!;
+                var headerSession = WithNullIndexedSessionProperty(
+                    WithNullIndexedSessionProperty(primarySession, nameof(IndexedLogicalSession.ThreadName)),
+                    nameof(IndexedLogicalSession.PhysicalCopies));
 
-                AddSession(window, primarySession);
+                AddSession(window, headerSession);
                 AddSession(window, secondarySession);
-                SelectSingleSession(window, secondarySession);
+                SelectSingleSession(window, headerSession);
                 RepositoryField.SetValue(window, repository);
                 SetProvider(window, "SessionParser", (Func<string, CancellationToken, Task<ParsedSessionFile>>)((_, _) => Task.FromResult(parsedFile)));
                 SetProvider(window, "FileTextReader", (Func<string, string>)(_ => "stale raw content"));
                 SetProvider(window, "LiveSqliteStatusProvider", (Func<string>)(() => "stale sqlite"));
 
+                await InvokePrivateTaskAsync(window, PopulateSelectedSessionHeaderAsyncMethod, headerSession, headerSession.SessionId);
+                Assert.Equal(string.Empty, GetNamedField<TextBlock>(window, "ThreadNameTextBlock").Text);
+                Assert.Empty(GetNamedField<ListBox>(window, "CopiesListBox").Items.Cast<SessionPhysicalCopy>());
+
+                SetProvider(window, "SessionParser", (Func<string, CancellationToken, Task<ParsedSessionFile>>)((_, _) => Task.FromResult(BuildParsedFile("session-primary", null))));
+                SetProvider(window, "FileTextReader", (Func<string, string>)(_ => "cwd fallback raw"));
+                SelectSingleSession(window, headerSession);
+                await InvokePrivateTaskAsync(window, LoadSelectedSessionBodyAsyncMethod, headerSession, headerSession.SessionId);
+                Assert.Equal("-", GetNamedField<TextBlock>(window, "CwdTextBlock").Text);
+
+                SelectSingleSession(window, secondarySession);
                 GetNamedField<TextBlock>(window, "ThreadNameTextBlock").Text = "unchanged thread";
                 await InvokePrivateTaskAsync(window, PopulateSelectedSessionHeaderAsyncMethod, primarySession, primarySession.SessionId);
                 Assert.Equal("unchanged thread", GetNamedField<TextBlock>(window, "ThreadNameTextBlock").Text);
@@ -251,6 +268,17 @@ public sealed partial class MainWindowCoverageTests
                 GetNamedField<TextBox>(window, "RawTranscriptTextBox").Text = "keep raw";
                 await InvokePrivateTaskAsync(window, LoadSelectedSessionBodyAsyncMethod, primarySession, primarySession.SessionId);
                 Assert.Equal("keep raw", GetNamedField<TextBox>(window, "RawTranscriptTextBox").Text);
+
+                SetProvider(window, "SessionParser", (Func<string, CancellationToken, Task<ParsedSessionFile>>)((_, _) => throw new InvalidOperationException("stale parse failure")));
+                GetNamedField<TextBlock>(window, "CwdTextBlock").Text = "keep cwd";
+                GetNamedField<TextBlock>(window, "SQLiteStatusTextBlock").Text = "keep sqlite";
+                GetNamedField<TextBox>(window, "AuditTranscriptTextBox").Text = "keep audit";
+                GetNamedField<TextBox>(window, "RawTranscriptTextBox").Text = "keep raw after stale failure";
+                await InvokePrivateTaskAsync(window, LoadSelectedSessionBodyAsyncMethod, primarySession, primarySession.SessionId);
+                Assert.Equal("keep cwd", GetNamedField<TextBlock>(window, "CwdTextBlock").Text);
+                Assert.Equal("keep sqlite", GetNamedField<TextBlock>(window, "SQLiteStatusTextBlock").Text);
+                Assert.Equal("keep audit", GetNamedField<TextBox>(window, "AuditTranscriptTextBox").Text);
+                Assert.Equal("keep raw after stale failure", GetNamedField<TextBox>(window, "RawTranscriptTextBox").Text);
 
                 sessions.Clear();
                 sessions.Add(BuildIndexedSession("stale-search", "Stale Search", primarySessionFile));

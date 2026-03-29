@@ -179,6 +179,24 @@ public sealed partial class MainWindowCoverageTests
     }
 
     [Fact]
+    public void NormalizeAllowedProcessFileName_accepts_bare_allowlisted_names_and_rejects_null()
+    {
+        var nullCandidateException = Assert.Throws<TargetInvocationException>(() =>
+            NormalizeAllowedProcessFileNameMethod.Invoke(null, [null!]));
+        Assert.IsType<ArgumentNullException>(nullCandidateException.InnerException);
+
+        Assert.Equal(
+            "explorer.exe",
+            (string)NormalizeAllowedProcessFileNameMethod.Invoke(null, ["explorer.exe"])!);
+        Assert.Equal(
+            "notepad.exe",
+            (string)NormalizeAllowedProcessFileNameMethod.Invoke(null, ["notepad.exe"])!);
+        Assert.Equal(
+            "codex",
+            (string)NormalizeAllowedProcessFileNameMethod.Invoke(null, ["codex"])!);
+    }
+
+    [Fact]
     public void StartExternalProcess_starts_valid_process()
     {
         var fileName = Path.Combine(Environment.SystemDirectory, "cmd.exe");

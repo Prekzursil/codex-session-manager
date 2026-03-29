@@ -31,6 +31,9 @@ public sealed partial class MainWindowCoverageTests
     private static readonly MethodInfo StartExternalProcessMethod =
         typeof(MainWindow).GetMethod("StartExternalProcess", BindingFlags.NonPublic | BindingFlags.Static)!;
 
+    private static readonly MethodInfo NormalizeAllowedProcessFileNameMethod =
+        typeof(MainWindow).GetMethod("NormalizeAllowedProcessFileName", BindingFlags.NonPublic | BindingFlags.Static)!;
+
     private static readonly MethodInfo GetLiveSqliteStatusMethod =
         typeof(MainWindow).GetMethods(BindingFlags.NonPublic | BindingFlags.Static)
             .Single(method => method.Name == "GetLiveSqliteStatus" && method.GetParameters().Length == 0);

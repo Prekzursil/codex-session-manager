@@ -81,6 +81,10 @@ public sealed partial class StorageCoverageExpansionTests
 
         var sessionFile = Path.Combine(root, "session-hot.jsonl");
         await File.WriteAllTextAsync(sessionFile, "payload");
+        var uniqueDestinationPath = (string)BuildDestinationPathMethod.Invoke(null, [root, Path.GetFileName(sessionFile)])!;
+        Assert.NotEqual(Path.Combine(root, Path.GetFileName(sessionFile)), uniqueDestinationPath);
+        Assert.StartsWith(Path.Combine(root, "session-hot-"), uniqueDestinationPath, StringComparison.Ordinal);
+        Assert.EndsWith(".jsonl", uniqueDestinationPath, StringComparison.Ordinal);
         var repository = new SessionCatalogRepository(Path.Combine(root, "catalog.db"));
 
         try
