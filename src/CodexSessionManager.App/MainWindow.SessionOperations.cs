@@ -13,17 +13,16 @@ public partial class MainWindow
             return;
         }
 
-        var selectedSessionId = GetSessionId(selected);
+        var selectedSessionId = selected.SessionId;
         await PopulateSelectedSessionHeaderAsync(selected, selectedSessionId);
         await LoadSelectedSessionBodyAsync(selected, selectedSessionId);
     }
 
     private async Task PopulateSelectedSessionHeaderAsync(IndexedLogicalSession selected, string selectedSessionId)
     {
-        var selectedSession = RequireSession(selected);
-        var preferredCopy = GetRequiredPreferredCopy(selectedSession);
-        var searchDocument = GetRequiredSearchDocument(selectedSession);
-        var physicalCopies = selectedSession.PhysicalCopies ?? [];
+        var preferredCopy = GetRequiredPreferredCopy(selected);
+        var searchDocument = GetRequiredSearchDocument(selected);
+        var physicalCopies = selected.PhysicalCopies ?? [];
 
         await RunOnUiThreadAsync(() =>
         {
@@ -32,8 +31,8 @@ public partial class MainWindow
                 return;
             }
 
-            ThreadNameTextBlock.Text = GetThreadName(selectedSession);
-            SessionIdTextBlock.Text = GetSessionId(selectedSession);
+            ThreadNameTextBlock.Text = GetThreadName(selected);
+            SessionIdTextBlock.Text = GetSessionId(selected);
             PreferredPathTextBlock.Text = preferredCopy.FilePath;
             AliasTextBox.Text = searchDocument.Alias;
             TagsTextBox.Text = string.Join(", ", searchDocument.Tags);
@@ -48,8 +47,7 @@ public partial class MainWindow
     {
         try
         {
-            var selectedSession = RequireSession(selected);
-            var preferredCopy = GetRequiredPreferredCopy(selectedSession);
+            var preferredCopy = GetRequiredPreferredCopy(selected);
             var preferredPath = preferredCopy.FilePath;
             var parsed = await SessionParser(preferredPath, CancellationToken.None);
             var rawContent = FileTextReader(preferredPath);
@@ -178,25 +176,34 @@ public partial class MainWindow
         _searchCancellation.Dispose();
     }
 
-    private static IndexedLogicalSession RequireSession(IndexedLogicalSession? session) =>
-        session ?? throw new ArgumentNullException(nameof(session));
-
     private static SessionSearchDocument GetRequiredSearchDocument(IndexedLogicalSession? session)
     {
-        var selectedSession = RequireSession(session);
-        return selectedSession.SearchDocument
+        if (session is null)
+        {
+            throw new ArgumentNullException(nameof(session));
+        }
+
+        return session.SearchDocument
             ?? throw new InvalidOperationException("Selected session is missing search metadata.");
     }
 
     private static string GetSessionId(IndexedLogicalSession? session)
     {
-        var selectedSession = RequireSession(session);
-        return selectedSession.SessionId;
+        if (session is null)
+        {
+            throw new ArgumentNullException(nameof(session));
+        }
+
+        return session.SessionId;
     }
 
     private static string GetThreadName(IndexedLogicalSession? session)
     {
-        var selectedSession = RequireSession(session);
-        return selectedSession.ThreadName;
+        if (session is null)
+        {
+            throw new ArgumentNullException(nameof(session));
+        }
+
+        return session.ThreadName;
     }
 }

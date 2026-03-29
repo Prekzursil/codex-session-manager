@@ -143,21 +143,15 @@ public partial class MainWindow : Window
 
         await RunOnUiThreadAsync(() => StatusTextBlock.Text = deepScan ? "Running deep scan…" : "Refreshing known stores…");
 
-        var knownStoresProvider = KnownStoresProvider;
-        if (knownStoresProvider is null)
-        {
-            throw new InvalidOperationException("Known stores provider has not been initialized.");
-        }
-
         var workspaceIndexer = _workspaceIndexer;
-        var knownStores = knownStoresProvider(deepScan);
+        var knownStores = GetKnownStores(KnownStoresProvider, deepScan);
         await workspaceIndexer.RebuildAsync(knownStores, CancellationToken.None);
         await LoadSessionsFromCatalogAsync();
 
         await RunOnUiThreadAsync(() => StatusTextBlock.Text = $"Indexed {_sessions.Count} deduped sessions at {DateTime.UtcNow.ToLocalTime():t}.");
     }
 
-    private Task RunOnUiThreadAsync(Action action)
+    private async Task RunOnUiThreadAsync(Action action)
     {
         if (action is null)
         {
@@ -168,13 +162,13 @@ public partial class MainWindow : Window
         if (dispatcher.CheckAccess())
         {
             action();
-            return Task.CompletedTask;
+            return;
         }
 
-        return dispatcher.InvokeAsync(action).Task;
+        await dispatcher.InvokeAsync(action);
     }
 
-    private Task<T> RunOnUiThreadValueAsync<T>(Func<T> func)
+    private async Task<T> RunOnUiThreadValueAsync<T>(Func<T> func)
     {
         if (func is null)
         {
@@ -184,10 +178,10 @@ public partial class MainWindow : Window
         var dispatcher = Dispatcher;
         if (dispatcher.CheckAccess())
         {
-            return Task.FromResult(func());
+            return func();
         }
 
-        return dispatcher.InvokeAsync(func).Task;
+        return await dispatcher.InvokeAsync(func);
     }
 
     private void RunEventTask(Func<Task> action, string failurePrefix)
@@ -202,18 +196,18 @@ public partial class MainWindow : Window
             throw new ArgumentException("Value cannot be null or whitespace.", nameof(failurePrefix));
         }
 
-        _ = RunEventTaskCoreAsync(action, failurePrefix);
-    }
+        _ = RunEventTaskCoreAsync();
 
-    private async Task RunEventTaskCoreAsync(Func<Task> action, string failurePrefix)
-    {
-        try
+        async Task RunEventTaskCoreAsync()
         {
-            await action();
-        }
-        catch (Exception ex)
-        {
-            await RunOnUiThreadAsync(() => StatusTextBlock.Text = $"{failurePrefix}: {ex.Message}");
+            try
+            {
+                await action();
+            }
+            catch (Exception ex)
+            {
+                await RunOnUiThreadAsync(() => StatusTextBlock.Text = $"{failurePrefix}: {ex.Message}");
+            }
         }
     }
 
@@ -303,8 +297,13 @@ public partial class MainWindow : Window
 
     private static SessionPhysicalCopy GetRequiredPreferredCopy(IndexedLogicalSession? session)
     {
-        var selectedSession = session ?? throw new ArgumentNullException(nameof(session));
-        return selectedSession.PreferredCopy ?? throw new InvalidOperationException("Selected session is missing a preferred copy.");
+        if (session is null)
+        {
+            throw new ArgumentNullException(nameof(session));
+        }
+
+        return session.PreferredCopy
+            ?? throw new InvalidOperationException("Selected session is missing a preferred copy.");
     }
 
     private void OpenFolderButton_OnClick(object _, RoutedEventArgs __)
@@ -450,10 +449,14 @@ public partial class MainWindow : Window
             throw new ArgumentNullException(nameof(path));
         }
 
+        if (fileInfoFactory is null)
+        {
+            return DescribeSqlitePath(path, static filePath => new FileInfo(filePath));
+        }
+
         try
         {
-            var resolvedFileInfoFactory = fileInfoFactory ?? (static filePath => new FileInfo(filePath));
-            var info = resolvedFileInfoFactory(path);
+            var info = fileInfoFactory(path);
             if (!info.Exists)
             {
                 return null;
@@ -496,7 +499,19 @@ public partial class MainWindow : Window
             : string.Join(Environment.NewLine, details);
     }
 
-    private sealed class SearchCancellationState
+    private static IReadOnlyList<KnownSessionStore> GetKnownStores(
+        Func<bool, IReadOnlyList<KnownSessionStore>>? knownStoresProvider,
+        bool deepScan)
+    {
+        if (knownStoresProvider is null)
+        {
+            throw new InvalidOperationException("Known stores provider has not been initialized.");
+        }
+
+        return knownStoresProvider(deepScan);
+    }
+
+    private sealed class SearchCancellationState : IDisposable
     {
         private CancellationTokenSource? _current;
 

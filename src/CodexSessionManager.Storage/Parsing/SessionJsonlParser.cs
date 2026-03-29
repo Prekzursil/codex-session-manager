@@ -6,6 +6,7 @@ using CodexSessionManager.Core.Transcripts;
 
 namespace CodexSessionManager.Storage.Parsing;
 
+[CLSCompliant(true)]
 [SuppressMessage("Code Smell", "S2333", Justification = "GeneratedRegex members require the containing type to be partial.")]
 public static partial class SessionJsonlParser
 {
@@ -62,7 +63,7 @@ public static partial class SessionJsonlParser
         var type = TryGetString(root, "type");
         if (type == "session_meta")
         {
-            if (root.TryGetProperty("payload", out var sessionMetaPayload))
+            if (TryGetPropertyValue(root, "payload", out var sessionMetaPayload))
             {
                 ParseSessionMetadata(sessionMetaPayload, parseState);
             }
@@ -70,7 +71,8 @@ public static partial class SessionJsonlParser
             return;
         }
 
-        if (type == "response_item" && root.TryGetProperty("payload", out var responseItemPayload))
+        if (type == "response_item"
+            && TryGetPropertyValue(root, "payload", out var responseItemPayload))
         {
             ParseResponseItem(responseItemPayload, parseState);
         }
@@ -85,7 +87,7 @@ public static partial class SessionJsonlParser
         parseState.Cwd ??= TryGetString(payload, "cwd");
 
         if (parseState.StartedAtUtc == DateTimeOffset.MinValue
-            && payload.TryGetProperty("timestamp", out var timestampElement)
+            && TryGetPropertyValue(payload, "timestamp", out var timestampElement)
             && DateTimeOffset.TryParse(timestampElement.GetString() ?? string.Empty, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsedStartedAt))
         {
             parseState.StartedAtUtc = parsedStartedAt;
@@ -116,7 +118,7 @@ public static partial class SessionJsonlParser
     {
         var parseState = RequireState(state);
 
-        if (!payload.TryGetProperty("content", out var contentElement)
+        if (!TryGetPropertyValue(payload, "content", out var contentElement)
             || contentElement.ValueKind is not JsonValueKind.Array)
         {
             return;
@@ -171,12 +173,7 @@ public static partial class SessionJsonlParser
 
     private static string? TryGetString(JsonElement element, string propertyName)
     {
-        if (propertyName is null)
-        {
-            throw new ArgumentNullException(nameof(propertyName));
-        }
-
-        if (!element.TryGetProperty(propertyName, out var propertyElement))
+        if (!TryGetPropertyValue(element, propertyName, out var propertyElement))
         {
             return null;
         }
@@ -210,7 +207,7 @@ public static partial class SessionJsonlParser
             return false;
         }
 
-        if (!contentItem.TryGetProperty("text", out var textElement))
+        if (!TryGetPropertyValue(contentItem, "text", out var textElement))
         {
             return false;
         }
@@ -238,7 +235,7 @@ public static partial class SessionJsonlParser
         }
 
         using var document = JsonDocument.Parse(rawArguments);
-        if (!document.RootElement.TryGetProperty("cmd", out var commandElement)
+        if (!TryGetPropertyValue(document.RootElement, "cmd", out var commandElement)
             || commandElement.ValueKind is not JsonValueKind.String)
         {
             return null;
@@ -289,15 +286,30 @@ public static partial class SessionJsonlParser
         }
 
         const string marker = "Process exited with code ";
-        var index = text.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        var searchableText = text;
+        var index = searchableText.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
         if (index < 0)
         {
             return false;
         }
 
-        var numberPortion = text[(index + marker.Length)..].Trim();
+        var numberPortion = searchableText[(index + marker.Length)..].Trim();
         var numericValue = new string(numberPortion.TakeWhile(char.IsDigit).ToArray());
         return int.TryParse(numericValue, out exitCode);
+    }
+
+    private static bool TryGetPropertyValue(
+        JsonElement element,
+        string propertyName,
+        out JsonElement propertyElement)
+    {
+        propertyElement = default;
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            return false;
+        }
+
+        return element.TryGetProperty(propertyName, out propertyElement);
     }
 
     private static ParseState RequireState(ParseState? state) =>

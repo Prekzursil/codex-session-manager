@@ -7,10 +7,7 @@ public static class SessionDiscoveryService
 {
     public static async Task<DiscoveredSessionCatalog> DiscoverAsync(IEnumerable<SessionStoreRoot> roots, CancellationToken cancellationToken)
     {
-        if (roots is null)
-        {
-            throw new ArgumentNullException(nameof(roots));
-        }
+        ArgumentNullException.ThrowIfNull(roots);
 
         var stores = roots.Select(CreateKnownSessionStore).ToArray();
 
@@ -20,35 +17,49 @@ public static class SessionDiscoveryService
 
     private static KnownSessionStore CreateKnownSessionStore(SessionStoreRoot root)
     {
-        if (root is null)
-        {
-            throw new ArgumentNullException(nameof(root));
-        }
+        ArgumentNullException.ThrowIfNull(root);
 
-        var normalizedRoot = NormalizeRootPath(root.RootPath);
+        var rootPath = root.RootPath;
+        var storeKind = root.StoreKind;
+        var normalizedRoot = NormalizeRootPath(rootPath);
         var backupWorkspaceRoot = Path.GetDirectoryName(normalizedRoot);
         var normalizedBackupWorkspaceRoot = string.IsNullOrWhiteSpace(backupWorkspaceRoot) ? normalizedRoot : backupWorkspaceRoot;
 
-        return root.StoreKind switch
+        if (storeKind == SessionStoreKind.Live)
         {
-            SessionStoreKind.Live => new KnownSessionStore(normalizedRoot, root.StoreKind, Path.Combine(normalizedRoot, "sessions"), Path.Combine(normalizedRoot, "session_index.jsonl")),
-            SessionStoreKind.Backup when normalizedRoot.EndsWith($"{Path.DirectorySeparatorChar}sessions_backup", StringComparison.OrdinalIgnoreCase)
-                => new KnownSessionStore(normalizedBackupWorkspaceRoot, root.StoreKind, normalizedRoot, Path.Combine(normalizedBackupWorkspaceRoot, "session_index.jsonl")),
-            _ => new KnownSessionStore(normalizedRoot, root.StoreKind, normalizedRoot, Path.Combine(normalizedRoot, "session_index.jsonl"))
-        };
+            return new KnownSessionStore(
+                normalizedRoot,
+                storeKind,
+                Path.Combine(normalizedRoot, "sessions"),
+                Path.Combine(normalizedRoot, "session_index.jsonl"));
+        }
+
+        if (storeKind == SessionStoreKind.Backup
+            && normalizedRoot.EndsWith(
+                $"{Path.DirectorySeparatorChar}sessions_backup",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return new KnownSessionStore(
+                normalizedBackupWorkspaceRoot,
+                storeKind,
+                normalizedRoot,
+                Path.Combine(normalizedBackupWorkspaceRoot, "session_index.jsonl"));
+        }
+
+        return new KnownSessionStore(
+            normalizedRoot,
+            storeKind,
+            normalizedRoot,
+            Path.Combine(normalizedRoot, "session_index.jsonl"));
     }
 
     private static string NormalizeRootPath(string rootPath)
     {
-        if (rootPath is null)
-        {
-            throw new ArgumentNullException(nameof(rootPath));
-        }
+        ArgumentNullException.ThrowIfNull(rootPath);
 
-        return rootPath
-            .Replace('\\', Path.DirectorySeparatorChar)
-            .Replace('/', Path.DirectorySeparatorChar)
-            .TrimEnd(Path.DirectorySeparatorChar);
+        var normalizedRootPath = rootPath.Replace('\\', Path.DirectorySeparatorChar);
+        normalizedRootPath = normalizedRootPath.Replace('/', Path.DirectorySeparatorChar);
+        return normalizedRootPath.TrimEnd(Path.DirectorySeparatorChar);
     }
 }
 
