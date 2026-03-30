@@ -307,12 +307,10 @@ public sealed class SessionCatalogRepository
             await deleteTask;
         }
 
-        await using (var insertCommand = new SqliteCommand(InsertSearchRowSql, connection))
-        {
-            insertCommand.Parameters.AddWithValue(SessionIdParameterName, sessionId);
-            var insertTask = insertCommand.ExecuteNonQueryAsync(cancellationToken);
-            await insertTask;
-        }
+        await using var insertCommand = new SqliteCommand(InsertSearchRowSql, connection);
+        insertCommand.Parameters.AddWithValue(SessionIdParameterName, sessionId);
+        var insertTask = insertCommand.ExecuteNonQueryAsync(cancellationToken);
+        await insertTask;
     }
 
     private Task<SqliteConnection> OpenConnectionAsync(CancellationToken cancellationToken)
@@ -438,15 +436,9 @@ public sealed class SessionCatalogRepository
         {
             var sessionId = ReadRequiredString(reader, 0);
             var preferredPath = ReadRequiredString(reader, 2);
-            List<SessionPhysicalCopy> copies;
-            if (!copiesBySession.TryGetValue(sessionId, out var existingCopies))
-            {
-                copies = [];
-            }
-            else
-            {
-                copies = existingCopies;
-            }
+            var copies = copiesBySession.TryGetValue(sessionId, out var existingCopies)
+                ? existingCopies
+                : [];
             var preferredCopy = copies.FirstOrDefault(copy => string.Equals(copy.FilePath, preferredPath, StringComparison.OrdinalIgnoreCase))
                 ?? new SessionPhysicalCopy(
                     sessionId,
