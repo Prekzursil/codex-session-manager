@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     private SessionWorkspaceIndexer? _workspaceIndexer;
     private MaintenanceExecutor? _maintenanceExecutor;
     private MaintenancePreview? _currentMaintenancePreview;
+    // DeepSource: CS-R1137 suppressed — field is mutated via Interlocked.Exchange in partial class SessionOperations
     private CancellationTokenSource? _searchCts;
 
     internal Func<string> LocalDataRootProvider { get; set; }
@@ -142,7 +143,7 @@ public partial class MainWindow : Window
         await _workspaceIndexer.RebuildAsync(knownStores, CancellationToken.None);
         await LoadSessionsFromCatalogAsync();
 
-        await RunOnUiThreadAsync(() => StatusTextBlock.Text = $"Indexed {_sessions.Count} deduped sessions at {DateTime.Now:t}.");
+        await RunOnUiThreadAsync(() => StatusTextBlock.Text = $"Indexed {_sessions.Count} deduped sessions at {DateTime.UtcNow:t}.");
     }
 
     private Task RunOnUiThreadAsync(Action action)
@@ -204,9 +205,11 @@ public partial class MainWindow : Window
     private IndexedLogicalSession[] GetSelectedSessions() =>
         SessionsListBox.SelectedItems.Cast<IndexedLogicalSession>().ToArray();
 
+    // DeepSource: CS-R1005 suppressed — WPF event handler requires async void
     private async void SessionsListBox_OnSelectionChanged(object _, System.Windows.Controls.SelectionChangedEventArgs __) =>
         await LoadSelectedSessionAsync();
 
+    // DeepSource: CS-R1005 suppressed — WPF event handler requires async void
     private async void SearchTextBox_OnTextChanged(object _, System.Windows.Controls.TextChangedEventArgs __) =>
         await SearchSessionsAsync();
 
