@@ -228,7 +228,7 @@ public static partial class SessionJsonlParser
         return commandElement.GetString();
     }
 
-    private static void ExtractFilePathsAndUrls(string value, ISet<string> filePaths, ISet<string> urls)
+    private static void ExtractFilePathsAndUrls(string value, HashSet<string> filePaths, HashSet<string> urls)
     {
         if (value is null)
         {

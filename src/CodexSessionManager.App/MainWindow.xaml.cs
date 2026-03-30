@@ -30,7 +30,7 @@ public partial class MainWindow : Window
     internal Func<SessionCatalogRepository, SessionWorkspaceIndexer> WorkspaceIndexerFactory { get; set; }
     internal Func<string, MaintenanceExecutor> MaintenanceExecutorFactory { get; set; }
     internal Action ScheduleRefreshAction { get; set; }
-    internal Func<bool, IReadOnlyList<KnownSessionStore>> KnownStoresProvider { get; set; }
+    internal Func<bool, List<KnownSessionStore>> KnownStoresProvider { get; set; }
     internal Func<string> LiveSqliteStatusProvider { get; set; }
     internal Func<string, CancellationToken, Task<ParsedSessionFile>> SessionParser { get; set; }
     internal Func<string, string> FileTextReader { get; set; }
@@ -175,7 +175,7 @@ public partial class MainWindow : Window
         return SaveFileDialogPresenter(dialog, this) == true ? dialog.FileName : null;
     }
 
-    private static IReadOnlyList<KnownSessionStore> BuildKnownStores(bool deepScan)
+    private static List<KnownSessionStore> BuildKnownStores(bool deepScan)
     {
         var codexHome = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex");
         var stores = new List<KnownSessionStore>(KnownStoreLocator.GetKnownStores(codexHome));
@@ -201,7 +201,7 @@ public partial class MainWindow : Window
 
     private IndexedLogicalSession? GetSelectedSession() => SessionsListBox.SelectedItem as IndexedLogicalSession;
 
-    private IReadOnlyList<IndexedLogicalSession> GetSelectedSessions() =>
+    private IndexedLogicalSession[] GetSelectedSessions() =>
         SessionsListBox.SelectedItems.Cast<IndexedLogicalSession>().ToArray();
 
     private async void SessionsListBox_OnSelectionChanged(object _, System.Windows.Controls.SelectionChangedEventArgs __) =>
@@ -321,7 +321,7 @@ public partial class MainWindow : Window
     private void BuildPreviewButton_OnClick(object _, RoutedEventArgs __)
     {
         var selectedSessions = GetSelectedSessions();
-        if (selectedSessions.Count == 0)
+        if (selectedSessions.Length == 0)
         {
             return;
         }
