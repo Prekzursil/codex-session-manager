@@ -297,7 +297,7 @@ public sealed class MainWindowCoverageTests
 
                 SetProvider(window, "LocalDataRootProvider", () => root);
                 SetProvider(window, "ScheduleRefreshAction", (Action)(() => scheduled++));
-                SetProvider(window, "KnownStoresProvider", (Func<bool, IReadOnlyList<KnownSessionStore>>)(_ => Array.Empty<KnownSessionStore>()));
+                SetProvider(window, "KnownStoresProvider", (Func<bool, List<KnownSessionStore>>)(_ => new List<KnownSessionStore>()));
 
                 await InvokePrivateTaskAsync(window, InitializeAsyncMethod);
 
@@ -367,7 +367,7 @@ public sealed class MainWindowCoverageTests
                 var indexer = new SessionWorkspaceIndexer(repository);
                 var window = new MainWindow();
                 var stores =
-                    new[]
+                    new List<KnownSessionStore>
                     {
                         new KnownSessionStore(
                             root,
@@ -383,7 +383,7 @@ public sealed class MainWindowCoverageTests
 
                 RepositoryField.SetValue(window, repository);
                 WorkspaceIndexerField.SetValue(window, indexer);
-                SetProvider(window, "KnownStoresProvider", (Func<bool, IReadOnlyList<KnownSessionStore>>)(_ => stores));
+                SetProvider(window, "KnownStoresProvider", (Func<bool, List<KnownSessionStore>>)(_ => stores));
 
                 await InvokePrivateTaskAsync(window, RefreshAsyncMethod, false);
 
@@ -410,7 +410,7 @@ public sealed class MainWindowCoverageTests
                 var indexer = new SessionWorkspaceIndexer(repository);
                 var window = new MainWindow();
                 var stores =
-                    new[]
+                    new List<KnownSessionStore>
                     {
                         new KnownSessionStore(
                             root,
@@ -426,7 +426,7 @@ public sealed class MainWindowCoverageTests
 
                 RepositoryField.SetValue(window, repository);
                 WorkspaceIndexerField.SetValue(window, indexer);
-                SetProvider(window, "KnownStoresProvider", (Func<bool, IReadOnlyList<KnownSessionStore>>)(deepScan =>
+                SetProvider(window, "KnownStoresProvider", (Func<bool, List<KnownSessionStore>>)(deepScan =>
                 {
                     Assert.True(deepScan);
                     return stores;
@@ -459,7 +459,7 @@ public sealed class MainWindowCoverageTests
                 SetProvider(
                     window,
                     "KnownStoresProvider",
-                    (Func<bool, IReadOnlyList<KnownSessionStore>>)(_ => throw new InvalidOperationException("refresh boom")));
+                    (Func<bool, List<KnownSessionStore>>)(_ => throw new InvalidOperationException("refresh boom")));
 
                 await InvokePrivateTaskAsync(window, RunBackgroundRefreshAsyncMethod);
 
@@ -484,7 +484,7 @@ public sealed class MainWindowCoverageTests
                 var window = new MainWindow();
                 RepositoryField.SetValue(window, repository);
                 WorkspaceIndexerField.SetValue(window, new SessionWorkspaceIndexer(repository));
-                SetProvider(window, "KnownStoresProvider", (Func<bool, IReadOnlyList<KnownSessionStore>>)(_ => Array.Empty<KnownSessionStore>()));
+                SetProvider(window, "KnownStoresProvider", (Func<bool, List<KnownSessionStore>>)(_ => new List<KnownSessionStore>()));
 
                 await InvokePrivateTaskAsync(window, RunBackgroundRefreshAsyncMethod);
 
@@ -1270,8 +1270,8 @@ public sealed class MainWindowCoverageTests
         });
     }
 
-    private static IReadOnlyList<KnownSessionStore> InvokeBuildKnownStores(bool deepScan) =>
-        (IReadOnlyList<KnownSessionStore>)BuildKnownStoresMethod.Invoke(null, [deepScan])!;
+    private static List<KnownSessionStore> InvokeBuildKnownStores(bool deepScan) =>
+        (List<KnownSessionStore>)BuildKnownStoresMethod.Invoke(null, [deepScan])!;
 
     private static Task InvokePrivateTaskAsync(object instance, MethodInfo method, params object?[] args) =>
         (Task)method.Invoke(instance, args)!;
