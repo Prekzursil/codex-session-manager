@@ -1,28 +1,33 @@
 # Security Policy
 
-## Supported versions
+## Supported Versions
 
-Until a stable versioning policy is established, only the latest tagged release is considered supported for security fixes.
+Security fixes are applied to the `main` branch.
 
-## Reporting a vulnerability
+| Version | Supported |
+| --- | --- |
+| `main` | :white_check_mark: |
+| Other branches/tags | :x: |
 
-Please do **not** open public GitHub issues for sensitive security reports.
+## Reporting a Vulnerability
 
-Instead:
+Please do **not** open public GitHub issues for undisclosed security findings.
 
-1. open a private security advisory if available for the repository, or
-2. contact the maintainer directly with a concise reproduction and impact summary
+Use GitHub Private Vulnerability Reporting for this repository:
+<https://github.com/Prekzursil/codex-session-manager/security/advisories/new>
 
-Include:
+If private advisory reporting is unavailable, contact the maintainer privately on GitHub (`@Prekzursil`).
 
-- affected version or commit
-- reproduction steps
-- expected vs actual behavior
-- whether the issue can expose private local session content, metadata, or unsafe maintenance behavior
+When reporting, include:
 
-## Security expectations for contributors
+- the affected component, file, workflow, or dependency
+- the exact commit, branch, or release if known
+- clear reproduction or proof-of-concept steps
+- impact details covering confidentiality, integrity, or availability
+- any suggested mitigation if known
 
-- do not add telemetry or network sync without explicit review
-- do not weaken maintenance confirmations or checkpoint creation
-- do not make live Codex SQLite state writable in v1
-- do not add real personal session data to tests, docs, fixtures, or screenshots
+## Disclosure Expectations
+
+- Initial acknowledgment: best effort within 3 business days.
+- Triage update: best effort within 7 business days.
+- Coordinated disclosure is expected; please allow time to investigate and patch before public disclosure.
