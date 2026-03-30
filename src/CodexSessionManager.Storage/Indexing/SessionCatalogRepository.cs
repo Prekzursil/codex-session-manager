@@ -326,7 +326,7 @@ public sealed class SessionCatalogRepository
         return Task.FromResult(connection);
     }
 
-    private static IReadOnlyList<string> SplitLines(string value)
+    private static string[] SplitLines(string value)
     {
         var nonNullValue = value ?? throw new ArgumentNullException(nameof(value));
 
