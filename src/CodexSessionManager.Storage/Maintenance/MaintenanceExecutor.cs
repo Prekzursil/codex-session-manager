@@ -6,6 +6,7 @@ namespace CodexSessionManager.Storage.Maintenance;
 
 public sealed class MaintenanceExecutor
 {
+    private static readonly JsonSerializerOptions IndentedJsonOptions = new() { WriteIndented = true };
     private readonly string _checkpointRoot;
 
     public MaintenanceExecutor(string checkpointRoot)
@@ -68,7 +69,7 @@ public sealed class MaintenanceExecutor
         };
         await File.WriteAllTextAsync(
             manifestPath,
-            JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }),
+            JsonSerializer.Serialize(payload, IndentedJsonOptions),
             cancellationToken);
 
         return new MaintenanceExecutionResult(
